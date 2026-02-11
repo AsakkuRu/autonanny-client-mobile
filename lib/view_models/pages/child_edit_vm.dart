@@ -155,7 +155,7 @@ class ChildEditVM extends ViewModelBase {
           ? null 
           : characterNotesController.text.trim(),
       photoPath: photoPath,
-      idUser: 0, // Будет установлен на сервере
+      idUser: NannyUser.userInfo?.id ?? 0,
     );
 
     // Сохраняем

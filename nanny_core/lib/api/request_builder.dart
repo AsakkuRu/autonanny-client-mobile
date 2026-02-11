@@ -12,15 +12,8 @@ class RequestBuilder<T> {
   }) async {
     late Response result;
     try {
-      print(DioRequest.authToken);
       result = await dioRequest;
-      print('current result ${result.data}');
-      print('response status code ${result.statusCode}');
     } on DioException catch (e) {
-      print('response status code ${e.response?.statusCode}');
-      print('response data ${e.response?.data}');
-      print('error message data ${e.error}');
-      print('error message data ${e.error}');
       if (e.response == null) {
         return ApiResponse(
             statusCode: 422,

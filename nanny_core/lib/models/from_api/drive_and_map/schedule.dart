@@ -121,7 +121,10 @@ class Road {
       typeDrive: json["type_drive"] == null
           ? []
           : List<DriveType>.from(
-              json["type_drive"].map((x) => DriveType.values[x])),
+              json["type_drive"].map((x) => DriveType.values.firstWhere(
+                (dt) => dt.id == x,
+                orElse: () => DriveType.oneWay,
+              ))),
       children: json["children"] == null
           ? null
           : List<int>.from(json["children"]), // FE-MVP-015
@@ -135,7 +138,7 @@ class Road {
         "end_time": endTime.formatTime(),
         "addresses": addresses.map((x) => x.toJson()).toList(),
         "title": title,
-        "type_drive": typeDrive.map((x) => x.index).toList(),
+        "type_drive": typeDrive.map((x) => x.id).toList(),
         if (children != null) "children": children, // FE-MVP-015
       };
 

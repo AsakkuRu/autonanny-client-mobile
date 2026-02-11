@@ -29,9 +29,10 @@ class NannyMapUtils {
     );
 
     if(addresses.isEmpty) {
-        return GeocodeFormatResult(
-        address: addresses.first, 
-        simplifiedAddress: addresses.first.formattedAddress,
+      var fallback = data.geocodeResults.first;
+      return GeocodeFormatResult(
+        address: fallback, 
+        simplifiedAddress: simplifyAddress(fallback.formattedAddress),
       );
     }
 

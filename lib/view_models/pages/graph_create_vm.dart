@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/base_views/views/pages/wallet.dart';
 import 'package:nanny_components/dialogs/loading.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
@@ -96,8 +95,8 @@ class GraphCreateVM extends ViewModelBase {
   }
 
   void addOrEditRoute({Road? updatingRoad}) async {
-    if (updatingRoad == null && selectedWeekday.length < 4) {
-      NannyDialogs.showMessageBox(context, "Ошибка", "Выберите от 4 дней");
+    if (updatingRoad == null && selectedWeekday.isEmpty) {
+      NannyDialogs.showMessageBox(context, "Ошибка", "Выберите хотя бы один день");
       return;
     }
     var road = await NannyDialogs.showRouteCreateOrEditSheet(
@@ -223,72 +222,6 @@ class GraphCreateVM extends ViewModelBase {
     if (!editor.valiateSchedule()) {
       NannyDialogs.showMessageBox(context, "Ошибка", "Заполните форму!");
       return;
-    }
-    
-    // FE-MVP-015: Валидация выбора детей
-    if (selectedChildrenIds.isEmpty) {
-      NannyDialogs.showMessageBox(
-        context,
-        "Ошибка",
-        "Выберите хотя бы одного ребенка",
-      );
-      return;
-    }
-    
-    // FE-MVP-008: Валидация минимум 4 поездки в месяц
-    int tripsPerMonth = _calculateTripsPerMonth();
-    if (tripsPerMonth < 4) {
-      NannyDialogs.showMessageBox(
-        context,
-        "Недостаточно поездок",
-        "Минимальное количество поездок в месяц - 4.\n\n"
-        "Сейчас: $tripsPerMonth ${_getTripsWord(tripsPerMonth)}/мес\n\n"
-        "Добавьте больше маршрутов или дней недели.",
-      );
-      return;
-    }
-    
-    // Проверка баланса перед созданием нового расписания
-    if (schedule == null) {
-      LoadScreen.showLoad(context, true);
-      var balanceResult = await NannyUsersApi.getMoney(period: 'current_year');
-      LoadScreen.showLoad(context, false);
-      
-      if (!balanceResult.success) {
-        if (context.mounted) {
-          NannyDialogs.showMessageBox(
-            context, 
-            "Ошибка", 
-            "Не удалось проверить баланс. Попробуйте позже."
-          );
-        }
-        return;
-      }
-      
-      double currentBalance = balanceResult.response!.balance;
-      
-      // Если баланс <= 0, показываем диалог с предложением пополнения
-      if (currentBalance <= 0) {
-        if (!context.mounted) return;
-        bool shouldTopUp = await NannyDialogs.showInsufficientBalanceDialog(
-          context,
-          currentBalance: currentBalance,
-        );
-        
-        if (shouldTopUp && context.mounted) {
-          // Переход на страницу пополнения баланса
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const WalletView(
-                title: "Пополнение баланса",
-                subtitle: "Выберите способ пополнения",
-              ),
-            ),
-          );
-        }
-        return;
-      }
     }
     
     LoadScreen.showLoad(context, true);
