@@ -43,74 +43,117 @@ class MapVM extends ViewModelBase {
   Future<LatLng> initialLoad() async {
     const defaultLocation = LatLng(55.751244, 37.618423); // Москва
     
-    // Проверяем и запрашиваем разрешения
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    
-    // Если разрешения не даны - используем дефолтную позицию
-    if (permission == LocationPermission.denied || 
-        permission == LocationPermission.deniedForever) {
-      curLocName = "Москва (разрешите доступ к геолокации)";
+    try {
+      // Проверяем и запрашиваем разрешения
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
       
-      _panel = const ErrorView(
-        errorText: "Для использования карты необходимо\n"
-          "разрешить доступ к геолокации в настройках"
+      // Если разрешения не даны - используем дефолтную позицию
+      if (permission == LocationPermission.denied || 
+          permission == LocationPermission.deniedForever) {
+        curLocName = 'Москва (разрешите доступ к геолокации)';
+        
+        _panel = const ErrorView(
+          errorText: 'Для использования карты необходимо\n'
+            'разрешить доступ к геолокации в настройках'
+        );
+        
+        return defaultLocation;
+      }
+
+      // Проверяем включена ли геолокация
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        curLocName = 'Москва (включите геолокацию)';
+        _panel = const ErrorView(
+          errorText: 'Для использования карты необходимо\n'
+            'включить геолокацию в настройках устройства'
+        );
+        return defaultLocation;
+      }
+
+      // Получаем текущую позицию с таймаутом
+      Position loc;
+      try {
+        loc = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        ).timeout(const Duration(seconds: 10));
+      } catch (_) {
+        var lastKnown = await Geolocator.getLastKnownPosition();
+        if (lastKnown != null) {
+          loc = lastKnown;
+        } else {
+          try {
+            loc = await Geolocator.getCurrentPosition(
+              desiredAccuracy: LocationAccuracy.low,
+            ).timeout(const Duration(seconds: 10));
+          } catch (_) {
+            curLocName = 'Москва (не удалось определить позицию)';
+            _panel = const ErrorView(
+              errorText: 'Не удалось определить ваше местоположение.\n'
+                'Проверьте настройки геолокации.'
+            );
+            return defaultLocation;
+          }
+        }
+      }
+      
+      curPos = Marker(
+        markerId: NannyConsts.curPosId,
+        icon: NannyConsts.curPosIcon,
+        anchor: const Offset(.5, .5),
+        position: NannyMapUtils.position2LatLng(loc),
       );
-      
+
+      const LocationSettings locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      );
+
+      locChange = Geolocator.getPositionStream(locationSettings: locationSettings)
+          .listen((Position loc) {
+        mapMarkers.value.remove(curPos);
+
+        lastLoc ??= loc;
+        var newLoc = NannyMapUtils.filterMovement(
+          NannyMapUtils.position2LatLng(loc), 
+          NannyMapUtils.position2LatLng(lastLoc!),
+        );
+        curPos = curPos.copyWith(positionParam: newLoc);
+        mapMarkers.value.add(curPos);
+        if(context.mounted) update(() {});
+      });
+
+      var geocodeData = await GoogleMapApi.reverseGeocode(loc: NannyMapUtils.position2LatLng(loc));
+
+      if(geocodeData.success) {
+        var formatedAddress = NannyMapUtils.filterGeocodeData(geocodeData.response!);
+        curLocName = formatedAddress.simplifiedAddress;
+
+        _panel = DriveOrderView(
+          controller: scrollController,
+          initAddress: formatedAddress.address,
+        );
+      }
+      else {
+        curLocName = 'Адрес не определён';
+        _panel = const ErrorView(
+          errorText: 'Не удалось определить адрес.\n'
+            'Попробуйте перезапустить приложение.'
+        );
+      }
+
+      return NannyMapUtils.position2LatLng(loc);
+    } catch (e) {
+      Logger().e('Map initialLoad error: $e');
+      curLocName = 'Москва';
+      _panel = const ErrorView(
+        errorText: 'Произошла ошибка при загрузке карты.\n'
+          'Попробуйте перезапустить приложение.'
+      );
       return defaultLocation;
     }
-
-    // Получаем текущую позицию
-    Position loc = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-    
-    curPos = Marker(
-      markerId: NannyConsts.curPosId,
-      icon: NannyConsts.curPosIcon,
-      anchor: const Offset(.5, .5),
-      position: NannyMapUtils.position2LatLng(loc),
-    );
-
-    const LocationSettings locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
-    );
-
-    locChange = Geolocator.getPositionStream(locationSettings: locationSettings)
-        .listen((Position loc) {
-      mapMarkers.value.remove(curPos);
-
-      lastLoc ??= loc;
-      var newLoc = NannyMapUtils.filterMovement(
-        NannyMapUtils.position2LatLng(loc), 
-        NannyMapUtils.position2LatLng(lastLoc!),
-      );
-      curPos = curPos.copyWith(positionParam: newLoc);
-      mapMarkers.value.add(curPos);
-      if(context.mounted) update(() {});
-    });
-
-    var geocodeData = await GoogleMapApi.reverseGeocode(loc: NannyMapUtils.position2LatLng(loc));
-
-    if(geocodeData.success) {
-      var formatedAddress = NannyMapUtils.filterGeocodeData(geocodeData.response!);
-      curLocName = formatedAddress.simplifiedAddress;
-
-      _panel = DriveOrderView(
-        controller: scrollController,
-        initAddress: formatedAddress.address,
-      );
-    }
-    else {
-      _panel = const ErrorView(
-        errorText: "Не удалось инициализировать окно заказа.\n"
-          "Пожалуйста, перезапустите приложение!"
-      );
-    }
-
-    return NannyMapUtils.position2LatLng(loc);
   }
 }
