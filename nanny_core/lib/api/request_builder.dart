@@ -26,12 +26,24 @@ class RequestBuilder<T> {
             statusCode: 500, errorMessage: "Сервер не отвечает!");
       }
 
+      // Try to extract error message from response body
       String? errorMessage;
+      try {
+        final data = e.response!.data;
+        if (data is Map) {
+          errorMessage = data['message'] ?? data['error'] ?? data['detail'];
+        }
+      } catch (_) {}
+
+      // Check custom error code messages
       errorCodeMsgs?.forEach((key, value) {
         if (e.response!.statusCode == key) errorMessage = value;
       });
 
-      return ApiResponse(errorMessage: errorMessage ?? defaultErrorMsg);
+      return ApiResponse(
+        statusCode: e.response!.statusCode ?? 0,
+        errorMessage: errorMessage ?? defaultErrorMsg,
+      );
     } catch (e) {
       return ApiResponse(errorMessage: "Отсутствует подключение к интернету");
     }

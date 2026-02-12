@@ -159,20 +159,28 @@ class ChildEditVM extends ViewModelBase {
     );
 
     // Сохраняем
-    final result = child == null
-        ? await NannyChildrenApi.createChild(childData)
-        : await NannyChildrenApi.updateChild(child!.id!, childData);
-
-    if (!context.mounted) return;
-    LoadScreen.showLoad(context, false);
-
-    if (!result.success) {
-      NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
-      return;
+    int? savedChildId;
+    if (child == null) {
+      final createResult = await NannyChildrenApi.createChild(childData);
+      if (!context.mounted) return;
+      LoadScreen.showLoad(context, false);
+      if (!createResult.success) {
+        NannyDialogs.showMessageBox(context, "Ошибка", createResult.errorMessage);
+        return;
+      }
+      savedChildId = createResult.response;
+    } else {
+      final updateResult = await NannyChildrenApi.updateChild(child!.id!, childData);
+      if (!context.mounted) return;
+      LoadScreen.showLoad(context, false);
+      if (!updateResult.success) {
+        NannyDialogs.showMessageBox(context, "Ошибка", updateResult.errorMessage);
+        return;
+      }
+      savedChildId = child!.id;
     }
 
     // FE-MVP-013: Сохраняем медицинскую информацию
-    final savedChildId = result.response?.id ?? childData.id;
     if (savedChildId != null) {
       await _saveMedicalInfo(savedChildId);
     }

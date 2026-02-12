@@ -18,10 +18,10 @@ class NannyChildrenApi {
   }
 
   // FE-MVP-012: Создание ребенка
-  static Future<ApiResponse<Child>> createChild(Child child) async {
-    return RequestBuilder<Child>().create(
+  static Future<ApiResponse<int>> createChild(Child child) async {
+    return RequestBuilder<int>().create(
       dioRequest: DioRequest.dio.post("/users/add_child", data: child.toJson()),
-      onSuccess: (response) => Child.fromJson(response.data['child']),
+      onSuccess: (response) => response.data['child_id'] as int,
       errorCodeMsgs: {
         400: "Некорректные данные ребенка"
       },
@@ -29,10 +29,9 @@ class NannyChildrenApi {
   }
 
   // FE-MVP-012: Обновление ребенка
-  static Future<ApiResponse<Child>> updateChild(int childId, Child child) async {
-    return RequestBuilder<Child>().create(
+  static Future<ApiResponse> updateChild(int childId, Child child) async {
+    return RequestBuilder().create(
       dioRequest: DioRequest.dio.put("/users/update_child/$childId", data: child.toJson()),
-      onSuccess: (response) => Child.fromJson(response.data['child']),
       errorCodeMsgs: {
         404: "Ребенок не найден",
         403: "Нет доступа к редактированию"
