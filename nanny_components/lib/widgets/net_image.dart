@@ -35,15 +35,18 @@ class NetImage extends StatelessWidget {
                 "Authorization": "Bearer ${DioRequest.authToken}"
               }
             ),
-            imageErrorBuilder: (context, error, stackTrace) => Container(
-              color: const Color(0xFFE0E0E0),
-              alignment: Alignment.center,
-              child: Icon(
-                Icons.person,
-                color: const Color(0xFF9E9E9E),
-                size: radius * 0.6,
-              ),
-            ),
+            imageErrorBuilder: (context, error, stackTrace) {
+              debugPrint('NetImage error for $url: $error');
+              return Container(
+                color: const Color(0xFFE0E0E0),
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.person,
+                  color: const Color(0xFF9E9E9E),
+                  size: radius * 0.6,
+                ),
+              );
+            },
           ),
         );
       }
@@ -59,15 +62,18 @@ class NetImage extends StatelessWidget {
             "Authorization": "Bearer ${DioRequest.authToken}"
           }
         ),
-        imageErrorBuilder: (context, error, stackTrace) => Container(
-          color: const Color(0xFFE0E0E0),
-          alignment: Alignment.center,
-          child: Icon(
-            Icons.person,
-            color: const Color(0xFF9E9E9E),
-            size: radius * 0.6,
-          ),
-        ),
+        imageErrorBuilder: (context, error, stackTrace) {
+          debugPrint('NetImage error for $url: $error');
+          return Container(
+            color: const Color(0xFFE0E0E0),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.person,
+              color: const Color(0xFF9E9E9E),
+              size: radius * 0.6,
+            ),
+          );
+        },
       ),
     );
   }

@@ -6,8 +6,8 @@ class ChildMedicalInfo {
     this.chronicDiseases,
     this.medications,
     this.bloodType,
-    this.insuranceNumber,
-    this.insuranceScanPath,
+    this.medicalPolicyNumber,
+    this.specialNeeds,
     this.doctorNotes,
   });
 
@@ -17,8 +17,8 @@ class ChildMedicalInfo {
   final String? chronicDiseases;
   final String? medications;
   final String? bloodType;
-  final String? insuranceNumber;
-  final String? insuranceScanPath;
+  final String? medicalPolicyNumber;
+  final String? specialNeeds;
   final String? doctorNotes;
 
   factory ChildMedicalInfo.fromJson(Map<String, dynamic> json) {
@@ -29,8 +29,8 @@ class ChildMedicalInfo {
       chronicDiseases: json['chronic_diseases'],
       medications: json['medications'],
       bloodType: json['blood_type'],
-      insuranceNumber: json['insurance_number'],
-      insuranceScanPath: json['insurance_scan_path'],
+      medicalPolicyNumber: json['medical_policy_number'],
+      specialNeeds: json['special_needs'],
       doctorNotes: json['doctor_notes'],
     );
   }
@@ -43,8 +43,20 @@ class ChildMedicalInfo {
       if (chronicDiseases != null) 'chronic_diseases': chronicDiseases,
       if (medications != null) 'medications': medications,
       if (bloodType != null) 'blood_type': bloodType,
-      if (insuranceNumber != null) 'insurance_number': insuranceNumber,
-      if (insuranceScanPath != null) 'insurance_scan_path': insuranceScanPath,
+      if (medicalPolicyNumber != null) 'medical_policy_number': medicalPolicyNumber,
+      if (specialNeeds != null) 'special_needs': specialNeeds,
+      if (doctorNotes != null) 'doctor_notes': doctorNotes,
+    };
+  }
+
+  Map<String, dynamic> toUpdateJson() {
+    return {
+      if (allergies != null) 'allergies': allergies,
+      if (chronicDiseases != null) 'chronic_diseases': chronicDiseases,
+      if (medications != null) 'medications': medications,
+      if (bloodType != null) 'blood_type': bloodType,
+      if (medicalPolicyNumber != null) 'medical_policy_number': medicalPolicyNumber,
+      if (specialNeeds != null) 'special_needs': specialNeeds,
       if (doctorNotes != null) 'doctor_notes': doctorNotes,
     };
   }

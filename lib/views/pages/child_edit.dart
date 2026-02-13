@@ -263,10 +263,14 @@ class _ChildEditViewState extends State<ChildEditView> {
                         hint: const Text('Группа крови'),
                         isExpanded: true,
                         items: const [
-                          DropdownMenuItem(value: 'I (0)', child: Text('I (0)')),
-                          DropdownMenuItem(value: 'II (A)', child: Text('II (A)')),
-                          DropdownMenuItem(value: 'III (B)', child: Text('III (B)')),
-                          DropdownMenuItem(value: 'IV (AB)', child: Text('IV (AB)')),
+                          DropdownMenuItem(value: 'O+', child: Text('I (O+)')),
+                          DropdownMenuItem(value: 'O-', child: Text('I (O-)')),
+                          DropdownMenuItem(value: 'A+', child: Text('II (A+)')),
+                          DropdownMenuItem(value: 'A-', child: Text('II (A-)')),
+                          DropdownMenuItem(value: 'B+', child: Text('III (B+)')),
+                          DropdownMenuItem(value: 'B-', child: Text('III (B-)')),
+                          DropdownMenuItem(value: 'AB+', child: Text('IV (AB+)')),
+                          DropdownMenuItem(value: 'AB-', child: Text('IV (AB-)')),
                         ],
                         onChanged: (value) {
                           vm.bloodType = value;
@@ -279,7 +283,7 @@ class _ChildEditViewState extends State<ChildEditView> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: NannyTextForm(
-                    controller: vm.insuranceNumberController,
+                    controller: vm.policyNumberController,
                     hintText: "Полис ОМС",
                   ),
                 ),

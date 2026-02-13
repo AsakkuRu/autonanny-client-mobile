@@ -51,10 +51,14 @@ class NannyChildrenApi {
   }
 
   // FE-MVP-013: Получение медицинской информации ребенка
-  static Future<ApiResponse<ChildMedicalInfo>> getMedicalInfo(int childId) async {
-    return RequestBuilder<ChildMedicalInfo>().create(
+  static Future<ApiResponse<ChildMedicalInfo?>> getMedicalInfo(int childId) async {
+    return RequestBuilder<ChildMedicalInfo?>().create(
       dioRequest: DioRequest.dio.get("/users/medical_info/$childId"),
-      onSuccess: (response) => ChildMedicalInfo.fromJson(response.data['medical_info']),
+      onSuccess: (response) {
+        final data = response.data['medical_info'];
+        if (data == null) return null;
+        return ChildMedicalInfo.fromJson(data);
+      },
       errorCodeMsgs: {
         404: "Медицинская информация не найдена"
       },
@@ -62,22 +66,20 @@ class NannyChildrenApi {
   }
 
   // FE-MVP-013: Создание медицинской информации
-  static Future<ApiResponse<ChildMedicalInfo>> createMedicalInfo(ChildMedicalInfo info) async {
-    return RequestBuilder<ChildMedicalInfo>().create(
+  static Future<ApiResponse> createMedicalInfo(ChildMedicalInfo info) async {
+    return RequestBuilder().create(
       dioRequest: DioRequest.dio.post("/users/medical_info", data: info.toJson()),
-      onSuccess: (response) => ChildMedicalInfo.fromJson(response.data['medical_info']),
       errorCodeMsgs: {
+        400: "Медицинская информация уже существует",
         404: "Ребенок не найден",
-        409: "Медицинская информация уже существует"
       },
     );
   }
 
   // FE-MVP-013: Обновление медицинской информации
-  static Future<ApiResponse<ChildMedicalInfo>> updateMedicalInfo(int childId, ChildMedicalInfo info) async {
-    return RequestBuilder<ChildMedicalInfo>().create(
-      dioRequest: DioRequest.dio.put("/users/medical_info/$childId", data: info.toJson()),
-      onSuccess: (response) => ChildMedicalInfo.fromJson(response.data['medical_info']),
+  static Future<ApiResponse> updateMedicalInfo(int childId, ChildMedicalInfo info) async {
+    return RequestBuilder().create(
+      dioRequest: DioRequest.dio.put("/users/medical_info/$childId", data: info.toUpdateJson()),
       errorCodeMsgs: {
         404: "Медицинская информация не найдена"
       },
@@ -109,10 +111,10 @@ class NannyChildrenApi {
   }
 
   // FE-MVP-014: Создание экстренного контакта
-  static Future<ApiResponse<EmergencyContact>> createEmergencyContact(EmergencyContact contact) async {
-    return RequestBuilder<EmergencyContact>().create(
+  static Future<ApiResponse<int>> createEmergencyContact(EmergencyContact contact) async {
+    return RequestBuilder<int>().create(
       dioRequest: DioRequest.dio.post("/users/emergency_contacts", data: contact.toJson()),
-      onSuccess: (response) => EmergencyContact.fromJson(response.data['contact']),
+      onSuccess: (response) => response.data['contact_id'] as int,
       errorCodeMsgs: {
         404: "Ребенок не найден"
       },
@@ -120,10 +122,9 @@ class NannyChildrenApi {
   }
 
   // FE-MVP-014: Обновление экстренного контакта
-  static Future<ApiResponse<EmergencyContact>> updateEmergencyContact(int contactId, EmergencyContact contact) async {
-    return RequestBuilder<EmergencyContact>().create(
+  static Future<ApiResponse> updateEmergencyContact(int contactId, EmergencyContact contact) async {
+    return RequestBuilder().create(
       dioRequest: DioRequest.dio.put("/users/emergency_contacts/$contactId", data: contact.toJson()),
-      onSuccess: (response) => EmergencyContact.fromJson(response.data['contact']),
       errorCodeMsgs: {
         404: "Контакт не найден",
         403: "Нет доступа к контакту"
