@@ -35,6 +35,7 @@ dev_dependencies:
 
 flutter:
   assets:
+    - shorebird.yaml
     - ./nanny_components/assets/
     - ./nanny_components/assets/images/
     - ./nanny_components/assets/images/map/
