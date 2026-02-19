@@ -2,7 +2,9 @@ import 'package:nanny_client/views/pages/graph_create.dart';
 import 'package:nanny_components/dialogs/loading.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
+import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
+import 'package:nanny_core/api/api_models/answer_schedule_request.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -18,6 +20,7 @@ class GraphVM extends ViewModelBase {
   List<Schedule> schedules = [];
   Schedule? selectedSchedule;
   DriverContact? driverContact;
+  List<ScheduleResponsesData> responses = [];
 
   List<NannyWeekday> selectedWeekday = [
     NannyWeekday.values[DateTime.now().weekday - 1]
@@ -199,6 +202,29 @@ class GraphVM extends ViewModelBase {
     );
   }
 
+  void answerResponse(ScheduleResponsesData response, bool accept) async {
+    LoadScreen.showLoad(context, true);
+    var result = await NannyOrdersApi.answerScheduleRequest(
+      AnswerScheduleRequest(
+        idSchedule: response.idSchedule,
+        idResponse: response.id,
+        flag: accept,
+      ),
+    );
+    if (!context.mounted) return;
+    LoadScreen.showLoad(context, false);
+    if (!result.success) {
+      NannyDialogs.showMessageBox(context, 'Ошибка', result.errorMessage);
+      return;
+    }
+    NannyDialogs.showMessageBox(
+      context,
+      'Успех',
+      accept ? 'Водитель принят' : 'Отклик отклонён',
+    );
+    reloadPage();
+  }
+
   @override
   Future<bool> loadPage() async {
     var scheduleResult = await NannyOrdersApi.getSchedules();
@@ -206,6 +232,11 @@ class GraphVM extends ViewModelBase {
 
     schedules = scheduleResult.response!;
     selectedSchedule = schedules.firstOrNull;
+
+    var responsesResult = await NannyOrdersApi.getScheduleResponses();
+    if (responsesResult.success && responsesResult.response != null) {
+      responses = responsesResult.response!;
+    }
 
     return true;
   }

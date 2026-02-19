@@ -150,6 +150,40 @@ class _GraphViewState extends State<GraphView>
 
                       return Column(
                         children: [
+                          // C-026: Отклики водителей
+                          if (vm.responses.where((r) => r.idSchedule == vm.selectedSchedule?.id).isNotEmpty) ...[
+                            const Text('Отклики водителей',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            ...vm.responses
+                                .where((r) => r.idSchedule == vm.selectedSchedule?.id)
+                                .map((r) => Card(
+                                      child: ListTile(
+                                        leading: CircleAvatar(
+                                          child: r.photoPath.isNotEmpty
+                                              ? ProfileImage(url: r.photoPath, radius: 40, padding: EdgeInsets.zero)
+                                              : const Icon(Icons.person),
+                                        ),
+                                        title: Text(r.name),
+                                        subtitle: Text('${r.data.length} маршрутов'),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(Icons.check, color: Colors.green),
+                                              onPressed: () => vm.answerResponse(r, true),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.close, color: Colors.red),
+                                              onPressed: () => vm.answerResponse(r, false),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )),
+                            const SizedBox(height: 16),
+                          ],
+                          
                           // Карточка контактов водителя (FE-MVP-009)
                           if (vm.driverContact != null) ...[
                             DriverContactCard(

@@ -22,7 +22,7 @@ class OnetimeDriveRequest implements NannyBaseRequest {
     final String description;
     final int typeDrive;
     final int idTariff;
-    final List<int> otherParametrs;
+    final List<Map<String, dynamic>> otherParametrs;
 
     // factory OnetimeDriveRequest.fromJson(Map<String, dynamic> json){ 
     //     return OnetimeDriveRequest(
@@ -49,9 +49,9 @@ class OnetimeDriveRequest implements NannyBaseRequest {
         "distance": distance,
         "duration": duration,
         "description": description,
-        "typeDrive": typeDrive,
+        "type_drive": typeDrive,
         "idTariff": idTariff,
-        "other_parametrs": otherParametrs.map((x) => x).toList(),
+        "other_parametrs": otherParametrs,
     };
 }
 

@@ -26,8 +26,8 @@ class _DriverSearchViewState extends State<DriverSearchView> {
 
   @override
   void dispose() {
-    super.dispose();
     vm.dispose();
+    super.dispose();
   }
 
   @override
@@ -40,16 +40,50 @@ class _DriverSearchViewState extends State<DriverSearchView> {
         }
 
         return Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(children: [
-              const Text("Поиск водителя..."),
-              const SizedBox(height: 10),
-              const LinearProgressIndicator(),
-              const SizedBox(height: 50),
-              ElevatedButton(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                vm.driverFound ? Icons.check_circle : Icons.search,
+                size: 64,
+                color: vm.driverFound ? Colors.green : NannyTheme.primary,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                vm.statusText,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              if (vm.isSearching) const LinearProgressIndicator(),
+              if (vm.driverLocation != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Координаты водителя: ${vm.driverLocation!['lat']?.toStringAsFixed(4)}, ${vm.driverLocation!['lon']?.toStringAsFixed(4)}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+              const SizedBox(height: 30),
+              if (vm.isSearching)
+                ElevatedButton(
+                  onPressed: vm.cancelSearch,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('Отменить поиск'),
+                ),
+              if (!vm.isSearching && !vm.driverFound)
+                ElevatedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("Отменить"))
-            ]));
+                  child: const Text('Назад'),
+                ),
+              if (vm.driverFound)
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Закрыть'),
+                ),
+            ],
+          ),
+        );
       },
       errorView: (context, error) => ErrorView(errorText: error.toString()),
     );
