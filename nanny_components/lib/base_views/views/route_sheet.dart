@@ -135,6 +135,17 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                   //     ),
                   //   ],
                   // ),
+                  CheckboxListTile(
+                    value: vm.isRoundTrip,
+                    onChanged: (value) {
+                      vm.isRoundTrip = value ?? false;
+                      setState(() {});
+                    },
+                    title: const Text('Туда и обратно'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 10),
                   const Text("Время от и до:",
                       style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),

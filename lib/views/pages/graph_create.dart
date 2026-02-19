@@ -314,12 +314,8 @@ class _GraphCreateState extends State<GraphCreate> {
 
   // FE-MVP-008: Виджет счётчика поездок в месяц
   Widget _buildTripsCounter(GraphCreateVM vm) {
-    // Подсчёт уникальных дней недели
-    Set<NannyWeekday> uniqueDays = {};
-    for (var road in vm.editor.roads) {
-      uniqueDays.add(road.weekDay);
-    }
-    int tripsPerMonth = uniqueDays.length * 4;
+    // Каждый маршрут = 1 поездка в неделю × 4 недели
+    int tripsPerMonth = vm.editor.roads.length * 4;
     bool isValid = tripsPerMonth >= 4;
 
     return Container(

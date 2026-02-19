@@ -119,9 +119,9 @@ enum UserStatus {
 // 7 - cовместная
 
 enum DriveType {
-  oneWay("В один конец", 1),
-  roundTrip("Туда и обратно", 2),
-  withInterPoint("С промежуточной точкой", 3);
+  oneWay("В один конец", 0),
+  roundTrip("Туда и обратно", 1),
+  withInterPoint("С промежуточной точкой", 2);
 
   final String name;
   final int id;

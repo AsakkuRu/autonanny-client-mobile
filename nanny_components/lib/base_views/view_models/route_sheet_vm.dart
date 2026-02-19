@@ -89,6 +89,7 @@ class RouteSheetVM extends ViewModelBase {
   List<AddressViewData> addresses = [];
   GeocodeResult? addressTo;
   TimeRange? timeRange;
+  bool isRoundTrip = false;
   // TimeOfDay? start;
   // TimeOfDay? end;
 
@@ -306,7 +307,7 @@ class RouteSheetVM extends ViewModelBase {
             addresses: driveAddresses,
             title: roadName,
             typeDrive: [
-              DriveType.oneWay,
+              isRoundTrip ? DriveType.roundTrip : DriveType.oneWay,
               if (addresses.isNotEmpty) DriveType.withInterPoint
             ]));
   }

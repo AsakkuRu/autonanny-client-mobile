@@ -175,7 +175,7 @@ class GraphCreateVM extends ViewModelBase {
     update(() {
       if (!selectedWeekday.contains(weekday)) {
         selectedWeekday.add(weekday);
-        if (errorText != null && selectedWeekday.length >= 4) {
+        if (errorText != null && selectedWeekday.isNotEmpty) {
           errorText = null;
         }
       } else {
@@ -251,21 +251,8 @@ class GraphCreateVM extends ViewModelBase {
 
   // FE-MVP-008: Подсчёт количества поездок в месяц
   int _calculateTripsPerMonth() {
-    // Количество уникальных маршрутов
-    int uniqueRoads = editor.roads.length;
-    
-    // Если нет маршрутов, возвращаем 0
-    if (uniqueRoads == 0) return 0;
-    
-    // Подсчитываем количество дней недели, на которые назначены маршруты
-    Set<NannyWeekday> uniqueDays = {};
-    for (var road in editor.roads) {
-      uniqueDays.add(road.weekDay);
-    }
-    
-    // Среднее количество недель в месяце = 4
-    // Количество поездок в месяц = количество уникальных дней × 4
-    return uniqueDays.length * 4;
+    // Каждый маршрут = 1 поездка в неделю, среднее кол-во недель в месяце = 4
+    return editor.roads.length * 4;
   }
 
   String _getTripsWord(int count) {

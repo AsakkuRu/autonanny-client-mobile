@@ -11,7 +11,10 @@ class NannyOrdersApi {
     return RequestBuilder<void>().create(
         dioRequest:
             DioRequest.dio.post("/orders/schedule", data: schedule.toJson()),
-        errorCodeMsgs: {405: "Тариф не найден!"});
+        errorCodeMsgs: {
+          402: "Недостаточно средств на балансе. Минимальный баланс - 100 руб.",
+          405: "Тариф не найден!",
+        });
   }
 
   static Future<ApiResponse<Schedule>> getScheduleById(int id) {
