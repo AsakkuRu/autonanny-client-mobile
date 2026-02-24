@@ -87,7 +87,7 @@ class _AddressPickerState extends State<AddressPicker> {
       context: context, 
       delegate: NannySearchDelegate(
         onSearch: (query) => GoogleMapApi.geocode(address: query), 
-        onResponse: (response) => response.response!.geocodeResults,
+        onResponse: (response) => response.response?.geocodeResults,
         tileBuilder: (data, close) => ListTile(
           title: Text(data.formattedAddress),
           onTap: close,
@@ -96,10 +96,12 @@ class _AddressPickerState extends State<AddressPicker> {
     );
 
     if(address == null) return;
+    final location = address.geometry?.location;
+    if(location == null) return;
     widget.onAdded(
       AddressData(
         address: NannyMapUtils.simplifyAddress(address.formattedAddress), 
-        location: address.geometry!.location!
+        location: location
       )
     );
   }
@@ -109,7 +111,7 @@ class _AddressPickerState extends State<AddressPicker> {
       context: context, 
       delegate: NannySearchDelegate(
         onSearch: (query) => GoogleMapApi.geocode(address: query), 
-        onResponse: (response) => response.response!.geocodeResults,
+        onResponse: (response) => response.response?.geocodeResults,
         tileBuilder: (data, close) => ListTile(
           title: Text(data.formattedAddress),
           onTap: close,
@@ -118,11 +120,13 @@ class _AddressPickerState extends State<AddressPicker> {
     );
 
     if(address == null) return;
+    final location = address.geometry?.location;
+    if(location == null) return;
     widget.onAddressChange(
       old,
       AddressData(
         address: NannyMapUtils.simplifyAddress(address.formattedAddress), 
-        location: address.geometry!.location!
+        location: location
       )
     );
   }
