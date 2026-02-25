@@ -4,6 +4,7 @@ import 'package:nanny_core/api/request_builder.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
+import 'package:nanny_core/models/from_api/trip_history.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class NannyOrdersApi {
@@ -142,6 +143,31 @@ class NannyOrdersApi {
       onSuccess: (response) {
         print('response info ${response.data}');
         return response.data["token"];
+      },
+    );
+  }
+
+  static Future<ApiResponse<List<TripHistory>>> getTripHistory({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? status,
+  }) async {
+    final queryParams = <String, dynamic>{};
+    if (startDate != null) queryParams['start_date'] = startDate.toIso8601String();
+    if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
+    if (status != null) queryParams['status'] = status;
+
+    return RequestBuilder<List<TripHistory>>().create(
+      dioRequest: DioRequest.dio.get(
+        '/orders/get_order_history',
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
+      ),
+      onSuccess: (response) {
+        final list = response.data['orders'] ?? response.data['history'] ?? [];
+        return List<TripHistory>.from(list.map((x) => TripHistory.fromJson(x)));
+      },
+      errorCodeMsgs: {
+        404: 'История поездок не найдена',
       },
     );
   }
