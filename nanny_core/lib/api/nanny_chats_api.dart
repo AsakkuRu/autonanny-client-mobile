@@ -67,4 +67,32 @@ class NannyChatsApi {
       onSuccess: (response) => DirectChat.fromJson(response.data),
     );
   }
+
+  // C-051: Подача жалобы
+  static Future<ApiResponse<int>> submitComplaint({
+    required String reason,
+    required String description,
+    int? orderId,
+    int? driverId,
+    List<String>? attachmentPaths,
+  }) async {
+    return RequestBuilder<int>().create(
+      dioRequest: DioRequest.dio.post(
+        "/support/complaint",
+        data: {
+          'reason': reason,
+          'description': description,
+          if (orderId != null) 'order_id': orderId,
+          if (driverId != null) 'driver_id': driverId,
+          if (attachmentPaths != null && attachmentPaths.isNotEmpty)
+            'attachments': attachmentPaths,
+        },
+      ),
+      onSuccess: (response) => response.data['complaint_id'] as int,
+      errorCodeMsgs: {
+        400: 'Некорректные данные жалобы',
+        500: 'Не удалось отправить жалобу',
+      },
+    );
+  }
 }
