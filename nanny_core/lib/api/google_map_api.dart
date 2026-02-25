@@ -23,36 +23,25 @@ class GoogleMapApi {
     );
   }
   static Future<ApiResponse<GeocodeData>> geocode({required String address, String region = "ru"}) async {
-    // String locality = "";
-
-    //   var locs = LocationService.lastLocationInfo!.address.addressComponents
-    //     .where((e) => e.types.contains(AddressType.locality))
-    //     .toList();
-      
-    //   if(locs.isNotEmpty) {
-    //     locality = locs.first.shortName;
-    //   }
     LatLng? northEast, southWest;
-    if(LocationService.lastLocationInfo != null) {
-      var loc = LocationService.lastLocationInfo!.address.geometry!.location!;
+    final lastLoc = LocationService.lastLocationInfo?.address.geometry?.location;
+    if(lastLoc != null) {
       northEast = LatLng(
-        loc.latitude + 1.5, 
-        loc.longitude + 1.5,
+        lastLoc.latitude + 1.5, 
+        lastLoc.longitude + 1.5,
       );
       southWest = LatLng(
-        loc.latitude - 1.5,
-        loc.longitude - 1.5,
+        lastLoc.latitude - 1.5,
+        lastLoc.longitude - 1.5,
       );
     }
 
     return RequestBuilder<GeocodeData>().create(
       dioRequest: DioRequest.dio.getUri(
         Uri.parse("https://maps.googleapis.com/maps/api/geocode/json?"
-          "address=$address"
+          "address=${Uri.encodeComponent(address)}"
           "&language=ru"
-          "&components=country:RU"
           "${northEast != null ? "&bounds=${southWest!.latitude},${southWest.longitude}|${northEast.latitude},${northEast.longitude}" : ""}"
-          // "&components=country:RU${locality.isNotEmpty ? "|locality:$locality" : ""}"
           "&region=$region"
           "&key=${Platform.isAndroid ? NannyConsts.androidMapApiKey : NannyConsts.iosMapApiKey}"
         )

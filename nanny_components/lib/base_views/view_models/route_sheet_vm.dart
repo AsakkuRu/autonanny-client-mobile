@@ -104,7 +104,7 @@ class RouteSheetVM extends ViewModelBase {
       context: context,
       delegate: NannySearchDelegate(
         onSearch: (query) => GoogleMapApi.geocode(address: query),
-        onResponse: (response) => response.response!.geocodeResults,
+        onResponse: (response) => response.response?.geocodeResults,
         tileBuilder: (data, close) => ListTile(
           title: Text(data.formattedAddress),
           onTap: close,
@@ -132,7 +132,7 @@ class RouteSheetVM extends ViewModelBase {
       context: context,
       delegate: NannySearchDelegate(
         onSearch: (query) => GoogleMapApi.geocode(address: query),
-        onResponse: (response) => response.response!.geocodeResults,
+        onResponse: (response) => response.response?.geocodeResults,
         tileBuilder: (data, close) => ListTile(
           title: Text(data.formattedAddress),
           onTap: close,
