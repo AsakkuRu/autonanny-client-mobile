@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:nanny_client/views/rating/driver_rating_view.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/web_sockets/drive_search_socket.dart';
 import 'package:nanny_core/api/web_sockets/nanny_web_socket.dart';
@@ -94,6 +95,7 @@ class DriveSearchVM extends ViewModelBase {
           case 11:
             statusText = 'Поездка завершена';
             isSearching = false;
+            _showRatingScreen();
             break;
           case 13:
             statusText = 'Водитель найден!';
@@ -124,6 +126,22 @@ class DriveSearchVM extends ViewModelBase {
     } catch (e) {
       Logger().e('DriveSearch parse error: $e');
     }
+  }
+
+  void _showRatingScreen() {
+    if (orderId == null) return;
+    
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DriverRatingView(
+            orderId: orderId!,
+          ),
+        ),
+      );
+    });
   }
 
   @override

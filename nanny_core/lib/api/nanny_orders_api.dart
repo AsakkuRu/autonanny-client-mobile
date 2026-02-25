@@ -145,4 +145,27 @@ class NannyOrdersApi {
       },
     );
   }
+
+  static Future<ApiResponse<void>> rateDriver({
+    required int orderId,
+    required int rating,
+    List<String>? criteria,
+    String? review,
+  }) async {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.post(
+        '/orders/rate_driver',
+        data: {
+          'order_id': orderId,
+          'rating': rating,
+          if (criteria != null && criteria.isNotEmpty) 'criteria': criteria,
+          if (review != null && review.isNotEmpty) 'review': review,
+        },
+      ),
+      errorCodeMsgs: {
+        404: 'Заказ не найден',
+        400: 'Оценка уже поставлена',
+      },
+    );
+  }
 }
