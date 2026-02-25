@@ -5,6 +5,7 @@ import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
+import 'package:nanny_core/models/from_api/driver_rating.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class NannyOrdersApi {
@@ -191,6 +192,16 @@ class NannyOrdersApi {
       errorCodeMsgs: {
         404: 'Заказ не найден',
         400: 'Оценка уже поставлена',
+      },
+    );
+  }
+
+  static Future<ApiResponse<DriverRating>> getDriverRating(int driverId) async {
+    return RequestBuilder<DriverRating>().create(
+      dioRequest: DioRequest.dio.get('/orders/driver_rating/$driverId'),
+      onSuccess: (response) => DriverRating.fromJson(response.data),
+      errorCodeMsgs: {
+        404: 'Водитель не найден',
       },
     );
   }
