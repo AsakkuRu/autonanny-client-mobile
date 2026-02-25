@@ -11,7 +11,16 @@ class NannyChildrenApi {
     return RequestBuilder<List<Child>>().create(
       dioRequest: DioRequest.dio.get("/users/children"),
       onSuccess: (response) {
-        final List<dynamic> childrenJson = response.data['children'] ?? [];
+        // Handle both formats: {children: [...]} or direct [...]
+        final data = response.data;
+        List<dynamic> childrenJson;
+        if (data is List) {
+          childrenJson = data;
+        } else if (data is Map) {
+          childrenJson = data['children'] ?? data['data'] ?? [];
+        } else {
+          childrenJson = [];
+        }
         return childrenJson.map((json) => Child.fromJson(json)).toList();
       },
     );
@@ -21,7 +30,14 @@ class NannyChildrenApi {
   static Future<ApiResponse<int>> createChild(Child child) async {
     return RequestBuilder<int>().create(
       dioRequest: DioRequest.dio.post("/users/add_child", data: child.toJson()),
-      onSuccess: (response) => response.data['child_id'] as int,
+      onSuccess: (response) {
+        // Handle different response formats
+        final data = response.data;
+        if (data is Map) {
+          return (data['child_id'] ?? data['id'] ?? data['data']?['id'] ?? 0) as int;
+        }
+        return 0;
+      },
       errorCodeMsgs: {
         400: "Некорректные данные ребенка"
       },
