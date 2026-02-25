@@ -40,10 +40,10 @@ class OnetimeDriveRequest implements NannyBaseRequest {
 
     @override
     Map<String, dynamic> toJson() => {
-        "my_location": {
+        "my_location": myLocation != null ? {
           "latitude": myLocation!.latitude,
           "longitude": myLocation!.longitude
-        },
+        } : {"latitude": 0, "longitude": 0},
         "addresses": addresses.map((x) => x.toJson()).toList(),
         "price": price,
         "distance": distance,

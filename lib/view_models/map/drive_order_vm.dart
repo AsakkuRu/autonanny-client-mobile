@@ -1,5 +1,6 @@
 // ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
 
+import 'dart:async';
 import 'dart:math';
 import 'dart:developer' as dev;
 
@@ -8,6 +9,7 @@ import 'package:nanny_client/views/map/driver_search.dart';
 import 'package:nanny_components/dialogs/loading.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/onetime_drive_request.dart';
+import 'package:nanny_core/api/google_map_api.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
@@ -33,21 +35,19 @@ class DriveOrderVM extends ViewModelBase {
         ];
       });
     }
-    NannyOrdersApi.getCurrentOrder().then((v) {
-      if(v.success) {
-        var data = v.response;
-        dev.log('current data ${data?.data}');
-      } else {
-        print('gotten error ${v.errorMessage}');
-        print('gotten error ${v.response?.data}');
-      }
-    });
+
+    _mapTapSub = NannyMapGlobals.onMapTap.listen(_onMapTap);
   }
+
+  StreamSubscription<LatLng>? _mapTapSub;
+  Timer? _priceDebounce;
 
   final GeocodeResult initAddress;
   List<AddressData> addresses = [];
   double distance = 0;
   double duration = 0;
+  // Индекс выбранного адреса для уточнения точки на карте (-1 = добавить новый)
+  int selectedAddressIndex = -1;
 
   ValueNotifier<Set<Marker>> markers = NannyMapGlobals.markers;
 
@@ -85,60 +85,121 @@ class DriveOrderVM extends ViewModelBase {
     }
   }
 
+  void selectAddress(int index) {
+    update(() {
+      selectedAddressIndex = index;
+    });
+  }
+
+  void _onMapTap(LatLng latLng) async {
+    if (!context.mounted) return;
+    LoadScreen.showLoad(context, true);
+
+    var geocodeData = await GoogleMapApi.reverseGeocode(loc: latLng);
+
+    if (!context.mounted) return;
+    LoadScreen.showLoad(context, false);
+
+    if (!geocodeData.success || geocodeData.response == null) return;
+
+    var formatted = NannyMapUtils.filterGeocodeData(geocodeData.response!);
+    final newAddress = AddressData(
+      address: NannyMapUtils.simplifyAddress(formatted.address.formattedAddress),
+      location: latLng,
+    );
+
+    // Если выбран конкретный адрес — уточняем его точку
+    if (selectedAddressIndex >= 0 && selectedAddressIndex < addresses.length) {
+      final oldAddress = addresses[selectedAddressIndex];
+      onChange(oldAddress, newAddress);
+      update(() { selectedAddressIndex = -1; });
+    } else if (addresses.length < 2) {
+      // Автоматически добавляем второй адрес (конечную точку)
+      onAdd(newAddress);
+    } else {
+      // Если уже есть 2+ адреса — обновляем последний (конечную точку)
+      final oldAddress = addresses.last;
+      onChange(oldAddress, newAddress);
+    }
+  }
+
   List<DriveTariff> tariffs = [];
   DriveTariff? selectedTariff;
 
   bool get validDrive => addresses.length > 1 && selectedTariff != null;
 
-  void calculatePrices() async {
-    LoadScreen.showLoad(context, true);
+  void calculatePrices() {
+    // Debounce: отменяем предыдущий запрос, чтобы не спамить API
+    _priceDebounce?.cancel();
+    _priceDebounce = Timer(const Duration(milliseconds: 500), () {
+      _doCalculatePrices();
+    });
+  }
 
-    NannyMapGlobals.routes.value.clear();
-    distance = 0;
-    duration = 0;
-    for (int i = 0; i < addresses.length - 1; i++) {
-      var origin = addresses[i].location;
-      var dest = addresses[i + 1].location;
-
-      var polyRes = await PolylinePoints().getRouteBetweenCoordinates(
-        NannyConsts.mapKey,
-        PointLatLng(origin.latitude, origin.longitude),
-        PointLatLng(dest.latitude, dest.longitude),
-      );
-
-      distance += SphericalUtils.computeDistanceBetween(
-          Point(origin.longitude, origin.latitude),
-          Point(dest.longitude, dest.latitude));
-      duration += polyRes.durationValue!;
-
-      var route = await RouteManager.calculateRoute(
-          origin: origin, destination: dest, id: "route_$i");
-
-      if (route == null) continue;
-
-      NannyMapGlobals.routes.value.add(route);
-    }
-
-    NannyMapGlobals.routes.notifyListeners();
+  Future<void> _doCalculatePrices() async {
+    if (addresses.length < 2) return;
     if (!context.mounted) return;
 
-    distance /= 1000;
-    duration /= 60;
+    LoadScreen.showLoad(context, true);
 
-    var res = await DioRequest.handle(context,
-        NannyOrdersApi.getOnetimePrices(duration.ceil(), distance.ceil()));
+    try {
+      NannyMapGlobals.routes.value.clear();
+      distance = 0;
+      duration = 0;
 
-    if (!res.success) return;
+      for (int i = 0; i < addresses.length - 1; i++) {
+        var origin = addresses[i].location;
+        var dest = addresses[i + 1].location;
 
-    var priceTars = res.data!;
-    for (var tar in tariffs) {
-      var tariff = priceTars.where((e) => e.id == tar.id).firstOrNull;
-      if (tariff == null) continue;
+        var polyRes = await PolylinePoints().getRouteBetweenCoordinates(
+          NannyConsts.mapKey,
+          PointLatLng(origin.latitude, origin.longitude),
+          PointLatLng(dest.latitude, dest.longitude),
+        );
 
-      tar.amount = tariff.amount!;
+        distance += SphericalUtils.computeDistanceBetween(
+            Point(origin.longitude, origin.latitude),
+            Point(dest.longitude, dest.latitude));
+        duration += (polyRes.durationValue ?? 0);
+
+        var route = await RouteManager.calculateRoute(
+            origin: origin, destination: dest, id: 'route_$i');
+
+        if (route == null) continue;
+
+        NannyMapGlobals.routes.value.add(route);
+      }
+
+      NannyMapGlobals.routes.notifyListeners();
+      if (!context.mounted) return;
+
+      distance /= 1000;
+      duration /= 60;
+
+      if (distance <= 0 || duration <= 0) {
+        if (context.mounted) LoadScreen.showLoad(context, false);
+        return;
+      }
+
+      var res = await DioRequest.handle(context,
+          NannyOrdersApi.getOnetimePrices(duration.ceil(), distance.ceil()));
+
+      if (!res.success || res.data == null) return;
+
+      var priceTars = res.data!;
+      for (var tar in tariffs) {
+        var tariff = priceTars.where((e) => e.id == tar.id).firstOrNull;
+        if (tariff == null) continue;
+
+        tar.amount = tariff.amount ?? tar.amount;
+      }
+
+      if (context.mounted) LoadScreen.showLoad(context, false);
+      update(() {});
+    } catch (e) {
+      Logger().e('calculatePrices error: $e');
+      if (context.mounted) LoadScreen.showLoad(context, false);
     }
-    LoadScreen.showLoad(context, false);
-    update(() {});
   }
 
   void onAdd(AddressData address) {
@@ -185,35 +246,52 @@ class DriveOrderVM extends ViewModelBase {
   }
 
   void searchForDrivers() async {
-    List<DriveAddress> driveAddresses = [];
+    if (addresses.length < 2) {
+      NannyDialogs.showMessageBox(context, 'Ошибка', 'Укажите минимум 2 адреса');
+      return;
+    }
+    if (selectedTariff == null) {
+      NannyDialogs.showMessageBox(context, 'Ошибка', 'Выберите тариф');
+      return;
+    }
+    if (LocationService.curLoc == null) {
+      NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось определить ваше местоположение');
+      return;
+    }
 
+    List<DriveAddress> driveAddresses = [];
     for (int i = 0; i < addresses.length - 1; i++) {
       driveAddresses.add(
           DriveAddress(fromAddress: addresses[i], toAddress: addresses[i + 1]));
     }
-    if (LocationService.curLoc == null) return;
-    var res = await DioRequest.handle(
-        context,
-        NannyOrdersApi.startOnetimeOrder(OnetimeDriveRequest(
-            myLocation: LocationService.curLoc,
-            addresses: driveAddresses,
-            price: selectedTariff!.amount!.toInt(),
-            distance: distance.ceil(),
-            duration: duration.ceil(),
-            description: "",
-            typeDrive: DriveType.oneWay.id,
-            idTariff: selectedTariff!.id,
-            otherParametrs: [])));
 
-    if (!res.success) return;
-    print('res data ${res.data}');
-    // if(!context.mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+    try {
+      var res = await DioRequest.handle(
+          context,
+          NannyOrdersApi.startOnetimeOrder(OnetimeDriveRequest(
+              myLocation: LocationService.curLoc,
+              addresses: driveAddresses,
+              price: (selectedTariff!.amount ?? 0).toInt(),
+              distance: distance.ceil(),
+              duration: duration.ceil(),
+              description: '',
+              typeDrive: DriveType.oneWay.id,
+              idTariff: selectedTariff!.id,
+              otherParametrs: [])));
+
+      if (!res.success || res.data == null) return;
+
+      if (!context.mounted) return;
       Navigator.push(
           context,
           MaterialPageRoute(
               builder: (context) => DriverSearchView(token: res.data!)));
-    });
+    } catch (e) {
+      Logger().e('searchForDrivers error: $e');
+      if (context.mounted) {
+        NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось создать заказ: $e');
+      }
+    }
   }
 
   void selectTariff(DriveTariff tariff) {
@@ -229,5 +307,11 @@ class DriveOrderVM extends ViewModelBase {
     tariffs = res.response!;
 
     return true;
+  }
+
+  @override
+  void dispose() {
+    _mapTapSub?.cancel();
+    _priceDebounce?.cancel();
   }
 }

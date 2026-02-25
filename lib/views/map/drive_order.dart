@@ -28,6 +28,12 @@ class _DriveOrderViewState extends State<DriveOrderView> {
   }
 
   @override
+  void dispose() {
+    vm.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureLoader(
       future: vm.loadRequest,
@@ -44,7 +50,9 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                   addresses: vm.addresses,
                   onAdded: vm.onAdd,
                   onAddressChange: vm.onChange,
-                  onDelete: vm.onDelete),
+                  onDelete: vm.onDelete,
+                  onSelectForMap: vm.selectAddress,
+                  selectedIndex: vm.selectedAddressIndex),
               const SizedBox(height: 20),
               SingleChildScrollView(
                   controller: widget.controller,

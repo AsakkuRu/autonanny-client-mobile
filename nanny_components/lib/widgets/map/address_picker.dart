@@ -10,6 +10,8 @@ class AddressPicker extends StatefulWidget {
   final void Function(AddressData address) onAdded;
   final void Function(AddressData oldAddress, AddressData newAddress) onAddressChange;
   final void Function(AddressData address) onDelete;
+  final void Function(int index)? onSelectForMap;
+  final int selectedIndex;
   
   const AddressPicker({
     super.key,
@@ -19,6 +21,8 @@ class AddressPicker extends StatefulWidget {
     required this.onAdded,
     required this.onAddressChange,
     required this.onDelete,
+    this.onSelectForMap,
+    this.selectedIndex = -1,
   });
 
   @override
@@ -34,31 +38,57 @@ class _AddressPickerState extends State<AddressPicker> {
         shrinkWrap: true,
         controller: widget.controller,
         children: widget.addresses.asMap().entries.map(
-          (e) => ElevatedButton(
-            onPressed: () => changeAddress(e.value), 
-            style: NannyButtonStyles.transparent,
-            child: Row(
-              children: [
-                Icon(
-                  e.key == 0 ? Icons.arrow_forward_ios_rounded : Icons.pin_drop, 
-                  color: NannyTheme.darkGrey
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    NannyMapUtils.simplifyAddress(e.value.address), 
-                    textAlign: TextAlign.left
+          (e) {
+            final isSelected = widget.selectedIndex == e.key;
+            return ElevatedButton(
+              onPressed: () => changeAddress(e.value), 
+              onLongPress: widget.onSelectForMap != null 
+                  ? () => widget.onSelectForMap!(e.key)
+                  : null,
+              style: isSelected 
+                  ? NannyButtonStyles.transparent.copyWith(
+                      backgroundColor: MaterialStatePropertyAll(
+                        NannyTheme.primary.withOpacity(0.1),
+                      ),
+                      side: const MaterialStatePropertyAll(
+                        BorderSide(color: NannyTheme.primary, width: 2),
+                      ),
+                    )
+                  : NannyButtonStyles.transparent,
+              child: Row(
+                children: [
+                  Icon(
+                    isSelected 
+                        ? Icons.my_location
+                        : (e.key == 0 ? Icons.arrow_forward_ios_rounded : Icons.pin_drop), 
+                    color: isSelected ? NannyTheme.primary : NannyTheme.darkGrey
                   ),
-                ),
-                if(e.key != 0 && e.key != 1) IconButton(
-                  splashRadius: 20,
-                  
-                  onPressed: () => widget.onDelete(e.value), 
-                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-                ),
-              ],
-            ),
-          ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          NannyMapUtils.simplifyAddress(e.value.address), 
+                          textAlign: TextAlign.left,
+                        ),
+                        if (isSelected)
+                          const Text(
+                            'Нажмите на карту для уточнения',
+                            style: TextStyle(fontSize: 11, color: NannyTheme.primary),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if(e.key != 0 && e.key != 1) IconButton(
+                    splashRadius: 20,
+                    onPressed: () => widget.onDelete(e.value), 
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                  ),
+                ],
+              ),
+            );
+          },
         ).toList()
           ..add(
             ElevatedButton(

@@ -9,10 +9,8 @@ class NannySearchDelegate<T, E> extends SearchDelegate<E?> {
     required this.onResponse,
     this.tileBuilder,
     this.searchLabel = "Поиск...",
-    this.emptyLabel = "Список пуст...",
-  }) {
-    request = onSearch(query);
-  }
+    this.emptyLabel = "Начните вводить адрес...",
+  });
 
   final Future< ApiResponse<T> > Function(String query) onSearch;
   final List<E>? Function(ApiResponse<T> response) onResponse;
@@ -20,8 +18,9 @@ class NannySearchDelegate<T, E> extends SearchDelegate<E?> {
   final String searchLabel;
   final String emptyLabel;
 
-  late Future< ApiResponse<T> > request;
+  Future< ApiResponse<T> >? request;
   Future<void>? timer;
+  String _lastQuery = '';
 
   @override
   String? get searchFieldLabel => searchLabel;
@@ -87,15 +86,23 @@ class NannySearchDelegate<T, E> extends SearchDelegate<E?> {
   }
 
   Future<List<E>> loadRequest() async {
-    timer ??= Future.delayed(
-      const Duration(seconds: 1),
-      () async {
-        timer = null;
-        request = onSearch(query);
-      },
-    );
-    await timer;
+    if (query.trim().isEmpty) return [];
 
-    return onResponse(await request) ?? [];
+    // Debounce: ждём 500мс после последнего ввода
+    if (query != _lastQuery) {
+      _lastQuery = query;
+      timer = Future.delayed(const Duration(milliseconds: 500));
+      await timer;
+      timer = null;
+      request = onSearch(query);
+    }
+
+    if (request == null) return [];
+
+    try {
+      return onResponse(await request!) ?? [];
+    } catch (e) {
+      return [];
+    }
   }
 }
