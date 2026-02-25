@@ -205,4 +205,24 @@ class NannyOrdersApi {
       },
     );
   }
+
+  // C-042: Изменение маршрута активной поездки
+  static Future<ApiResponse<void>> updateOrderRoute({
+    required int orderId,
+    required List<Map<String, dynamic>> addresses,
+  }) async {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.put(
+        '/orders/update_route/$orderId',
+        data: {
+          'addresses': addresses,
+        },
+      ),
+      errorCodeMsgs: {
+        404: 'Заказ не найден',
+        400: 'Невозможно изменить маршрут в текущем статусе',
+        403: 'Нет доступа к этому заказу',
+      },
+    );
+  }
 }
