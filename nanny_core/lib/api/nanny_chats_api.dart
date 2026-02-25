@@ -39,4 +39,32 @@ class NannyChatsApi {
       },
     );
   }
+
+  // C-050: Создание/получение чата с техподдержкой
+  static Future<ApiResponse<int>> createSupportChat() async {
+    return RequestBuilder<int>().create(
+      dioRequest: DioRequest.dio.post("/support/create_chat"),
+      onSuccess: (response) => response.data['chat_id'] as int,
+      errorCodeMsgs: {
+        500: "Не удалось создать чат с поддержкой",
+      },
+    );
+  }
+
+  // C-050: Получение истории чата с техподдержкой
+  static Future<ApiResponse<DirectChat>> getSupportMessages({
+    int? lastMessageId,
+    int limit = 50,
+  }) async {
+    return RequestBuilder<DirectChat>().create(
+      dioRequest: DioRequest.dio.get(
+        "/support/messages",
+        queryParameters: {
+          if (lastMessageId != null) 'last_id': lastMessageId,
+          'limit': limit,
+        },
+      ),
+      onSuccess: (response) => DirectChat.fromJson(response.data),
+    );
+  }
 }
