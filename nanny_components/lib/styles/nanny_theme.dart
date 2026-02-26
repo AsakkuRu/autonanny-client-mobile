@@ -17,6 +17,37 @@ class NannyTheme {
       checkboxTheme: defaultCheckboxStyle,
       useMaterial3: false);
 
+  static final ThemeData darkAppTheme = ThemeData(
+      colorScheme: darkColorScheme,
+      buttonTheme: NannyButtonStyles.defaultButtonTheme,
+      elevatedButtonTheme: NannyButtonStyles.elevatedBtnTheme,
+      textButtonTheme: NannyButtonStyles.textBtnTheme,
+      textTheme: NannyTextStyles.textTheme.apply(
+        bodyColor: darkOnSurface,
+        displayColor: darkOnSurface,
+      ),
+      inputDecorationTheme: NannyTextFormStyles.defaultFormTheme.copyWith(
+        fillColor: darkSurface,
+        hintStyle: TextStyle(color: darkGrey),
+      ),
+      dialogTheme: dialogTheme,
+      floatingActionButtonTheme: defaultFABStyle,
+      cardTheme: defaultCardStyle.copyWith(color: darkSurface),
+      checkboxTheme: defaultCheckboxStyle,
+      scaffoldBackgroundColor: darkBackground,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: darkSurface,
+        foregroundColor: darkOnSurface,
+        elevation: 0,
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: darkSurface,
+        selectedItemColor: primary,
+        unselectedItemColor: darkGrey,
+      ),
+      dividerColor: const Color(0xFF3A3A3A),
+      useMaterial3: false);
+
   static const colorScheme = ColorScheme(
     brightness: Brightness.light,
     primary: primary,
@@ -29,6 +60,20 @@ class NannyTheme {
     onBackground: onBackground,
     surface: surface,
     onSurface: onSurface,
+  );
+
+  static const darkColorScheme = ColorScheme(
+    brightness: Brightness.dark,
+    primary: primary,
+    onPrimary: onPrimary,
+    secondary: darkSurface,
+    onSecondary: darkOnSurface,
+    error: error,
+    onError: onError,
+    background: darkBackground,
+    onBackground: darkOnBackground,
+    surface: darkSurface,
+    onSurface: darkOnSurface,
   );
 
   static const Color primary = Color(0xFF7067F2);
@@ -45,6 +90,11 @@ class NannyTheme {
 
   static const Color surface = Color(0xFFFFFFFF);
   static const Color onSurface = Color(0xFF000000);
+
+  static const Color darkBackground = Color(0xFF121212);
+  static const Color darkOnBackground = Color(0xFFE0E0E0);
+  static const Color darkSurface = Color(0xFF1E1E1E);
+  static const Color darkOnSurface = Color(0xFFE0E0E0);
 
   static const Color grey = Color(0xFFE6E6E6);
   static const Color darkGrey = Color(0xFFBEBEBE);

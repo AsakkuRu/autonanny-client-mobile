@@ -17,6 +17,8 @@ class GraphVM extends ViewModelBase {
   String spentsInWeek = "~ 0 ₽";
   String spentsInMonth = "~ 0 ₽";
 
+  bool isOffline = false;
+
   List<Schedule> schedules = [];
   Schedule? selectedSchedule;
   DriverContact? driverContact;
@@ -228,16 +230,53 @@ class GraphVM extends ViewModelBase {
   @override
   Future<bool> loadPage() async {
     var scheduleResult = await NannyOrdersApi.getSchedules();
-    if (!scheduleResult.success) return false;
 
-    schedules = scheduleResult.response!;
-    selectedSchedule = schedules.firstOrNull;
+    if (scheduleResult.success) {
+      isOffline = false;
+      schedules = scheduleResult.response!;
+      selectedSchedule = schedules.firstOrNull;
 
-    var responsesResult = await NannyOrdersApi.getScheduleResponses();
-    if (responsesResult.success && responsesResult.response != null) {
-      responses = responsesResult.response!;
+      // Кэшируем расписание
+      try {
+        await NannyStorage.cacheSchedules(
+          schedules.map((s) => s.toJson()).toList(),
+        );
+      } catch (_) {}
+
+      var responsesResult = await NannyOrdersApi.getScheduleResponses();
+      if (responsesResult.success && responsesResult.response != null) {
+        responses = responsesResult.response!;
+        try {
+          await NannyStorage.cacheResponses(
+            responses.map((r) => r.toJson()).toList(),
+          );
+        } catch (_) {}
+      }
+
+      return true;
     }
 
-    return true;
+    // Оффлайн-режим: загрузка из кэша
+    try {
+      final cachedSchedules = await NannyStorage.getCachedSchedules();
+      if (cachedSchedules != null && cachedSchedules.isNotEmpty) {
+        isOffline = true;
+        schedules = cachedSchedules
+            .map((x) => Schedule.fromJson(Map<String, dynamic>.from(x)))
+            .toList();
+        selectedSchedule = schedules.firstOrNull;
+
+        final cachedResponses = await NannyStorage.getCachedResponses();
+        if (cachedResponses != null) {
+          responses = cachedResponses
+              .map((x) => ScheduleResponsesData.fromJson(Map<String, dynamic>.from(x)))
+              .toList();
+        }
+
+        return true;
+      }
+    } catch (_) {}
+
+    return false;
   }
 }

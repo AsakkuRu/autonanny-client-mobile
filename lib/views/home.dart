@@ -14,6 +14,7 @@ import 'package:nanny_client/views/support/faq_view.dart';
 import 'package:nanny_client/views/referral/referral_view.dart';
 import 'package:nanny_client/views/map/shared_ride_view.dart';
 import 'package:nanny_client/views/reg.dart';
+import 'package:nanny_client/main.dart' show themeNotifier, localeNotifier;
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_components/base_views/view_models/pages/profile_vm.dart';
 import 'package:nanny_core/nanny_core.dart';
@@ -407,6 +408,129 @@ class _ClientProfileViewState extends State<_ClientProfileView>
                                 side: const BorderSide(color: Colors.orange),
                                 foregroundColor: Colors.orange,
                               ),
+                            ),
+                            const SizedBox(height: 20),
+                            // Переключатель темы
+                            ValueListenableBuilder<ThemeMode>(
+                              valueListenable: themeNotifier,
+                              builder: (context, mode, _) {
+                                final modes = [ThemeMode.light, ThemeMode.system, ThemeMode.dark];
+                                return Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surface,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Theme.of(context).dividerColor,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(Icons.brightness_6, color: NannyTheme.primary),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Тема оформления',
+                                            style: Theme.of(context).textTheme.titleMedium,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ToggleButtons(
+                                          isSelected: modes.map((m) => m == mode).toList(),
+                                          onPressed: (index) {
+                                            themeNotifier.setThemeMode(modes[index]);
+                                          },
+                                          borderRadius: BorderRadius.circular(8),
+                                          selectedColor: Colors.white,
+                                          fillColor: NannyTheme.primary,
+                                          color: NannyTheme.primary,
+                                          constraints: BoxConstraints(
+                                            minWidth: (MediaQuery.of(context).size.width - 100) / 3,
+                                            minHeight: 40,
+                                          ),
+                                          children: const [
+                                            Row(mainAxisSize: MainAxisSize.min, children: [
+                                              Icon(Icons.light_mode, size: 18),
+                                              SizedBox(width: 4),
+                                              Text('Светлая'),
+                                            ]),
+                                            Row(mainAxisSize: MainAxisSize.min, children: [
+                                              Icon(Icons.settings_brightness, size: 18),
+                                              SizedBox(width: 4),
+                                              Text('Авто'),
+                                            ]),
+                                            Row(mainAxisSize: MainAxisSize.min, children: [
+                                              Icon(Icons.dark_mode, size: 18),
+                                              SizedBox(width: 4),
+                                              Text('Тёмная'),
+                                            ]),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            // Переключатель языка
+                            ValueListenableBuilder<Locale>(
+                              valueListenable: localeNotifier,
+                              builder: (context, locale, _) {
+                                final isRu = locale.languageCode == 'ru';
+                                return Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.surface,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Theme.of(context).dividerColor,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(Icons.language, color: NannyTheme.primary),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Язык / Language',
+                                            style: Theme.of(context).textTheme.titleMedium,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ToggleButtons(
+                                          isSelected: [isRu, !isRu],
+                                          onPressed: (index) {
+                                            localeNotifier.setLocale(index == 0 ? 'ru' : 'en');
+                                          },
+                                          borderRadius: BorderRadius.circular(8),
+                                          selectedColor: Colors.white,
+                                          fillColor: NannyTheme.primary,
+                                          color: NannyTheme.primary,
+                                          constraints: BoxConstraints(
+                                            minWidth: (MediaQuery.of(context).size.width - 80) / 2,
+                                            minHeight: 40,
+                                          ),
+                                          children: const [
+                                            Text('Русский'),
+                                            Text('English'),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(height: 20),
                             ElevatedButton(

@@ -33,4 +33,20 @@ class NannyStorage {
 
     return SettingsStorageData.fromJson(data);
   }
+
+  static Future<void> cacheSchedules(List<dynamic> schedulesJson) async {
+    await _storage.setItem('cached_schedules', schedulesJson);
+  }
+
+  static Future<List<dynamic>?> getCachedSchedules() async {
+    return await _storage.getItem('cached_schedules');
+  }
+
+  static Future<void> cacheResponses(List<dynamic> responsesJson) async {
+    await _storage.setItem('cached_responses', responsesJson);
+  }
+
+  static Future<List<dynamic>?> getCachedResponses() async {
+    return await _storage.getItem('cached_responses');
+  }
 }

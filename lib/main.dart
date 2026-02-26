@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:nanny_client/theme_notifier.dart';
 import 'package:nanny_client/views/home.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_components/nanny_components.dart';
@@ -10,6 +11,9 @@ import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/nanny_local_auth.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'firebase_options.dart';
+
+final ThemeNotifier themeNotifier = ThemeNotifier();
+final LocaleNotifier localeNotifier = LocaleNotifier();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -107,19 +111,33 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: NannyGlobals.navKey,
-      theme: NannyTheme.appTheme,
-      home: firstScreen,
-      supportedLocales: const [Locale('ru', 'RU')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate
-      ],
-      locale: const Locale("ru", "RU"),
-      // home: const TestView(),
-      debugShowCheckedModeBanner: false,
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, themeMode, _) {
+        return ValueListenableBuilder<Locale>(
+          valueListenable: localeNotifier,
+          builder: (context, locale, _) {
+            return MaterialApp(
+              navigatorKey: NannyGlobals.navKey,
+              theme: NannyTheme.appTheme,
+              darkTheme: NannyTheme.darkAppTheme,
+              themeMode: themeMode,
+              home: firstScreen,
+              supportedLocales: const [
+                Locale('ru', 'RU'),
+                Locale('en', 'US'),
+              ],
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              locale: locale,
+              debugShowCheckedModeBanner: false,
+            );
+          },
+        );
+      },
     );
   }
 }

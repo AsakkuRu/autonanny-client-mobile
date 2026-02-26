@@ -46,6 +46,24 @@ class _GraphViewState extends State<GraphView>
           //   icon: const Text("Cоздать новый контракт"),
           //   label: const Icon(Icons.add),
           // ),
+          if (vm.isOffline)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.orange.shade100,
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_off, size: 18, color: Colors.orange.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Оффлайн-режим. Отображаются кэшированные данные.',
+                      style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: FutureLoader(
