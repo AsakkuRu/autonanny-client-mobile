@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
+import 'package:nanny_client/views/support/complaint_view.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
@@ -329,6 +331,66 @@ class _TripDetailsSheet extends StatelessWidget {
           _detailRow('Статус', trip.statusText),
           if (trip.rating != null) _detailRow('Ваша оценка', '⭐ ${trip.rating}'),
 
+          const SizedBox(height: 16),
+          if (trip.driverId != null && trip.isCompleted) ...
+            [
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DriverRatingDetailsView(
+                          driverId: trip.driverId!,
+                          driverName: trip.driverName ?? 'Водитель',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.star_outline),
+                  label: const Text('Рейтинг водителя'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    side: const BorderSide(color: NannyTheme.primary),
+                    foregroundColor: NannyTheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ComplaintView(
+                          orderId: trip.id,
+                          driverId: trip.driverId,
+                          driverName: trip.driverName,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.report_problem_outlined),
+                  label: const Text('Подать жалобу'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    side: const BorderSide(color: Colors.orange),
+                    foregroundColor: Colors.orange,
+                  ),
+                ),
+              ),
+            ],
           const SizedBox(height: 20),
         ],
       ),

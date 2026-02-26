@@ -5,6 +5,11 @@ import 'package:nanny_client/views/pages/map.dart';
 import 'package:nanny_client/views/pages/balance.dart';
 import 'package:nanny_client/views/pages/graph.dart';
 import 'package:nanny_client/views/pages/children_list.dart';
+import 'package:nanny_client/views/history/trip_history_view.dart';
+import 'package:nanny_client/views/support/support_chat_view.dart';
+import 'package:nanny_client/views/support/complaint_view.dart';
+import 'package:nanny_client/views/history/trip_export_view.dart';
+import 'package:nanny_client/views/support/faq_view.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_components/base_views/view_models/pages/profile_vm.dart';
@@ -254,6 +259,96 @@ class _ClientProfileViewState extends State<_ClientProfileView>
                                 ),
                                 side: BorderSide(color: NannyTheme.primary),
                                 foregroundColor: NannyTheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Кнопка "История поездок"
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const TripHistoryView()),
+                              ),
+                              icon: const Icon(Icons.history),
+                              label: const Text('История поездок'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 60),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                side: BorderSide(color: NannyTheme.primary),
+                                foregroundColor: NannyTheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Кнопка "Техподдержка"
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const SupportChatView()),
+                              ),
+                              icon: const Icon(Icons.support_agent),
+                              label: const Text('Техподдержка'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 60),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                side: BorderSide(color: NannyTheme.primary),
+                                foregroundColor: NannyTheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Кнопка "Экспорт PDF"
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const TripExportView()),
+                              ),
+                              icon: const Icon(Icons.picture_as_pdf),
+                              label: const Text('Экспорт поездок PDF'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 60),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                side: BorderSide(color: NannyTheme.primary),
+                                foregroundColor: NannyTheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Кнопка "FAQ"
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const FaqView()),
+                              ),
+                              icon: const Icon(Icons.help_outline),
+                              label: const Text('Частые вопросы'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 60),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                side: BorderSide(color: NannyTheme.primary),
+                                foregroundColor: NannyTheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Кнопка "Подать жалобу"
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ComplaintView()),
+                              ),
+                              icon: const Icon(Icons.report_problem_outlined),
+                              label: const Text('Подать жалобу'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 60),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                side: const BorderSide(color: Colors.orange),
+                                foregroundColor: Colors.orange,
                               ),
                             ),
                             const SizedBox(height: 20),

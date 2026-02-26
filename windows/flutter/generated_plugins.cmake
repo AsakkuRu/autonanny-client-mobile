@@ -10,6 +10,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   local_auth_windows
   network_info_plus
   permission_handler_windows
+  printing
   url_launcher_windows
 )
 
