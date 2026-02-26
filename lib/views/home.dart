@@ -11,6 +11,7 @@ import 'package:nanny_client/views/support/complaint_view.dart';
 import 'package:nanny_client/views/history/trip_export_view.dart';
 import 'package:nanny_client/views/history/spending_analytics_view.dart';
 import 'package:nanny_client/views/support/faq_view.dart';
+import 'package:nanny_client/views/referral/referral_view.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_components/base_views/view_models/pages/profile_vm.dart';
@@ -343,6 +344,24 @@ class _ClientProfileViewState extends State<_ClientProfileView>
                               ),
                               icon: const Icon(Icons.help_outline),
                               label: const Text('Частые вопросы'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 60),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                side: BorderSide(color: NannyTheme.primary),
+                                foregroundColor: NannyTheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Кнопка "Реферальная программа"
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ReferralView()),
+                              ),
+                              icon: const Icon(Icons.card_giftcard),
+                              label: const Text('Реферальная программа'),
                               style: OutlinedButton.styleFrom(
                                 minimumSize: const Size(double.infinity, 60),
                                 shape: RoundedRectangleBorder(
