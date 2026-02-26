@@ -9,6 +9,7 @@ import 'package:nanny_client/views/history/trip_history_view.dart';
 import 'package:nanny_client/views/support/support_chat_view.dart';
 import 'package:nanny_client/views/support/complaint_view.dart';
 import 'package:nanny_client/views/history/trip_export_view.dart';
+import 'package:nanny_client/views/history/spending_analytics_view.dart';
 import 'package:nanny_client/views/support/faq_view.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_components/nanny_components.dart';
@@ -288,6 +289,24 @@ class _ClientProfileViewState extends State<_ClientProfileView>
                               ),
                               icon: const Icon(Icons.support_agent),
                               label: const Text('Техподдержка'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 60),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                side: BorderSide(color: NannyTheme.primary),
+                                foregroundColor: NannyTheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Кнопка "Аналитика расходов"
+                            OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const SpendingAnalyticsView()),
+                              ),
+                              icon: const Icon(Icons.pie_chart_outline),
+                              label: const Text('Аналитика расходов'),
                               style: OutlinedButton.styleFrom(
                                 minimumSize: const Size(double.infinity, 60),
                                 shape: RoundedRectangleBorder(
