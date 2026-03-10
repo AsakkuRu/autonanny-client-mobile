@@ -13,6 +13,10 @@ class RouteSheetVM extends ViewModelBase {
   final NannyWeekday weekday;
   final Road? road;
   final int? tariffId;
+  final List<NannyWeekday>? allSelectedWeekdays;
+
+  bool applyToAllSelectedDays;
+  late NannyWeekday selectedWeekdayForRoute;
 
   RouteSheetVM({
     required super.context,
@@ -20,7 +24,9 @@ class RouteSheetVM extends ViewModelBase {
     required this.weekday,
     this.road,
     this.tariffId,
-  }) {
+    this.allSelectedWeekdays,
+    bool applyToAllDaysDefault = true,
+  }) : applyToAllSelectedDays = applyToAllDaysDefault {
     // Заполняем roadName, если есть в schedule
     roadName = road?.title ?? "";
     nameController.text = roadName;
@@ -83,6 +89,8 @@ class RouteSheetVM extends ViewModelBase {
             ).toList()
           : []; // Если промежуточных адресов нет, возвращаем пустой список
     }
+
+    selectedWeekdayForRoute = road?.weekDay ?? weekday;
 
     update(() {});
     _scheduleEstimate();
@@ -392,19 +400,30 @@ class RouteSheetVM extends ViewModelBase {
       ));
     }
 
+    final resultRoad = Road(
+        id: road?.id,
+        weekDay: selectedWeekdayForRoute,
+        startTime: timeRange!.startTime,
+        endTime: timeRange!.endTime,
+        addresses: driveAddresses,
+        title: roadName,
+        typeDrive: [
+          isRoundTrip ? DriveType.roundTrip : DriveType.oneWay,
+          if (addresses.isNotEmpty) DriveType.withInterPoint
+        ]);
+
+    final targetDays = applyToAllSelectedDays
+        ? allSelectedWeekdays
+        : [selectedWeekdayForRoute];
+
     Navigator.pop(
-        context,
-        Road(
-            id: road?.id,
-            weekDay: weekday,
-            startTime: timeRange!.startTime,
-            endTime: timeRange!.endTime,
-            addresses: driveAddresses,
-            title: roadName,
-            typeDrive: [
-              isRoundTrip ? DriveType.roundTrip : DriveType.oneWay,
-              if (addresses.isNotEmpty) DriveType.withInterPoint
-            ]));
+      context,
+      RouteSheetResult(
+        road: resultRoad,
+        applyToAllSelectedDays: applyToAllSelectedDays,
+        targetWeekdays: targetDays,
+      ),
+    );
   }
 }
 

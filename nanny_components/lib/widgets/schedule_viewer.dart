@@ -29,18 +29,27 @@ class ScheduleViewer extends StatelessWidget {
     return schedule == null
         ? const SizedBox()
         : Builder(builder: (context) {
+            // Фильтруем маршруты по выбранным дням
             List<Road> roads = schedule!.roads
-                .where(
-                  (road) => selectedWeedkays.contains(road.weekDay),
-                )
+                .where((road) => selectedWeedkays.contains(road.weekDay))
                 .toList();
 
-            // Убираем лишние дубликаты, оставляя по одному экземпляру
-            List<Road> uniqueRoads = [];
+            // Группируем маршруты по "шаблонам" (одинаковые по времени, адресам, типу и названию),
+            // чтобы пользователь видел один маршрут с несколькими днями, а не дубликаты.
+            final List<Road> uniqueRoads = [];
+            final Map<Road, List<NannyWeekday>> roadDays = {};
+
             for (var road in roads) {
-              if (!uniqueRoads
-                  .any((uniqueRoad) => uniqueRoad.isIdenticalTo(road))) {
+              final existing = uniqueRoads.cast<Road?>().firstWhere(
+                    (u) => u != null && u.isIdenticalTo(road),
+                    orElse: () => null,
+                  );
+
+              if (existing == null) {
                 uniqueRoads.add(road);
+                roadDays[road] = [road.weekDay];
+              } else {
+                roadDays[existing]!.add(road.weekDay);
               }
             }
 
@@ -53,11 +62,13 @@ class ScheduleViewer extends StatelessWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     itemBuilder: (context, index) {
                       final road = uniqueRoads[index];
+                      final templateDays = roadDays[road] ?? [road.weekDay];
 
                       return ScheduleWidget(
                           onDeleteRoad: onDeleteRoad,
                           onEditRoad: onEditRoad,
                           road: road,
+                          templateWeekdays: templateDays.toSet().toList(),
                           hasCheckBox: hasCheckBox,
                           selectedRoads: selectedRoads,
                           roadSelected: roadSelected);
@@ -75,6 +86,7 @@ class ScheduleWidget extends StatefulWidget {
   const ScheduleWidget({
     super.key,
     required this.road,
+    required this.templateWeekdays,
     required this.hasCheckBox,
     required this.selectedRoads,
     required this.roadSelected,
@@ -83,6 +95,7 @@ class ScheduleWidget extends StatefulWidget {
   });
 
   final Road road;
+  final List<NannyWeekday> templateWeekdays;
   final void Function(Road road)? onDeleteRoad;
   final void Function(Road road)? onEditRoad;
   final bool hasCheckBox;
@@ -98,6 +111,10 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final daysLabel = widget.templateWeekdays
+        .map((d) => d.shortName)
+        .toList()
+        .join(", ");
     return Card(
       elevation: 0,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
@@ -122,15 +139,30 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
                 onChanged: (value) =>
                     widget.roadSelected?.call(widget.road.id!, value!),
               )
-            : Text(
-                widget.road.title,
-                style: TextStyle(
-                    color: isExpanded
-                        ? NannyTheme.primary
-                        : const Color(0xFF2B2B2B),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Nunito'),
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.road.title,
+                    style: TextStyle(
+                        color: isExpanded
+                            ? NannyTheme.primary
+                            : const Color(0xFF2B2B2B),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'Nunito'),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    daysLabel,
+                    style: const TextStyle(
+                      color: Color(0xFF757575),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
               ),
         children: [
           ListView.separated(
