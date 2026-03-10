@@ -31,25 +31,33 @@ class GraphVM extends ViewModelBase {
   Future<void> createOrEditRoute({Road? editingRoad}) async {
     if (selectedSchedule == null) return;
 
-    var road = await NannyDialogs.showRouteCreateOrEditSheet(
-        context, selectedWeekday.first,
-        road: editingRoad);
+    final result = await NannyDialogs.showRouteCreateOrEditSheet(
+      context,
+      selectedWeekday.first,
+      road: editingRoad,
+      // В экране просмотра графика для уже созданного расписания
+      // работа ведётся с конкретным днём, поэтому информация о "всех днях"
+      // нам здесь не нужна — используем только сформированный Road.
+      allSelectedWeekdays: [selectedWeekday.first],
+      applyToAllDaysDefault: false,
+    );
 
-    if (road == null) return;
+    if (result == null) return;
+    final road = result.road;
 
     if (!context.mounted) return;
 
     LoadScreen.showLoad(context, true);
 
-    var result = editingRoad == null
+    var apiResult = editingRoad == null
         ? await NannyOrdersApi.createScheduleRoadById(
             selectedSchedule!.id!, road)
         : await NannyOrdersApi.updateScheduleRoadById(road);
 
-    if (!result.success) {
+    if (!apiResult.success) {
       if (context.mounted) {
         LoadScreen.showLoad(context, false);
-        NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
+        NannyDialogs.showMessageBox(context, "Ошибка", apiResult.errorMessage);
       }
 
       return;

@@ -205,7 +205,17 @@ extension RoadEquality on Road {
   bool _areAddressesEqual(List<DriveAddress> list1, List<DriveAddress> list2) {
     if (list1.length != list2.length) return false;
     for (int i = 0; i < list1.length; i++) {
-      if (list1[i] != list2[i]) return false;
+      final a = list1[i];
+      final b = list2[i];
+      if (a.fromAddress.address != b.fromAddress.address ||
+          a.toAddress.address != b.toAddress.address ||
+          a.fromAddress.location.latitude != b.fromAddress.location.latitude ||
+          a.fromAddress.location.longitude !=
+              b.fromAddress.location.longitude ||
+          a.toAddress.location.latitude != b.toAddress.location.latitude ||
+          a.toAddress.location.longitude != b.toAddress.location.longitude) {
+        return false;
+      }
     }
     return true;
   }

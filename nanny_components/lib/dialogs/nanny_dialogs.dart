@@ -273,9 +273,12 @@ class NannyDialogs {
         false;
   }
 
-  static Future<Road?> showRouteCreateOrEditSheet(
+  static Future<RouteSheetResult?> showRouteCreateOrEditSheet(
       BuildContext context, NannyWeekday weekday,
-      {Road? road, int? tariffId}) async {
+      {Road? road,
+      int? tariffId,
+      List<NannyWeekday>? allSelectedWeekdays,
+      bool applyToAllDaysDefault = true}) async {
     return await showModalBottomSheet(
       context: context,
       enableDrag: false,
@@ -286,7 +289,13 @@ class NannyDialogs {
       builder: (context) => Padding(
         padding:
             EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: RouteSheetView(weekday: weekday, road: road, tariffId: tariffId),
+        child: RouteSheetView(
+          weekday: weekday,
+          road: road,
+          tariffId: tariffId,
+          allSelectedWeekdays: allSelectedWeekdays,
+          applyToAllDaysDefault: applyToAllDaysDefault,
+        ),
       ),
     );
   }

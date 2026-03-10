@@ -105,25 +105,44 @@ class GraphCreateVM extends ViewModelBase {
       NannyDialogs.showMessageBox(context, "Ошибка", "Выберите хотя бы один день");
       return;
     }
-    var road = await NannyDialogs.showRouteCreateOrEditSheet(
-        context, selectedWeekday.first,
-        road: updatingRoad,
-        tariffId: editor.tariff.id);
-    if (road == null) return;
+    final NannyWeekday baseWeekday =
+        updatingRoad?.weekDay ??
+            (selectedWeekday.isNotEmpty
+                ? selectedWeekday.first
+                : NannyWeekday.monday);
 
+    final result = await NannyDialogs.showRouteCreateOrEditSheet(
+      context,
+      baseWeekday,
+      road: updatingRoad,
+      tariffId: editor.tariff.id,
+      allSelectedWeekdays: selectedWeekday,
+    );
+    if (result == null) return;
+
+    final road = result.road;
+
+    // Определяем целевые дни для маршрута
+    final List<NannyWeekday> targetDays =
+        result.applyToAllSelectedDays && selectedWeekday.isNotEmpty
+            ? List<NannyWeekday>.from(selectedWeekday)
+            : (result.targetWeekdays ?? [road.weekDay]);
+
+    // Если редактируем существующий маршрут — удаляем все его копии (по шаблону)
     if (updatingRoad != null) {
-      editor.deleteRoad(
-        editor.roads.firstWhere(
-          (e) => e.isIdenticalTo(updatingRoad),
-        ),
-      );
+      final existingCopies =
+          editor.roads.where((e) => e.isIdenticalTo(updatingRoad)).toList();
+      for (final r in existingCopies) {
+        editor.deleteRoad(r);
+      }
     }
 
-    for (var weekday in selectedWeekday) {
-      // FE-MVP-015: Добавляем выбранных детей к маршруту
-      var updatedRoad = road.copyWith(
+    // Добавляем новые маршруты по выбранным дням
+    for (var weekday in targetDays) {
+      final updatedRoad = road.copyWith(
         weekDay: weekday,
-        children: selectedChildrenIds.isNotEmpty ? selectedChildrenIds : null,
+        children:
+            selectedChildrenIds.isNotEmpty ? selectedChildrenIds : null,
       );
       editor.addRoad(updatedRoad);
     }
@@ -239,6 +258,25 @@ class GraphCreateVM extends ViewModelBase {
 
     if (!editor.valiateSchedule()) {
       NannyDialogs.showMessageBox(context, "Ошибка", "Заполните форму!");
+      return;
+    }
+
+    // Валидация: для всех выбранных дней должны быть заданы маршруты
+    final usedDays =
+        editor.roads.map((r) => r.weekDay).toSet().cast<NannyWeekday>();
+    final requiredDays = selectedWeekday.toSet().cast<NannyWeekday>();
+    final missingDays =
+        requiredDays.where((d) => !usedDays.contains(d)).toList();
+
+    if (missingDays.isNotEmpty) {
+      final missingNames =
+          missingDays.map((d) => d.shortName).join(", ");
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        "Для всех выбранных дней графика должны быть заданы маршруты.\n"
+        "Сейчас нет маршрутов для: $missingNames.",
+      );
       return;
     }
 

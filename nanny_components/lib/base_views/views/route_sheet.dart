@@ -5,16 +5,32 @@ import 'package:nanny_components/widgets/nanny_text_forms.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/nanny_core.dart';
 
+class RouteSheetResult {
+  final Road road;
+  final bool applyToAllSelectedDays;
+  final List<NannyWeekday>? targetWeekdays;
+
+  RouteSheetResult({
+    required this.road,
+    required this.applyToAllSelectedDays,
+    this.targetWeekdays,
+  });
+}
+
 class RouteSheetView extends StatefulWidget {
   final NannyWeekday weekday;
   final Road? road;
   final int? tariffId;
+  final List<NannyWeekday>? allSelectedWeekdays;
+  final bool applyToAllDaysDefault;
 
   const RouteSheetView({
     super.key,
     required this.weekday,
     this.road,
     this.tariffId,
+    this.allSelectedWeekdays,
+    this.applyToAllDaysDefault = true,
   });
 
   @override
@@ -32,7 +48,9 @@ class _RouteSheetViewState extends State<RouteSheetView> {
         update: setState,
         weekday: widget.weekday,
         road: widget.road,
-        tariffId: widget.tariffId);
+        tariffId: widget.tariffId,
+        allSelectedWeekdays: widget.allSelectedWeekdays,
+        applyToAllDaysDefault: widget.applyToAllDaysDefault);
   }
 
   @override
@@ -54,8 +72,10 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                     onPressed: vm.cancel,
                     child: const Text("Отменить"),
                   ),
-                  const Text("Новый маршрут",
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    "Новый маршрут",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   TextButton(
                     onPressed: vm.confirm,
                     child: const Text("Готово"),
@@ -63,6 +83,68 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                 ],
               ),
             ),
+            if (vm.allSelectedWeekdays != null &&
+                vm.allSelectedWeekdays!.length > 1)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CheckboxListTile(
+                      value: vm.applyToAllSelectedDays,
+                      onChanged: (value) {
+                        vm.applyToAllSelectedDays = value ?? true;
+                        vm.update(() {});
+                      },
+                      controlAffinity: ListTileControlAffinity.leading,
+                      activeColor:
+                          Theme.of(context).colorScheme.primary,
+                      checkColor: Colors.white,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Использовать маршрут для всех выбранных дней',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Если выключить — маршрут будет создан только для одного дня недели.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF757575),
+                        ),
+                      ),
+                    ),
+                    if (!vm.applyToAllSelectedDays) ...[
+                      const SizedBox(height: 4),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: DropdownButton<NannyWeekday>(
+                          value: vm.selectedWeekdayForRoute,
+                          onChanged: (value) {
+                            if (value == null) return;
+                            vm.selectedWeekdayForRoute = value;
+                            vm.update(() {});
+                          },
+                          items: (vm.allSelectedWeekdays!.toList()
+                                ..sort(
+                                  (a, b) => a.index.compareTo(b.index),
+                                ))
+                              .map(
+                                (d) => DropdownMenuItem<NannyWeekday>(
+                                  value: d,
+                                  child: Text(d.fullName),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -106,6 +188,15 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                         )
                         .toList(),
                   ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: vm.addAddress,
+                      icon: const Icon(Icons.add),
+                      label: const Text("Добавить промежуточный адрес"),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   NannyTextForm(
                     isExpanded: true,
                     controller: vm.toController,
@@ -148,51 +239,84 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                     ),
                     const SizedBox(height: 20),
                   ],
-                  IconButton(
-                      onPressed: vm.addAddress, icon: const Icon(Icons.add)),
-                  const SizedBox(height: 20),
-                  // Row(
-                  //   children: [
-                  //     Expanded(
-                  //       child: NannyTextForm(
-                  //         controller: vm.timeFromController,
-                  //         readOnly: true,
-                  //         labelText: "Время от",
-                  //         onTap: () => vm.chooseTime(isFrom: true),
-                  //       ),
-                  //     ),
-                  //     const SizedBox(width: 10),
-                  //     Expanded(
-                  //       child: NannyTextForm(
-                  //         controller: vm.timeToController,
-                  //         readOnly: true,
-                  //         labelText: "Время до",
-                  //         onTap: () =>  vm.chooseTime(isFrom: false),
-                  //       ),
-                  //     ),
-                  //   ],
-                  // ),
-                  CheckboxListTile(
-                    value: vm.isRoundTrip,
-                    onChanged: (value) {
-                      vm.isRoundTrip = value ?? false;
-                      setState(() {});
-                    },
-                    title: const Text('Туда и обратно'),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                    activeColor: Theme.of(context).colorScheme.primary,
-                    checkColor: Colors.white,
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F8FF),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFFE0E0E0),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "Тип и время поездки",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                const Text(
+                                  "Туда и обратно",
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                                const SizedBox(width: 4),
+                                Switch(
+                                  value: vm.isRoundTrip,
+                                  onChanged: (value) {
+                                    vm.isRoundTrip = value;
+                                    vm.update(() {});
+                                  },
+                                  activeColor: Theme.of(context)
+                                      .colorScheme
+                                      .primary,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          "Время от и до",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF757575),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton(
+                            onPressed: vm.chooseTime,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              side: BorderSide(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary,
+                              ),
+                            ),
+                            child: Text(
+                              vm.timeRange == null
+                                  ? "Выбрать время"
+                                  : vm.timeRange!.toLocalTimeString(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  const Text("Время от и до:",
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  ElevatedButton(
-                      onPressed: vm.chooseTime,
-                      child: Text(vm.timeRange == null
-                          ? "Выберите временной промежуток"
-                          : vm.timeRange!.toLocalTimeString()))
                 ],
               ),
             ),
