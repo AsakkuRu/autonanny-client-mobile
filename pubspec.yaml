@@ -1,13 +1,14 @@
 name: nanny_client
 description: A new Flutter project.
 publish_to: 'none'
-version: 0.2.1
+version: 0.2.8
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
 
 dependency_overrides:
   intl: 0.19.0
+  http: ^1.0.0
 
 dependencies:
   flutter:

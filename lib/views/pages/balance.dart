@@ -87,51 +87,6 @@ class _BalanceViewState extends State<BalanceView>
                     child: const Text("Пополнить баланс"),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              vm.statsSwitch(switchToWithdraw: false),
-                          style: vm.withdrawSelected
-                              ? NannyButtonStyles.secondary.copyWith(
-                                  minimumSize: const WidgetStatePropertyAll(
-                                    Size(double.infinity, 50),
-                                  ),
-                                )
-                              : NannyButtonStyles.main.copyWith(
-                                  minimumSize: const WidgetStatePropertyAll(
-                                    Size(double.infinity, 50),
-                                  ),
-                                ),
-                          child: const Text("Пополнение"),
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              vm.statsSwitch(switchToWithdraw: true),
-                          style: vm.withdrawSelected
-                              ? NannyButtonStyles.main.copyWith(
-                                  minimumSize: const WidgetStatePropertyAll(
-                                    Size(double.infinity, 50),
-                                  ),
-                                )
-                              : NannyButtonStyles.secondary.copyWith(
-                                  minimumSize: const WidgetStatePropertyAll(
-                                    Size(double.infinity, 50),
-                                  ),
-                                ),
-                          child: const Text("Снятие"),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 20),
                 ConstrainedBox(
                   constraints: BoxConstraints(
@@ -144,12 +99,9 @@ class _BalanceViewState extends State<BalanceView>
                         completeView: (context, data) => Builder(
                           builder: (context) {
                             List<History> history = data!.history
-                                .where(
-                                  (el) => el.title.toLowerCase().contains(
-                                      vm.withdrawSelected
-                                          ? "снятие"
-                                          : "пополнение"),
-                                )
+                                .where((el) => el.title
+                                    .toLowerCase()
+                                    .contains("пополнение"))
                                 .toList();
                             return history.isEmpty
                                 ? Padding(

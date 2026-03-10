@@ -33,14 +33,15 @@ class NannyDialogs {
                           ),
                         ),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        msg,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                        textAlign: TextAlign.center,
+                    if (msg.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          msg,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 20),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 30),
@@ -56,7 +57,7 @@ class NannyDialogs {
                             Size(double.infinity, 60),
                           ),
                         ),
-                        child: const Text("Ок"),
+                        child: const Text("Продолжить"),
                       ),
                     ),
                   ],
@@ -274,7 +275,7 @@ class NannyDialogs {
 
   static Future<Road?> showRouteCreateOrEditSheet(
       BuildContext context, NannyWeekday weekday,
-      {Road? road}) async {
+      {Road? road, int? tariffId}) async {
     return await showModalBottomSheet(
       context: context,
       enableDrag: false,
@@ -285,7 +286,7 @@ class NannyDialogs {
       builder: (context) => Padding(
         padding:
             EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: RouteSheetView(weekday: weekday, road: road),
+        child: RouteSheetView(weekday: weekday, road: road, tariffId: tariffId),
       ),
     );
   }

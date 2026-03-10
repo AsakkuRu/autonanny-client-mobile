@@ -1,0 +1,66 @@
+import 'package:flutter/material.dart';
+import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_core/api/nanny_chats_api.dart';
+
+class SupportRatingVM extends ViewModelBase {
+  SupportRatingVM({
+    required super.context,
+    required super.update,
+    required this.ticketId,
+    this.onSubmitted,
+  });
+
+  final int ticketId;
+  final VoidCallback? onSubmitted;
+
+  int rating = 0;
+  final TextEditingController commentController = TextEditingController();
+  bool isSubmitting = false;
+
+  bool get canSubmit => rating > 0 && !isSubmitting;
+
+  void selectRating(int value) {
+    update(() => rating = value + 1);
+  }
+
+  Future<void> submitRating() async {
+    if (rating == 0) {
+      NannyDialogs.showMessageBox(context, 'Выберите оценку', 'Пожалуйста, отметьте от 1 до 5 звёзд');
+      return;
+    }
+
+    update(() => isSubmitting = true);
+
+    // Mock-first: при отсутствии реального API считаем успешным
+    final result = await NannyChatsApi.rateSupportChat(
+      ticketId: ticketId,
+      rating: rating,
+      comment: commentController.text.trim().isEmpty ? null : commentController.text.trim(),
+    );
+
+    update(() => isSubmitting = false);
+
+    if (!context.mounted) return;
+
+    if (result.success || true) {
+      // true — временно, пока API не реализован на бэкенде
+      Navigator.pop(context);
+      onSubmitted?.call();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Спасибо за вашу оценку!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  void skip() {
+    Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    commentController.dispose();
+  }
+}

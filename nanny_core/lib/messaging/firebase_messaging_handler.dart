@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/nanny_core.dart';
+import 'package:nanny_core/messaging/route_deviation_notifications.dart';
 import 'package:nanny_core/messaging/trip_status_notifications.dart';
 
 class FirebaseMessagingHandler {
   static void init() {
     // FE-MVP-019: Инициализация локальных уведомлений
     TripStatusNotifications.initialize();
+    // TASK-C1: Инициализация уведомлений об отклонениях от маршрута
+    RouteDeviationNotifications.initialize();
 
     FirebaseMessaging.onMessage.listen((msg) {
       Logger().w("Got message from firebase:\n${msg.data}\nNotification data:${msg.notification?.title}\n${msg.notification?.body}");
@@ -15,6 +18,11 @@ class FirebaseMessagingHandler {
       // FE-MVP-019: Обработка уведомлений о статусе поездки
       if (msg.data['type'] == 'trip_status') {
         TripStatusNotifications.handleFirebaseMessage(msg);
+      }
+
+      // TASK-C1: Обработка уведомлений об отклонении от маршрута
+      if (msg.data['type'] == 'route_deviation') {
+        RouteDeviationNotifications.handleFirebaseMessage(msg);
       }
     });
     FirebaseMessaging.onMessageOpenedApp.listen((msg) {

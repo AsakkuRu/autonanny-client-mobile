@@ -12,10 +12,11 @@ class WelcomeVM extends ViewModelBase {
     required this.loginPaths,
   }) {
     requestPermissions();
-    Future.delayed(Duration(seconds: 1), () {
+    // TODO: сделать вывод реальной версии из pubspec (package_info_plus или аналог)
+    Future.delayed(const Duration(seconds: 1), () {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text("Версия сборки: 0.2.0")) // TODO: Track version
-          );
+        content: Text("Версия сборки: 0.2.8"),
+      ));
     });
   }
 

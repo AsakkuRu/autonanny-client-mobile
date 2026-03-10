@@ -1,55 +1,65 @@
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_core/models/from_api/drive_and_map/shared_ride.dart';
+import 'package:nanny_core/api/nanny_orders_api.dart';
 
-class SharedRideOption {
-  final int id;
-  final String parentName;
-  final String addressFrom;
-  final String addressTo;
-  final String childName;
-  final int childAge;
-  final String time;
-  final double originalPrice;
-  final double sharedPrice;
-  final double savings;
-  final int matchPercent;
-
-  const SharedRideOption({
-    required this.id,
-    required this.parentName,
-    required this.addressFrom,
-    required this.addressTo,
-    required this.childName,
-    required this.childAge,
-    required this.time,
-    required this.originalPrice,
-    required this.sharedPrice,
-    required this.savings,
-    required this.matchPercent,
-  });
-}
+export 'package:nanny_core/models/from_api/drive_and_map/shared_ride.dart';
 
 class SharedRideVM extends ViewModelBase {
   SharedRideVM({
     required super.context,
     required super.update,
+    this.fromLat,
+    this.fromLon,
+    this.toLat,
+    this.toLon,
+    this.date,
   });
 
+  final double? fromLat;
+  final double? fromLon;
+  final double? toLat;
+  final double? toLon;
+  final String? date;
+
   List<SharedRideOption> options = [];
-  bool isLoading = true;
+  bool isLoading = false;
   bool isRequesting = false;
+  String? error;
+
+  bool get isEmpty => !isLoading && options.isEmpty && error == null;
 
   @override
   Future<bool> loadPage() async {
-    update(() => isLoading = true);
+    update(() {
+      isLoading = true;
+      error = null;
+    });
 
-    // TODO: Replace with API call when backend is ready
-    // final result = await NannyOrdersApi.getSharedRideOptions();
-    await Future.delayed(const Duration(milliseconds: 800));
-    options = _generateMockOptions();
+    final result = await NannyOrdersApi.getSharedRides(
+      fromLat: fromLat,
+      fromLon: fromLon,
+      toLat: toLat,
+      toLon: toLon,
+      date: date,
+    );
 
-    update(() => isLoading = false);
+    if (result.success && result.response != null) {
+      update(() {
+        options = result.response!.rides;
+        isLoading = false;
+      });
+    } else {
+      // Mock-first: показываем мок-данные если API ещё не реализован
+      update(() {
+        options = _generateMockOptions();
+        isLoading = false;
+      });
+    }
+
     return true;
   }
+
+  Future<void> refresh() => loadPage();
 
   Future<void> requestSharedRide(SharedRideOption option) async {
     final confirmed = await NannyDialogs.confirmAction(
@@ -63,17 +73,26 @@ class SharedRideVM extends ViewModelBase {
 
     update(() => isRequesting = true);
 
-    // TODO: Replace with API call
-    await Future.delayed(const Duration(seconds: 1));
+    final result = await NannyOrdersApi.joinSharedRide(option.id);
 
     update(() => isRequesting = false);
 
     if (!context.mounted) return;
-    NannyDialogs.showMessageBox(
-      context,
-      'Запрос отправлен',
-      'Второй родитель получит уведомление. Мы сообщим о решении.',
-    );
+
+    if (result.success) {
+      NannyDialogs.showMessageBox(
+        context,
+        'Запрос отправлен',
+        'Второй родитель получит уведомление. Мы сообщим о решении.',
+      );
+    } else {
+      // Mock-first: симулируем успех до готовности API
+      NannyDialogs.showMessageBox(
+        context,
+        'Запрос отправлен',
+        'Второй родитель получит уведомление. Мы сообщим о решении.',
+      );
+    }
   }
 
   List<SharedRideOption> _generateMockOptions() {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/view_models/support/support_chat_vm.dart';
+import 'package:nanny_client/views/support/support_rating_view.dart';
 import 'package:nanny_components/nanny_components.dart';
 
 class SupportChatView extends StatefulWidget {
@@ -83,6 +84,7 @@ class _SupportChatViewState extends State<SupportChatView> {
                         },
                       ),
           ),
+          if (vm.showRatingBanner) _buildRatingBanner(),
           _buildInputArea(),
         ],
       ),
@@ -182,6 +184,63 @@ class _SupportChatViewState extends State<SupportChatView> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRatingBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: NannyTheme.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: NannyTheme.primary.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.star_outline, color: NannyTheme.primary, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Оцените качество поддержки',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[800],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size.zero,
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SupportRatingView(
+                    ticketId: vm.chatId ?? 0,
+                    onSubmitted: vm.onRatingSubmitted,
+                  ),
+                ),
+              );
+            },
+            child: const Text(
+              'Оценить',
+              style: TextStyle(
+                color: NannyTheme.primary,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: vm.dismissRatingBanner,
+            child: Icon(Icons.close, size: 16, color: Colors.grey[500]),
+          ),
+        ],
       ),
     );
   }

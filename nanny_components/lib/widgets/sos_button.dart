@@ -167,11 +167,15 @@ class _SOSButtonState extends State<SOSButton> with SingleTickerProviderStateMix
     return ScaleTransition(
       scale: _pulseAnimation,
       child: Container(
-        decoration: BoxShadow(
-          color: Colors.red.withOpacity(0.3),
-          blurRadius: 20,
-          spreadRadius: 5,
-        ) as BoxDecoration?,
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.red.withOpacity(0.3),
+              blurRadius: 20,
+              spreadRadius: 5,
+            ),
+          ],
+        ),
         child: ElevatedButton(
           onPressed: _isActivating ? null : _activateSOS,
           style: ElevatedButton.styleFrom(

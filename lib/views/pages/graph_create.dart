@@ -241,52 +241,6 @@ class _GraphCreateState extends State<GraphCreate> {
                               ),
                             ),
                           const SizedBox(height: 16),
-                          DropDownWidget(
-                            title: "Кол-во детей:",
-                            value: vm.editor.childCount,
-                            dropdownTexts: List.generate(
-                              4,
-                              (index) => (index + 1).toString(),
-                            ),
-                            dropdownValues:
-                                List.generate(4, (index) => index + 1),
-                            onChanged: (value) => vm.childCountChanged(
-                              value.toString(),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          // FE-MVP-007: Информационное сообщение об ограничении
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF3E0),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFFFFB74D),
-                                width: 1,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  color: const Color(0xFFFF9800),
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    'Максимум 4 ребенка на одного водителя для обеспечения безопасности',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF6D4C41),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
                           AdditionalServiceWidget(vm: vm),
                           const SizedBox(height: 20),
                           ElevatedButton(

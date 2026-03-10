@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nanny_components/models/address_view_data.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/google_map_api.dart';
+import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
@@ -11,12 +12,14 @@ import 'package:time_range_picker/time_range_picker.dart';
 class RouteSheetVM extends ViewModelBase {
   final NannyWeekday weekday;
   final Road? road;
+  final int? tariffId;
 
   RouteSheetVM({
     required super.context,
     required super.update,
     required this.weekday,
     this.road,
+    this.tariffId,
   }) {
     // Заполняем roadName, если есть в schedule
     roadName = road?.title ?? "";
@@ -82,10 +85,13 @@ class RouteSheetVM extends ViewModelBase {
     }
 
     update(() {});
+    _scheduleEstimate();
   }
 
   String roadName = "";
   GeocodeResult? addressFrom;
+  double? estimatedPrice;
+  bool estimatedLoading = false;
   List<AddressViewData> addresses = [];
   GeocodeResult? addressTo;
   TimeRange? timeRange;
@@ -125,6 +131,7 @@ class RouteSheetVM extends ViewModelBase {
     }
 
     update(() {});
+    _scheduleEstimate();
   }
 
   void chooseAddtionAddress(AddressViewData data) async {
@@ -147,11 +154,99 @@ class RouteSheetVM extends ViewModelBase {
         NannyMapUtils.simplifyAddress(address.formattedAddress);
 
     update(() {});
+    _scheduleEstimate();
   }
 
   void removeAddress(AddressViewData data) {
     addresses.remove(data);
 
+    update(() {});
+    _scheduleEstimate();
+  }
+
+  List<Map<String, dynamic>>? _buildAddressesJson() {
+    if (addressFrom == null ||
+        addressTo == null ||
+        addressFrom!.geometry?.location == null ||
+        addressTo!.geometry?.location == null) return null;
+    if (addresses.any((e) => e.address == null)) return null;
+
+    final list = <Map<String, dynamic>>[];
+    if (addresses.isEmpty) {
+      list.add(DriveAddress(
+        fromAddress: AddressData(
+          address: NannyMapUtils.simplifyAddress(addressFrom!.formattedAddress),
+          location: addressFrom!.geometry!.location!,
+        ),
+        toAddress: AddressData(
+          address: NannyMapUtils.simplifyAddress(addressTo!.formattedAddress),
+          location: addressTo!.geometry!.location!,
+        ),
+      ).toJson());
+    } else {
+      list.add(DriveAddress(
+        fromAddress: AddressData(
+          address: NannyMapUtils.simplifyAddress(addressFrom!.formattedAddress),
+          location: addressFrom!.geometry!.location!,
+        ),
+        toAddress: AddressData(
+          address: NannyMapUtils.simplifyAddress(
+              addresses.first.address!.formattedAddress),
+          location: addresses.first.address!.geometry!.location!,
+        ),
+      ).toJson());
+      for (int i = 0; i < addresses.length - 1; i += 2) {
+        if (i + 1 >= addresses.length) break;
+        list.add(DriveAddress(
+          fromAddress: AddressData(
+            address: NannyMapUtils.simplifyAddress(
+                addresses[i].address!.formattedAddress),
+            location: addresses[i].address!.geometry!.location!,
+          ),
+          toAddress: AddressData(
+            address: NannyMapUtils.simplifyAddress(
+                addresses[i + 1].address!.formattedAddress),
+            location: addresses[i + 1].address!.geometry!.location!,
+          ),
+        ).toJson());
+      }
+      list.add(DriveAddress(
+        fromAddress: AddressData(
+          address: NannyMapUtils.simplifyAddress(
+              addresses.last.address!.formattedAddress),
+          location: addresses.last.address!.geometry!.location!,
+        ),
+        toAddress: AddressData(
+          address: NannyMapUtils.simplifyAddress(addressTo!.formattedAddress),
+          location: addressTo!.geometry!.location!,
+        ),
+      ).toJson());
+    }
+    return list;
+  }
+
+  void _scheduleEstimate() {
+    Future.microtask(() => fetchEstimate());
+  }
+
+  Future<void> fetchEstimate() async {
+    if (tariffId == null) return;
+    final addrs = _buildAddressesJson();
+    if (addrs == null || addrs.isEmpty) {
+      estimatedPrice = null;
+      update(() {});
+      return;
+    }
+    estimatedLoading = true;
+    estimatedPrice = null;
+    update(() {});
+    final result = await NannyOrdersApi.estimateScheduleRoadPrice(
+      idTariff: tariffId!,
+      addresses: addrs,
+    );
+    if (!context.mounted) return;
+    estimatedLoading = false;
+    estimatedPrice = result.success ? result.response : null;
     update(() {});
   }
 

@@ -29,7 +29,8 @@ dependencies:
 
   time_range_picker:
     path: ./flutter_time_range_picker
-  google_fonts: ^4.0.4
+  # Обновлено под текущий Flutter/Dart стек (исправление Constant evaluation error в _fontWeightToFilenameWeightParts)
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:

@@ -6,16 +6,16 @@ import 'package:nanny_core/nanny_core.dart';
 
 class NannyConsts {
   // Продакшн сервер Timeweb
-  static const String domen = "http://188.225.76.45:8000";
-  static const String baseUrl = "http://188.225.76.45:8000/api/v1.0";
-  static const String baseUrlOld = "http://188.225.76.45:8000/api/v1.0";
-  static const String socketUrl = "ws://188.225.76.45:8000/api/v1.0";
+  // static const String domen = "http://188.225.76.45:8000";
+  // static const String baseUrl = "http://188.225.76.45:8000/api/v1.0";
+  // static const String baseUrlOld = "http://188.225.76.45:8000/api/v1.0";
+  // static const String socketUrl = "ws://188.225.76.45:8000/api/v1.0";
   
   // Локальный бэкенд для разработки (10.0.2.2 - это localhost хост-машины для Android эмулятора)
-  // static const String domen = "http://10.0.2.2:8000";
-  // static const String baseUrl = "http://10.0.2.2:8000/api/v1.0";
-  // static const String baseUrlOld = "http://10.0.2.2:8000/api/v1.0";
-  // static const String socketUrl = "ws://10.0.2.2:8000/api/v1.0";
+  static const String domen = "http://10.0.2.2:8000";
+  static const String baseUrl = "http://10.0.2.2:8000/api/v1.0";
+  static const String baseUrlOld = "http://10.0.2.2:8000/api/v1.0";
+  static const String socketUrl = "ws://10.0.2.2:8000/api/v1.0";
 
   static const String regFileToken =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjotMSwiZmJpZCI6IlJlZ2lzdHJhdGlvbiIsImV4cCI6NDg0MjY2NzY2NX0.lzICh4ya1hVSehS4tCFLBTwOTD6TDxaxoBpJgt6YRrw";

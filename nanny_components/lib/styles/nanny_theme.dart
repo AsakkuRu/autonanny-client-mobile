@@ -1,52 +1,50 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_components/styles/checkbox_styles.dart';
 
+/// B-004: Расширена поддержкой тёмной темы (TASK-B4)
 class NannyTheme {
-  static final ThemeData appTheme = ThemeData(
-      colorScheme: colorScheme,
-      buttonTheme: NannyButtonStyles.defaultButtonTheme,
-      elevatedButtonTheme: NannyButtonStyles.elevatedBtnTheme,
-      textButtonTheme: NannyButtonStyles.textBtnTheme,
-      textTheme: NannyTextStyles.textTheme,
-      inputDecorationTheme: NannyTextFormStyles.defaultFormTheme,
-      dialogTheme: dialogTheme,
-      floatingActionButtonTheme: defaultFABStyle,
-      cardTheme: defaultCardStyle,
-      checkboxTheme: defaultCheckboxStyle,
-      useMaterial3: false);
+  // Светлая тема (оригинальная)
+  static final ThemeData lightTheme = ThemeData(
+    colorScheme: colorScheme,
+    buttonTheme: NannyButtonStyles.defaultButtonTheme,
+    elevatedButtonTheme: NannyButtonStyles.elevatedBtnTheme,
+    textButtonTheme: NannyButtonStyles.textBtnTheme,
+    textTheme: NannyTextStyles.textTheme,
+    inputDecorationTheme: NannyTextFormStyles.defaultFormTheme,
+    dialogTheme: dialogTheme,
+    floatingActionButtonTheme: defaultFABStyle,
+    cardTheme: defaultCardStyle,
+    checkboxTheme: defaultCheckboxStyle,
+    useMaterial3: false,
+  );
 
-  static final ThemeData darkAppTheme = ThemeData(
-      colorScheme: darkColorScheme,
-      buttonTheme: NannyButtonStyles.defaultButtonTheme,
-      elevatedButtonTheme: NannyButtonStyles.elevatedBtnTheme,
-      textButtonTheme: NannyButtonStyles.textBtnTheme,
-      textTheme: NannyTextStyles.textTheme.apply(
-        bodyColor: darkOnSurface,
-        displayColor: darkOnSurface,
+  // Тёмная тема
+  static final ThemeData darkTheme = ThemeData(
+    colorScheme: darkColorScheme,
+    buttonTheme: NannyButtonStyles.defaultButtonTheme,
+    elevatedButtonTheme: NannyButtonStyles.elevatedBtnTheme,
+    textButtonTheme: NannyButtonStyles.textBtnTheme,
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: const Color(0xFF2A2A3E),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF3A3A5C)),
       ),
-      inputDecorationTheme: NannyTextFormStyles.defaultFormTheme.copyWith(
-        fillColor: darkSurface,
-        hintStyle: TextStyle(color: darkGrey),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF3A3A5C)),
       ),
-      dialogTheme: dialogTheme,
-      floatingActionButtonTheme: defaultFABStyle,
-      cardTheme: defaultCardStyle.copyWith(color: darkSurface),
-      checkboxTheme: defaultCheckboxStyle,
-      scaffoldBackgroundColor: darkBackground,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: darkSurface,
-        foregroundColor: darkOnSurface,
-        elevation: 0,
-      ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: darkSurface,
-        selectedItemColor: primary,
-        unselectedItemColor: darkGrey,
-      ),
-      dividerColor: const Color(0xFF3A3A3A),
-      useMaterial3: false);
+    ),
+    scaffoldBackgroundColor: const Color(0xFF121220),
+    cardColor: const Color(0xFF1E1E30),
+    useMaterial3: false,
+  );
+
+  // Обратная совместимость
+  static ThemeData get appTheme => lightTheme;
+  static ThemeData get darkAppTheme => darkTheme;
 
   static const colorScheme = ColorScheme(
     brightness: Brightness.light,
@@ -56,8 +54,6 @@ class NannyTheme {
     onSecondary: onSecondary,
     error: error,
     onError: onError,
-    background: background,
-    onBackground: onBackground,
     surface: surface,
     onSurface: onSurface,
   );
@@ -65,15 +61,13 @@ class NannyTheme {
   static const darkColorScheme = ColorScheme(
     brightness: Brightness.dark,
     primary: primary,
-    onPrimary: onPrimary,
-    secondary: darkSurface,
-    onSecondary: darkOnSurface,
-    error: error,
-    onError: onError,
-    background: darkBackground,
-    onBackground: darkOnBackground,
-    surface: darkSurface,
-    onSurface: darkOnSurface,
+    onPrimary: Colors.white,
+    secondary: Color(0xFF2A2A3E),
+    onSecondary: Colors.white,
+    error: Colors.redAccent,
+    onError: Colors.red,
+    surface: Color(0xFF1E1E30),
+    onSurface: Colors.white,
   );
 
   static const Color primary = Color(0xFF7067F2);
@@ -90,11 +84,6 @@ class NannyTheme {
 
   static const Color surface = Color(0xFFFFFFFF);
   static const Color onSurface = Color(0xFF000000);
-
-  static const Color darkBackground = Color(0xFF121212);
-  static const Color darkOnBackground = Color(0xFFE0E0E0);
-  static const Color darkSurface = Color(0xFF1E1E1E);
-  static const Color darkOnSurface = Color(0xFFE0E0E0);
 
   static const Color grey = Color(0xFFE6E6E6);
   static const Color darkGrey = Color(0xFFBEBEBE);

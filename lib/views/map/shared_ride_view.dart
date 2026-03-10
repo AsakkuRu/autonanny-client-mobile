@@ -39,7 +39,11 @@ class _SharedRideViewState extends State<SharedRideView> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (vm.options.isEmpty) {
+          if (vm.error != null) {
+            return _buildErrorState(vm.error!);
+          }
+
+          if (vm.isEmpty) {
             return _buildEmptyState();
           }
 
@@ -63,17 +67,62 @@ class _SharedRideViewState extends State<SharedRideView> {
                 ),
               ),
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: vm.options.length,
-                  itemBuilder: (context, index) =>
-                      _buildOptionCard(vm.options[index]),
+                child: RefreshIndicator(
+                  onRefresh: vm.refresh,
+                  color: NannyTheme.primary,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: vm.options.length,
+                    itemBuilder: (context, index) =>
+                        _buildOptionCard(vm.options[index]),
+                  ),
                 ),
               ),
             ],
           );
         },
         errorView: (context, error) => ErrorView(errorText: error.toString()),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            const Text(
+              'Не удалось загрузить поездки',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: vm.refresh,
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              label: const Text(
+                'Повторить',
+                style: TextStyle(color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: NannyTheme.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

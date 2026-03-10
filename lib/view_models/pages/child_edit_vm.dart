@@ -150,6 +150,16 @@ class ChildEditVM extends ViewModelBase {
       return;
     }
 
+    // NEW-008: у ребёнка должен быть хотя бы один экстренный контакт
+    if (child == null && emergencyContacts.isEmpty) {
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        "Добавьте хотя бы один экстренный контакт перед сохранением ребёнка",
+      );
+      return;
+    }
+
     if (!context.mounted) return;
     LoadScreen.showLoad(context, true);
 

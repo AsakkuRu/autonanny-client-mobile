@@ -3,45 +3,49 @@ import 'package:flutter/services.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/dio_request.dart';
 import 'package:nanny_core/api/request_builder.dart';
+import 'package:nanny_core/models/from_api/referral/client_referral_stats.dart';
 import 'package:nanny_core/nanny_core.dart';
+
+export 'package:nanny_core/models/from_api/referral/client_referral_stats.dart';
 
 class ReferralVM {
   ReferralVM({
     required this.context,
     required this.update,
   }) {
-    _loadData();
+    loadData();
   }
 
   final BuildContext context;
   final void Function(void Function()) update;
 
-  String promoCode = '';
-  int invitedCount = 0;
-  int activeCount = 0;
-  double bonusEarned = 0;
+  ClientReferralStats? stats;
+  String selectedPeriod = 'all'; // 'week', 'month', 'all'
   bool isLoading = true;
   bool isApplying = false;
+  bool showBonusHistory = false;
+  bool showRules = false;
+
+  String get promoCode => stats?.referralCode ?? '';
 
   final promoInputController = TextEditingController();
 
-  Future<void> _loadData() async {
+  Future<void> loadData() async {
     update(() => isLoading = true);
 
     try {
       final result = await RequestBuilder<Map<String, dynamic>>().create(
-        dioRequest: DioRequest.dio.get('/users/referral_code'),
+        dioRequest: DioRequest.dio.get(
+          '/users/referral_stats',
+          queryParameters: {'period': selectedPeriod},
+        ),
         onSuccess: (response) => response.data is Map<String, dynamic>
             ? response.data as Map<String, dynamic>
             : <String, dynamic>{},
       );
 
       if (result.success && result.response != null) {
-        final data = result.response!;
-        promoCode = data['code'] ?? '';
-        invitedCount = data['invited_count'] ?? 0;
-        activeCount = data['active_count'] ?? 0;
-        bonusEarned = (data['bonus_earned'] ?? 0).toDouble();
+        stats = ClientReferralStats.fromJson(result.response!);
       } else {
         _loadMockData();
       }
@@ -53,10 +57,14 @@ class ReferralVM {
   }
 
   void _loadMockData() {
-    promoCode = 'NANNY-${NannyUser.userInfo?.id ?? 0}';
-    invitedCount = 3;
-    activeCount = 2;
-    bonusEarned = 1500;
+    final code = 'NANNY-${NannyUser.userInfo?.id ?? 0}';
+    stats = ClientReferralStats.mock(code);
+  }
+
+  void changePeriod(String period) {
+    if (selectedPeriod == period) return;
+    selectedPeriod = period;
+    loadData();
   }
 
   void copyCode() {
@@ -122,6 +130,40 @@ class ReferralVM {
     }
 
     update(() => isApplying = false);
+  }
+
+  void toggleBonusHistory() {
+    update(() => showBonusHistory = !showBonusHistory);
+  }
+
+  void toggleRules() {
+    update(() => showRules = !showRules);
+  }
+
+  String statusLabel(String status) {
+    switch (status) {
+      case 'active':
+        return 'Активен';
+      case 'first_ride':
+        return 'Первая поездка';
+      case 'registered':
+        return 'Зарегистрирован';
+      default:
+        return status;
+    }
+  }
+
+  Color statusColor(String status) {
+    switch (status) {
+      case 'active':
+        return Colors.green;
+      case 'first_ride':
+        return Colors.blue;
+      case 'registered':
+        return Colors.orange;
+      default:
+        return Colors.grey;
+    }
   }
 
   void dispose() {

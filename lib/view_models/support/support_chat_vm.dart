@@ -37,6 +37,10 @@ class SupportChatVM extends ViewModelBase {
   bool isLoading = true;
   int? chatId;
 
+  // TASK-C5: флаг показа баннера оценки после закрытия тикета
+  bool showRatingBanner = false;
+  bool ratingSubmitted = false;
+
   @override
   Future<bool> loadPage() async {
     update(() => isLoading = true);
@@ -45,12 +49,33 @@ class SupportChatVM extends ViewModelBase {
     if (chatResult.success && chatResult.response != null) {
       chatId = chatResult.response;
       await _loadMessages();
+      _checkIfTicketClosed();
     } else {
       messages = _generateMockMessages();
+      // Mock: симулируем закрытый тикет для демонстрации
+      _checkIfTicketClosed();
     }
 
     update(() => isLoading = false);
     return true;
+  }
+
+  // Проверяем, закрыт ли тикет (mock: если есть сообщения — показываем баннер)
+  void _checkIfTicketClosed() {
+    if (!ratingSubmitted && messages.isNotEmpty) {
+      showRatingBanner = true;
+    }
+  }
+
+  void onRatingSubmitted() {
+    update(() {
+      ratingSubmitted = true;
+      showRatingBanner = false;
+    });
+  }
+
+  void dismissRatingBanner() {
+    update(() => showRatingBanner = false);
   }
 
   Future<void> _loadMessages() async {

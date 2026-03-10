@@ -68,6 +68,30 @@ class NannyChatsApi {
     );
   }
 
+  // C-052: Оценка качества поддержки (TASK-C5)
+  static Future<ApiResponse<bool>> rateSupportChat({
+    required int ticketId,
+    required int rating,
+    String? comment,
+  }) async {
+    return RequestBuilder<bool>().create(
+      dioRequest: DioRequest.dio.post(
+        "/support/rate",
+        data: {
+          'ticket_id': ticketId,
+          'rating': rating,
+          if (comment != null && comment.isNotEmpty) 'comment': comment,
+        },
+      ),
+      onSuccess: (_) => true,
+      errorCodeMsgs: {
+        400: 'Некорректные данные оценки',
+        404: 'Тикет не найден',
+        500: 'Не удалось отправить оценку',
+      },
+    );
+  }
+
   // C-051: Подача жалобы
   static Future<ApiResponse<int>> submitComplaint({
     required String reason,

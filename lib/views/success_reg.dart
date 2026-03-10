@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_client/views/reg.dart';
+import 'package:nanny_client/views/home.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -19,13 +19,10 @@ class SuccessRegView extends StatelessWidget {
             ElevatedButton(
               onPressed: () => Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => WelcomeView(
-                  regView: const RegView(), 
-                  loginPaths: NannyConsts.availablePaths)
-                ),
+                MaterialPageRoute(builder: (context) => const HomeView()),
                 (route) => false,
-              ), 
-              child: const Text("Вернуться на начальную страницу")
+              ),
+              child: const Text("Продолжить"),
             ),
           ],
         ),

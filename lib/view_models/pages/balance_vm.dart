@@ -10,17 +10,11 @@ class BalanceVM extends ViewModelBase {
 
   Future<String> get currentBalance async =>
       (await _moneyRequest).response!.balance.toString();
-  bool withdrawSelected = false;
 
   Future<ApiResponse<UserMoney>> get getMoney => _moneyRequest;
   Future<ApiResponse<UserMoney>> _moneyRequest =
       NannyUsersApi.getMoney(period: 'current_year');
   void updateState() => update(() {
-        _moneyRequest = NannyUsersApi.getMoney(period: 'current_year');
-      });
-
-  void statsSwitch({required bool switchToWithdraw}) => update(() {
-        withdrawSelected = switchToWithdraw;
         _moneyRequest = NannyUsersApi.getMoney(period: 'current_year');
       });
   void navigateToWallet() => Navigator.push(

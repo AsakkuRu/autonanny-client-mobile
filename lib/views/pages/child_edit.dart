@@ -384,22 +384,26 @@ class _ChildEditViewState extends State<ChildEditView> {
                         icon: const Icon(Icons.edit, size: 20),
                         color: const Color(0xFF757575),
                       ),
-                      IconButton(
-                        onPressed: () => vm.deleteEmergencyContact(contact),
-                        icon: const Icon(Icons.delete, size: 20),
-                        color: Colors.red,
-                      ),
+                      // NEW-009: не показывать «Удалить» у единственного контакта
+                      if (vm.emergencyContacts.length > 1)
+                        IconButton(
+                          onPressed: () => vm.deleteEmergencyContact(contact),
+                          icon: const Icon(Icons.delete, size: 20),
+                          color: Colors.red,
+                        ),
                     ],
                   ),
                 ),
               )),
             const SizedBox(height: 24),
 
-            // Кнопка сохранения
+            // Кнопка сохранения. NEW-008: при создании ребёнка недоступна без экстренного контакта
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: vm.save,
+                onPressed: (widget.child == null && vm.emergencyContacts.isEmpty)
+                    ? null
+                    : vm.save,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: NannyTheme.primary,
                   foregroundColor: Colors.white,

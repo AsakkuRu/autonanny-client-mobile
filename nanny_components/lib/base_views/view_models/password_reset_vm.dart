@@ -45,6 +45,10 @@ class PasswordResetVm extends ViewModelBase {
     );
 
     if(!NannyGlobals.currentContext.mounted) return;
-    NannyDialogs.showMessageBox(NannyGlobals.currentContext, "Успех",  "Пароль успешно изменен!");
+    NannyDialogs.showMessageBox(
+      NannyGlobals.currentContext,
+      "Пароль успешно изменён",
+      "",
+    );
   }
 }

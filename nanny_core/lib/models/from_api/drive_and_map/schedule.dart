@@ -4,6 +4,13 @@ import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/models/from_api/other_parametr.dart';
 
+bool? _parseBool(dynamic value) {
+  if (value == null) return null;
+  if (value is bool) return value;
+  if (value is String) return value.toLowerCase() == 'true';
+  return null;
+}
+
 class Schedule {
   Schedule({
     required this.title,
@@ -38,15 +45,21 @@ class Schedule {
   final double? amountMonth;
 
   factory Schedule.fromJson(Map<String, dynamic> json) {
-    var roads = List<Road>.from(json["roads"]!.map((x) => Road.fromJson(x)));
+    final rawRoads = json["roads"];
+    final roads = rawRoads == null
+        ? <Road>[]
+        : List<Road>.from(rawRoads.map((x) => Road.fromJson(x)));
+
     return Schedule(
       id: json["id"],
       title: json["title"] ?? "",
       description: json["description"] ?? "",
-      isActive: json["isActive"] ?? "",
+      isActive: _parseBool(json["isActive"]),
       duration: json["duration"] ?? 0,
       childrenCount: json["children_count"] ?? 0,
-      datetimeCreate: DateTime.parse(json["datetime_create"]),
+      datetimeCreate: json["datetime_create"] != null
+          ? DateTime.parse(json["datetime_create"] as String)
+          : DateTime.now(),
       weekdays: json["week_days"] == null
           ? []
           : List<NannyWeekday>.from(
@@ -56,9 +69,7 @@ class Schedule {
           ? []
           : List<OtherParametr>.from(
               json["other_parametrs"]!.map((x) => OtherParametr.fromJson(x))),
-      roads: json["roads"] == null
-          ? []
-          : List<Road>.from(json["roads"]!.map((x) => Road.fromJson(x))),
+      roads: roads,
       salary: json["salary"],
       amountMonth:
           roads.fold<double>(0, (sum, item) => sum + (item.amount ?? 0.0)),

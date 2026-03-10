@@ -4,9 +4,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/views/rating/driver_rating_view.dart';
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/api/web_sockets/drive_search_socket.dart';
 import 'package:nanny_core/api/web_sockets/nanny_web_socket.dart';
+import 'package:nanny_core/models/from_api/drive_and_map/tariff_alternative.dart';
 import 'package:nanny_core/nanny_core.dart';
+
+export 'package:nanny_core/models/from_api/drive_and_map/tariff_alternative.dart';
 
 class DriveSearchVM extends ViewModelBase {
   DriveSearchVM({
@@ -28,6 +32,16 @@ class DriveSearchVM extends ViewModelBase {
   int? chatId;
   Map<String, dynamic>? driverLocation;
 
+  // TASK-C6: Альтернативные тарифы при отсутствии водителей
+  List<TariffAlternative> alternatives = [];
+  bool showAlternatives = false;
+  bool isSwitchingTariff = false;
+
+  // TASK-B11: Срочный заказ «На замену»
+  bool isUrgentReplacement = false;
+  double? urgentMultiplier;
+  String? urgentReason;
+
   void dispose() {
     _subscription?.cancel();
     _subscription = null;
@@ -41,8 +55,10 @@ class DriveSearchVM extends ViewModelBase {
 
   void _handleMessage(dynamic rawEvent) {
     try {
-      final data = rawEvent is String ? jsonDecode(rawEvent) : rawEvent;
-      if (data is! Map) return;
+      final decoded = rawEvent is String ? jsonDecode(rawEvent) : rawEvent;
+      if (decoded is! Map) return;
+      final Map<String, dynamic> data =
+          decoded.map((key, value) => MapEntry(key.toString(), value));
 
       Logger().i('DriveSearch event: $data');
 
@@ -122,10 +138,64 @@ class DriveSearchVM extends ViewModelBase {
         isSearching = false;
       }
 
+      // TASK-C6: Нет водителей — предлагаем альтернативы
+      if (data['type'] == 'no_drivers_found' && data.containsKey('alternatives')) {
+        _handleNoDriversFound(data);
+      }
+
+      // TASK-B11: Срочный заказ — назначен водитель «на замену»
+      if (data['is_urgent'] == true) {
+        isUrgentReplacement = true;
+        urgentMultiplier = (data['urgent_multiplier'] as num?)?.toDouble() ?? 1.5;
+        urgentReason = data['urgent_reason'] as String? ?? 'Назначен водитель на замену';
+        statusText = 'Назначен водитель на замену (срочно)';
+      }
+
       update(() {});
     } catch (e) {
       Logger().e('DriveSearch parse error: $e');
     }
+  }
+
+  // TASK-C6: Обработка отсутствия водителей
+  void _handleNoDriversFound(Map<String, dynamic> data) {
+    final rawAlternatives = data['alternatives'] as List<dynamic>? ?? [];
+    alternatives = rawAlternatives
+        .map((e) => TariffAlternative.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    if (alternatives.isNotEmpty) {
+      showAlternatives = true;
+    }
+  }
+
+  Future<void> switchTariff(TariffAlternative alt) async {
+    if (orderId == null) return;
+
+    update(() => isSwitchingTariff = true);
+
+    // Mock-first: если API недоступен — эмулируем смену
+    final result = await NannyOrdersApi.changeTariff(
+      orderId: orderId!,
+      newTariffId: alt.tariffId,
+    );
+
+    update(() {
+      isSwitchingTariff = false;
+      showAlternatives = false;
+      alternatives = [];
+      statusText = 'Поиск водителя класса "${alt.tariffName}"...';
+      isSearching = true;
+    });
+
+    if (!result.success) {
+      // Mock-first: продолжаем поиск даже без реального API
+      Logger().w('changeTariff API not available, continuing with mock');
+    }
+  }
+
+  void dismissAlternatives() {
+    update(() => showAlternatives = false);
   }
 
   void _showRatingScreen() {

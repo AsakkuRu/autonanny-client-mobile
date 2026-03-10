@@ -67,19 +67,25 @@ class GraphCreateVM extends ViewModelBase {
         (e) => e.duration == schedule!.duration,
         orElse: () => GraphType.week,
       );
-      editor.childCount = schedule!
-          .childrenCount; // Заполнение количества детей, если это нужно
+
+      // NEW-005: при редактировании восстанавливаем выбранных детей из маршрутов
+      if (schedule!.roads.isNotEmpty && schedule!.roads.first.children != null) {
+        selectedChildrenIds = List<int>.from(schedule!.roads.first.children!);
+      }
+      editor.childCount = selectedChildrenIds.isNotEmpty
+          ? selectedChildrenIds.length
+          : schedule!.childrenCount;
 
       // Заполнение дней недели
       selectedWeekday = schedule!.weekdays;
 
       // Заполнение других параметров, если они есть в schedule
       for (var param in schedule!.otherParametrs) {
-        editor.addParam(param); // Добавляем параметры, если они есть
+        editor.addParam(param);
       }
       // Заполнение маршрутов
       for (var road in schedule!.roads) {
-        editor.addRoad(road); // Добавляем параметры, если они есть
+        editor.addRoad(road);
       }
     } else {
       // Если schedule нет, то создаем новый редактор
@@ -101,7 +107,8 @@ class GraphCreateVM extends ViewModelBase {
     }
     var road = await NannyDialogs.showRouteCreateOrEditSheet(
         context, selectedWeekday.first,
-        road: updatingRoad);
+        road: updatingRoad,
+        tariffId: editor.tariff.id);
     if (road == null) return;
 
     if (updatingRoad != null) {
@@ -199,7 +206,7 @@ class GraphCreateVM extends ViewModelBase {
     update(() {});
   }
 
-  // FE-MVP-015: Переключение выбора ребенка
+  // FE-MVP-015: Переключение выбора ребенка. NEW-005: количество = длина выбранных.
   void toggleChildSelection(int childId) {
     if (selectedChildrenIds.contains(childId)) {
       selectedChildrenIds.remove(childId);
@@ -215,15 +222,36 @@ class GraphCreateVM extends ViewModelBase {
       }
       selectedChildrenIds.add(childId);
     }
+    editor.childCount = selectedChildrenIds.length;
     update(() {});
   }
 
   void confirm() async {
+    if (selectedChildrenIds.isEmpty) {
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        "Выберите хотя бы одного ребёнка для поездки",
+      );
+      return;
+    }
+    editor.childCount = selectedChildrenIds.length;
+
     if (!editor.valiateSchedule()) {
       NannyDialogs.showMessageBox(context, "Ошибка", "Заполните форму!");
       return;
     }
-    
+
+    // Синхронизируем текущий выбор детей во все маршруты (в запрос уходят road.children)
+    final roadsSnapshot = List<Road>.from(editor.roads);
+    for (var r in roadsSnapshot) {
+      editor.deleteRoad(r);
+    }
+    final childrenToSend = selectedChildrenIds;
+    for (var r in roadsSnapshot) {
+      editor.addRoad(r.copyWith(children: childrenToSend));
+    }
+
     LoadScreen.showLoad(context, true);
 
     var result = schedule == null
