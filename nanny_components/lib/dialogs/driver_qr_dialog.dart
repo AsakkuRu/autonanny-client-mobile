@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-/// FE-MVP-017: Диалог с QR-кодом для верификации водителя
+/// FE-MVP-017: Диалог с QR-кодом для верификации водителя (QR + PIN для ввода водителем)
 class DriverQRDialog extends StatelessWidget {
   final String driverName;
   final String? carNumber;
   final String? carInfo;
   final String? photoPath;
   final String qrData;
+  /// 4-значный код, который водитель может ввести вместо сканирования QR
+  final String? meetingCodePin;
 
   const DriverQRDialog({
     super.key,
@@ -16,6 +18,7 @@ class DriverQRDialog extends StatelessWidget {
     this.carInfo,
     this.photoPath,
     required this.qrData,
+    this.meetingCodePin,
   });
 
   static Future<void> show(
@@ -25,6 +28,7 @@ class DriverQRDialog extends StatelessWidget {
     String? carInfo,
     String? photoPath,
     required String qrData,
+    String? meetingCodePin,
   }) {
     return showDialog(
       context: context,
@@ -34,6 +38,7 @@ class DriverQRDialog extends StatelessWidget {
         carInfo: carInfo,
         photoPath: photoPath,
         qrData: qrData,
+        meetingCodePin: meetingCodePin,
       ),
     );
   }
@@ -44,7 +49,7 @@ class DriverQRDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Container(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -151,6 +156,40 @@ class DriverQRDialog extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
+            // PIN-код для ввода водителем (альтернатива QR)
+            if (meetingCodePin != null && meetingCodePin!.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE0E0E0)),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Или введите код вручную в приложении водителя',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF757575),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      meetingCodePin!,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 8,
+                        color: Color(0xFF2B2B2B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             // Информационное сообщение
             Container(
               padding: const EdgeInsets.all(12),
@@ -164,7 +203,7 @@ class DriverQRDialog extends StatelessWidget {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Водитель отсканирует код для подтверждения встречи',
+                      'Водитель отсканирует код или введёт его вручную для подтверждения встречи',
                       style: TextStyle(
                         fontSize: 12,
                         color: Color(0xFF1976D2),

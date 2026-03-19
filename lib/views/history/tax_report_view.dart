@@ -22,16 +22,9 @@ class _TaxReportViewState extends State<TaxReportView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Отчёт для налоговой',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
+        title: 'Отчёт для налоговой',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -64,8 +57,14 @@ class _TaxReportViewState extends State<TaxReportView> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,8 +133,14 @@ class _TaxReportViewState extends State<TaxReportView> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -200,7 +205,9 @@ class _TaxReportViewState extends State<TaxReportView> {
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: NannyTheme.primary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       ),
     );
@@ -225,7 +232,9 @@ class _TaxReportViewState extends State<TaxReportView> {
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.deepOrange,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       ),
     );
@@ -236,7 +245,7 @@ class _TaxReportViewState extends State<TaxReportView> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.amber.shade50,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.amber.shade200),
       ),
       child: Row(

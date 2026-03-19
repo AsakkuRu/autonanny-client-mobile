@@ -22,21 +22,24 @@ class NannyBottomSheet extends StatelessWidget {
           width: double.infinity,
           height: height,
           decoration: BoxDecoration(
-            color: NannyTheme.surface,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: roundBottom
-                ? BorderRadius.circular(20)
+                ? BorderRadius.circular(32)
                 : const BorderRadius.vertical(
-                    top: Radius.circular(20),
+                    top: Radius.circular(32),
                   ),
             boxShadow: [
               BoxShadow(
-                color: NannyTheme.shadow.withOpacity(.19),
-                blurRadius: 32,
-                offset: const Offset(0, -2),
+                color: NannyTheme.shadow.withOpacity(0.12),
+                blurRadius: 40,
+                offset: const Offset(0, -8),
               )
             ],
           ),
-          child: child,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: child,
+          ),
         );
       },
     );

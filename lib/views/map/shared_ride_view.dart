@@ -21,16 +21,9 @@ class _SharedRideViewState extends State<SharedRideView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        title: const Text(
-          'Совместные поездки',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
+        title: 'Совместные поездки',
       ),
       body: FutureLoader(
         future: vm.loadRequest,
@@ -52,15 +45,19 @@ class _SharedRideViewState extends State<SharedRideView> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
-                color: Colors.blue.withOpacity(0.05),
+                color: NannyTheme.primary.withOpacity(0.04),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                    const Icon(Icons.info_outline,
+                        color: NannyTheme.primary, size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Совместная поездка позволяет разделить стоимость с другим родителем на похожем маршруте.',
-                        style: TextStyle(fontSize: 13, color: Colors.blue[800]),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: NannyTheme.neutral700),
                       ),
                     ),
                   ],
@@ -93,18 +90,21 @@ class _SharedRideViewState extends State<SharedRideView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            Icon(Icons.error_outline, size: 64, color: NannyTheme.danger),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Не удалось загрузить поездки',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
               error,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: NannyTheme.neutral500),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -134,18 +134,21 @@ class _SharedRideViewState extends State<SharedRideView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
+            Icon(Icons.people_outline, size: 64, color: NannyTheme.neutral300),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Нет подходящих совместных поездок',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
               'Мы автоматически найдём родителей с похожими маршрутами и предложим объединить поездки.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: NannyTheme.neutral500),
             ),
           ],
         ),
@@ -154,9 +157,19 @@ class _SharedRideViewState extends State<SharedRideView> {
   }
 
   Widget _buildOptionCard(SharedRideOption option) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -169,10 +182,11 @@ class _SharedRideViewState extends State<SharedRideView> {
                   children: [
                     CircleAvatar(
                       radius: 18,
-                      backgroundColor: NannyTheme.primary.withOpacity(0.1),
+                      backgroundColor:
+                          NannyTheme.primary.withOpacity(0.08),
                       child: Text(
                         option.parentName[0],
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: NannyTheme.primary,
                           fontWeight: FontWeight.bold,
                         ),
@@ -184,24 +198,29 @@ class _SharedRideViewState extends State<SharedRideView> {
                       children: [
                         Text(
                           option.parentName,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                         Text(
                           '${option.childName}, ${option.childAge} лет',
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(color: NannyTheme.neutral600),
                         ),
                       ],
                     ),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _matchColor(option.matchPercent).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: _matchColor(option.matchPercent)
+                        .withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     '${option.matchPercent}% совпадение',
@@ -215,22 +234,28 @@ class _SharedRideViewState extends State<SharedRideView> {
               ],
             ),
             const SizedBox(height: 12),
-            _routeRow(Icons.circle, option.addressFrom, NannyTheme.primary, 10),
+            _routeRow(
+                Icons.circle, option.addressFrom, NannyTheme.primary, 10),
             Container(
               margin: const EdgeInsets.only(left: 4),
               height: 16,
               width: 2,
-              color: Colors.grey[300],
+              color: NannyTheme.neutral200,
             ),
-            _routeRow(Icons.location_on, option.addressTo, Colors.red, 16),
+            _routeRow(Icons.location_on, option.addressTo,
+                NannyTheme.danger, 16),
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(Icons.schedule, size: 14, color: Colors.grey[600]),
+                Icon(Icons.schedule,
+                    size: 14, color: NannyTheme.neutral600),
                 const SizedBox(width: 4),
                 Text(
                   'Отправление: ${option.time}',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: NannyTheme.neutral600),
                 ),
               ],
             ),
@@ -243,10 +268,10 @@ class _SharedRideViewState extends State<SharedRideView> {
                   children: [
                     Text(
                       '${option.sharedPrice.toStringAsFixed(0)} ₽',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     Row(
                       children: [
@@ -254,15 +279,16 @@ class _SharedRideViewState extends State<SharedRideView> {
                           '${option.originalPrice.toStringAsFixed(0)} ₽',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey[500],
+                            color: NannyTheme.neutral400,
                             decoration: TextDecoration.lineThrough,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
+                            color: NannyTheme.success.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -270,7 +296,7 @@ class _SharedRideViewState extends State<SharedRideView> {
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: Colors.green,
+                              color: NannyTheme.success,
                             ),
                           ),
                         ),
@@ -282,17 +308,7 @@ class _SharedRideViewState extends State<SharedRideView> {
                   onPressed: vm.isRequesting
                       ? null
                       : () => vm.requestSharedRide(option),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: NannyTheme.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  child: const Text(
-                    'Присоединиться',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                  ),
+                  child: const Text('Присоединиться'),
                 ),
               ],
             ),

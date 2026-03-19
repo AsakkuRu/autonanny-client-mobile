@@ -36,10 +36,13 @@ class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  digitBox(digits[0], size),
-                  digitBox(digits[1], size),
-                  digitBox(digits[2], size),
-                  digitBox(digits[3], size),
+                  Expanded(child: digitBox(digits[0], size)),
+                  const SizedBox(width: 8),
+                  Expanded(child: digitBox(digits[1], size)),
+                  const SizedBox(width: 8),
+                  Expanded(child: digitBox(digits[2], size)),
+                  const SizedBox(width: 8),
+                  Expanded(child: digitBox(digits[3], size)),
                 ],
               ),
               if (widget.bottomChild != null)
@@ -93,7 +96,6 @@ class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
       ),
       elevation: 0,
       child: Container(
-        width: size.width * .2,
         height: size.width * .23,
         decoration: BoxDecoration(
             color: value.isNotEmpty

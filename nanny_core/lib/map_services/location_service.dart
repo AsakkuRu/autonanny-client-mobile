@@ -47,12 +47,16 @@ class LocationService {
   }
 
   static Future<void> initLocInfo() async {
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-    lastLocationInfo = await getLocationInfo(
-      LatLng(position.latitude, position.longitude),
-    );
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      lastLocationInfo = await getLocationInfo(
+        LatLng(position.latitude, position.longitude),
+      );
+    } catch (_) {
+      // игнорируем ошибки геолокации, просто не задаём bias
+    }
   }
 
   static void dispose() {

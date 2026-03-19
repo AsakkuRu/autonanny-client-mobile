@@ -29,41 +29,9 @@ class _SupportChatViewState extends State<SupportChatView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        title: const Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: NannyTheme.primary,
-              child: Icon(Icons.support_agent, color: Colors.white, size: 20),
-            ),
-            SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Техподдержка',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  'Обычно отвечаем в течение часа',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        iconTheme: const IconThemeData(color: Colors.black),
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
+        title: 'Поддержка',
       ),
       body: Column(
         children: [
@@ -101,24 +69,21 @@ class _SupportChatViewState extends State<SupportChatView> {
             Icon(
               Icons.chat_bubble_outline,
               size: 64,
-              color: Colors.grey[400],
+              color: NannyTheme.neutral300,
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Напишите нам',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+              style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
               'Мы готовы помочь вам с любыми вопросами о сервисе АвтоНяня',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: NannyTheme.neutral500),
             ),
           ],
         ),
@@ -168,7 +133,8 @@ class _SupportChatViewState extends State<SupportChatView> {
                 Text(
                   message.timeString,
                   style: TextStyle(
-                    color: isMe ? Colors.white70 : Colors.grey,
+                    color:
+                        isMe ? Colors.white70 : NannyTheme.neutral400,
                     fontSize: 11,
                   ),
                 ),
@@ -257,7 +223,7 @@ class _SupportChatViewState extends State<SupportChatView> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: NannyTheme.shadow.withOpacity(0.08),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -283,7 +249,7 @@ class _SupportChatViewState extends State<SupportChatView> {
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Colors.grey[100],
+                fillColor: NannyTheme.neutral50,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 10,

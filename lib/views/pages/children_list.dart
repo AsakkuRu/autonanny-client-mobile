@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/view_models/pages/children_list_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_core/nanny_core.dart';
 
 class ChildrenListView extends StatefulWidget {
   const ChildrenListView({super.key});
@@ -21,9 +22,8 @@ class _ChildrenListViewState extends State<ChildrenListView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
-      appBar: const NannyAppBar(
-        color: Color(0xFFF7F7F7),
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
         hasBackButton: true,
         title: "Мои дети",
       ),
@@ -44,15 +44,14 @@ class _ChildrenListViewState extends State<ChildrenListView> {
                   const Icon(
                     Icons.child_care,
                     size: 80,
-                    color: Color(0xFFE0E0E0),
+                    color: NannyTheme.neutral300,
                   ),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     'У вас пока нет добавленных детей',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF757575),
-                    ),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: NannyTheme.neutral600,
+                        ),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton.icon(
@@ -82,34 +81,39 @@ class _ChildrenListViewState extends State<ChildrenListView> {
                 child: ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: vm.children.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final child = vm.children[index];
                     return Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(18),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
+                            color: NannyTheme.shadow.withOpacity(0.08),
+                            blurRadius: 18,
+                            offset: const Offset(0, 6),
                           ),
                         ],
                       ),
                       child: ListTile(
-                        contentPadding: const EdgeInsets.all(16),
+                        contentPadding: const EdgeInsets.all(14),
                         leading: ProfileImage(
-                          url: child.photoPath ?? '',
-                          radius: 50,
+                          url: NannyConsts.buildFileUrl(child.photoPath) ?? '',
+                          radius: 52,
+                          initials: child.fullName.isNotEmpty
+                              ? child.fullName[0]
+                              : 'Р',
                         ),
                         title: Text(
                           child.fullName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF2B2B2B),
-                          ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,19 +121,24 @@ class _ChildrenListViewState extends State<ChildrenListView> {
                             const SizedBox(height: 4),
                             Text(
                               child.ageDisplay,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Color(0xFF757575),
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: NannyTheme.neutral600,
+                                  ),
                             ),
-                            if (child.schoolClass != null && child.schoolClass!.isNotEmpty) ...[
+                            if (child.schoolClass != null &&
+                                child.schoolClass!.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
                                 child.schoolClass!,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF757575),
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: NannyTheme.neutral500,
+                                    ),
                               ),
                             ],
                           ],
@@ -146,7 +155,7 @@ class _ChildrenListViewState extends State<ChildrenListView> {
                             IconButton(
                               onPressed: () => vm.deleteChild(child),
                               icon: const Icon(Icons.delete, size: 20),
-                              color: Colors.red,
+                              color: NannyTheme.danger,
                               splashRadius: 20,
                             ),
                           ],
@@ -162,9 +171,9 @@ class _ChildrenListViewState extends State<ChildrenListView> {
                   color: Colors.white,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, -2),
+                      color: NannyTheme.shadow.withOpacity(0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, -4),
                     ),
                   ],
                 ),
@@ -175,14 +184,6 @@ class _ChildrenListViewState extends State<ChildrenListView> {
                       onPressed: vm.addChild,
                       icon: const Icon(Icons.add),
                       label: const Text('Добавить ребенка'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: NannyTheme.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
                     ),
                   ),
                 ),

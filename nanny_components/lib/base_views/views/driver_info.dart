@@ -51,29 +51,16 @@ class _DriverInfoViewState extends State<DriverInfoView> {
     return Scaffold(
         backgroundColor: const Color(0xFFF7F7F7),
         appBar: const NannyAppBar(
-          title: "Профиль",
+          title: "Профиль водителя",
           isTransparent: false,
           color: NannyTheme.secondary,
         ),
         body: RequestLoader(
             request: vm.getDriver,
-            completeView: (context, data) {
-              DriverUserTextData? data = DriverUserTextData(
-                  userData: UserInfo<Driver>(
-                      surname: 'surname',
-                      name: 'name',
-                      phone: 'phone',
-                      role: [UserType.driver],
-                      photoPath: 'photoPath',
-                      videoPath: 'videoPath'),
-                  carDataText: CarDataText(
-                      autoMark: 'autoMark',
-                      autoModel: 'autoModel',
-                      autoColor: 'autoColor',
-                      releaseYear: 2024,
-                      stateNumber: 'stateNumber',
-                      ctc: 'ctc'));
-              data!.userData = data.userData.asDriver();
+            completeView: (context, driverData) {
+              // Используем реальные данные, полученные с бэкенда.
+              final DriverUserTextData data = driverData!;
+              data.userData = data.userData.asDriver();
 
               return Column(children: [
                 Padding(

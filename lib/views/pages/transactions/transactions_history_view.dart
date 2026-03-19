@@ -22,6 +22,12 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
   }
 
   @override
+  void dispose() {
+    vm.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFf7f7f7),

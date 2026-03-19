@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/sos_activate_request.dart';
+import 'package:nanny_core/constants.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -81,7 +82,7 @@ class _SOSButtonState extends State<SOSButton> with SingleTickerProviderStateMix
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: 28),
             const SizedBox(width: 12),
-            const Text('Экстренный вызов'),
+            const Flexible(child: Text('Экстренный вызов')), // FIX-015
           ],
         ),
         content: const Text(
@@ -154,6 +155,10 @@ class _SOSButtonState extends State<SOSButton> with SingleTickerProviderStateMix
 
       widget.onSOSActivated?.call();
     } else {
+      Logger().e(
+        "SOS activateSOS failed: baseUrl=${NannyConsts.baseUrl}, "
+        "errorMessage=${result.errorMessage}, statusCode=${result.statusCode}",
+      );
       NannyDialogs.showMessageBox(
         context,
         "Ошибка",

@@ -21,6 +21,8 @@ class ThemeNotifier extends ValueNotifier<ThemeMode> {
         useBiometrics: settings?.useBiometrics ?? false,
         themeMode: _themeModeToString(mode),
         locale: settings?.locale ?? 'ru',
+        pushNotificationsEnabled: settings?.pushNotificationsEnabled ?? true,
+        smsNotificationsEnabled: settings?.smsNotificationsEnabled ?? false,
       ),
     );
   }
@@ -68,6 +70,8 @@ class LocaleNotifier extends ValueNotifier<Locale> {
         useBiometrics: settings?.useBiometrics ?? false,
         themeMode: settings?.themeMode ?? 'system',
         locale: langCode,
+        pushNotificationsEnabled: settings?.pushNotificationsEnabled ?? true,
+        smsNotificationsEnabled: settings?.smsNotificationsEnabled ?? false,
       ),
     );
   }

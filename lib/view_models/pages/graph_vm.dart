@@ -1,4 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
 import 'package:nanny_client/views/pages/graph_create.dart';
+import 'package:nanny_components/base_views/views/driver_info.dart';
 import 'package:nanny_components/dialogs/loading.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
@@ -24,9 +29,131 @@ class GraphVM extends ViewModelBase {
   DriverContact? driverContact;
   List<ScheduleResponsesData> responses = [];
 
+  /// ID графика для выбора при следующей загрузке (после создания нового).
+  int? _selectScheduleIdOnNextLoad;
+
+  /// При следующей загрузке выбрать самый новый график (fallback если id не получен).
+  bool _selectNewestOnNextLoad = false;
+
+  StreamSubscription<dynamic>? _scheduleUpdatesSub;
+  DateTime? _lastResponsesLoadAt;
+  static const _responsesDebounceMs = 500;
+
+  /// Подгрузка откликов (при событии schedule_responses_updated или fallback).
+  /// При обновлении откликов также подгружаем контакт водителя — заявка могла быть принята в чате.
+  Future<void> loadResponsesOnly() async {
+    if (isOffline) return;
+    final now = DateTime.now();
+    if (_lastResponsesLoadAt != null &&
+        now.difference(_lastResponsesLoadAt!).inMilliseconds < _responsesDebounceMs) {
+      return;
+    }
+    _lastResponsesLoadAt = now;
+    var responsesResult = await NannyOrdersApi.getScheduleResponses();
+    if (responsesResult.success && responsesResult.response != null) {
+      responses = responsesResult.response!;
+      update(() {});
+      // После принятия заявки отклик исчезает; подгружаем контакт водителя
+      if (selectedSchedule != null) {
+        await loadDriverContact();
+        update(() {});
+      }
+    }
+  }
+
+  /// Подписка на уведомления о новых откликах водителей по ChatsSocket.
+  void startScheduleUpdatesListener() {
+    _scheduleUpdatesSub?.cancel();
+    _scheduleUpdatesSub = NannyGlobals.chatsSocket.stream.listen((data) {
+      try {
+        final json = jsonDecode(data);
+        if (json is Map<String, dynamic> &&
+            json['event'] == 'schedule_responses_updated') {
+          reloadPage(); // FIX-005: перезагрузить полностью, чтобы подтянуть is_paused
+        }
+      } catch (_) {}
+    });
+  }
+
+  void stopScheduleUpdatesListener() {
+    _scheduleUpdatesSub?.cancel();
+    _scheduleUpdatesSub = null;
+  }
+
   List<NannyWeekday> selectedWeekday = [
     NannyWeekday.values[DateTime.now().weekday - 1]
   ];
+
+  // --- Вспомогательные геттеры для статуса графика и водителя ---
+
+  List<ScheduleResponsesData> get _responsesForSelectedSchedule =>
+      selectedSchedule == null
+          ? const []
+          : responses
+              .where((r) => r.idSchedule == selectedSchedule?.id)
+              .toList();
+
+  bool get hasDriver => driverContact != null;
+
+  /// Короткий статус программы/контракта для родителя.
+  String get contractStatusLabel {
+    if (selectedSchedule == null) {
+      return 'График не выбран';
+    }
+    if (hasDriver) {
+      return 'Контракт подтверждён';
+    }
+    if (_responsesForSelectedSchedule.isNotEmpty) {
+      return 'Ожидает выбора водителя';
+    }
+    return 'Ожидает откликов водителей';
+  }
+
+  /// Дополнительное описание статуса.
+  String get contractStatusDescription {
+    if (selectedSchedule == null) {
+      return 'Выберите график, чтобы увидеть детали программы.';
+    }
+    if (hasDriver) {
+      return 'Вы выбрали автоняню, контракт активен. Перед поездкой будет доступен QR/PIN для верификации и чат с водителем.';
+    }
+    if (_responsesForSelectedSchedule.isNotEmpty) {
+      return 'Есть отклики от водителей. Выберите подходящего водителя в списке откликов, чтобы подтвердить контракт.';
+    }
+    return 'Мы ищем для вас водителя. Как только появятся отклики, вы увидите их ниже и сможете выбрать автоняню.';
+  }
+
+  /// Краткая информация о ближайшей поездке по выбранному дню.
+  String? get nextTripLabel {
+    if (selectedSchedule == null || selectedWeekday.isEmpty) return null;
+    final day = selectedWeekday.first;
+    final roadsForDay = selectedSchedule!.roads
+        .where((r) => r.weekDay == day)
+        .toList()
+      ..sort(
+        (a, b) =>
+            a.startTime.hour.compareTo(b.startTime.hour) != 0
+                ? a.startTime.hour.compareTo(b.startTime.hour)
+                : a.startTime.minute.compareTo(b.startTime.minute),
+      );
+    if (roadsForDay.isEmpty) return null;
+    final road = roadsForDay.first;
+    return '${road.startTime.formatTime()} – ${road.endTime.formatTime()}';
+  }
+
+  void _updateSpentsFromSelectedSchedule() {
+    final schedule = selectedSchedule;
+    if (schedule == null ||
+        schedule.amountWeek == null ||
+        schedule.amountMonth == null ||
+        (schedule.amountWeek == 0 && schedule.amountMonth == 0)) {
+      spentsInWeek = "—";
+      spentsInMonth = "—";
+    } else {
+      spentsInWeek = "~ ${schedule.amountWeek!.round()} ₽";
+      spentsInMonth = "~ ${schedule.amountMonth!.round()} ₽";
+    }
+  }
 
   Future<void> createOrEditRoute({Road? editingRoad}) async {
     if (selectedSchedule == null) return;
@@ -73,11 +200,25 @@ class GraphVM extends ViewModelBase {
   }
 
   void toGraphCreate() async {
-    await navigateToView(const GraphCreate());
+    final result = await Navigator.push<Object?>(
+      context,
+      MaterialPageRoute(builder: (context) => const GraphCreate()),
+    );
+    if (result is int) {
+      if (result > 0) {
+        _selectScheduleIdOnNextLoad = result;
+      } else if (result == -1) {
+        // Fallback: id не получен от бэкенда, выберем самый новый график
+        _selectNewestOnNextLoad = true;
+      }
+    }
     reloadPage();
   }
 
   void toGraphEdit({required Schedule schedule}) async {
+    // Сразу фиксируем этот график как выбранный,
+    // чтобы после возврата и перезагрузки остаться на нём.
+    scheduleSelected(schedule);
     await navigateToView(GraphCreate(schedule: schedule));
     reloadPage();
   }
@@ -93,6 +234,7 @@ class GraphVM extends ViewModelBase {
       selectedSchedule = schedule;
       driverContact = null; // Сбрасываем предыдущие контакты
     });
+    _updateSpentsFromSelectedSchedule();
     
     // Загружаем контакты водителя
     await loadDriverContact();
@@ -150,8 +292,8 @@ class GraphVM extends ViewModelBase {
     reloadPage();
   }
 
-  // FE-MVP-017: Показ QR-кода для верификации водителя
-  void showDriverQR() {
+  // FE-MVP-017: Показ QR-кода для верификации водителя (QR + PIN для ввода водителем)
+  Future<void> showDriverQR() async {
     if (selectedSchedule == null || driverContact == null) {
       NannyDialogs.showMessageBox(
         context,
@@ -161,10 +303,26 @@ class GraphVM extends ViewModelBase {
       return;
     }
 
-    // Генерируем данные для QR-кода
-    // Формат: schedule_id:user_id:timestamp
-    final qrData = '${selectedSchedule!.id}:${NannyUser.userInfo!.id}:${DateTime.now().millisecondsSinceEpoch}';
+    // Запрашиваем код встречи — он содержит meetingCode и id_schedule_road
+    String? meetingCodePin;
+    int? scheduleRoadId;
+    final codeResult = await NannyOrdersApi.getMeetingCodeForSchedule(selectedSchedule!.id!);
+    if (codeResult.success && codeResult.response?.meetingCode != null) {
+      meetingCodePin = codeResult.response!.meetingCode;
+      scheduleRoadId = codeResult.response!.idScheduleRoad;
+    }
 
+    // QR содержит всё необходимое для верификации: schedule:roadId:meetingCode
+    // Водитель сканирует и сразу проходит верификацию без ввода PIN
+    final String qrData;
+    if (scheduleRoadId != null && meetingCodePin != null) {
+      qrData = 'schedule:$scheduleRoadId:$meetingCodePin';
+    } else {
+      // Fallback: старый формат если код недоступен
+      qrData = '${selectedSchedule!.id}:${NannyUser.userInfo!.id}:${DateTime.now().millisecondsSinceEpoch}';
+    }
+
+    if (!context.mounted) return;
     DriverQRDialog.show(
       context,
       driverName: '${driverContact!.name} ${driverContact!.surname}',
@@ -172,10 +330,11 @@ class GraphVM extends ViewModelBase {
       carInfo: driverContact!.car?.fullInfo,
       photoPath: driverContact!.photo,
       qrData: qrData,
+      meetingCodePin: meetingCodePin,
     );
   }
 
-  // FE-MVP-010: Открытие чата с водителем
+  // FE-MVP-010: По нажатию «Написать» создаём чат (если нет) и сразу открываем его
   Future<void> openDriverChat() async {
     if (selectedSchedule == null) {
       NannyDialogs.showMessageBox(
@@ -188,7 +347,6 @@ class GraphVM extends ViewModelBase {
 
     LoadScreen.showLoad(context, true);
 
-    // Создаём или получаем чат с водителем
     final result = await NannyChatsApi.createDriverChat(selectedSchedule!.id!);
 
     if (!context.mounted) return;
@@ -203,13 +361,20 @@ class GraphVM extends ViewModelBase {
       return;
     }
 
-    // Открываем экран чатов
-    // Чат с водителем будет в списке чатов
-    NannyDialogs.showMessageBox(
-      context,
-      "Успех",
-      "Чат с водителем создан. Перейдите в раздел 'Чаты' для общения.",
-    );
+    final chatId = result.response!;
+    final driverName = driverContact != null
+        ? '${driverContact!.name} ${driverContact!.surname}'
+        : 'Водитель';
+    await navigateToView(DirectView(idChat: chatId, name: driverName));
+  }
+
+  // Открытие профиля водителя по отклику
+  void openDriverFromResponse(ScheduleResponsesData response) async {
+    await navigateToView(DriverInfoView(
+      id: response.idDriver,
+      viewingOrder: true,
+      scheduleData: response,
+    ));
   }
 
   void answerResponse(ScheduleResponsesData response, bool accept) async {
@@ -217,7 +382,7 @@ class GraphVM extends ViewModelBase {
     var result = await NannyOrdersApi.answerScheduleRequest(
       AnswerScheduleRequest(
         idSchedule: response.idSchedule,
-        idResponse: response.id,
+        idResponses: [response.id],
         flag: accept,
       ),
     );
@@ -232,17 +397,47 @@ class GraphVM extends ViewModelBase {
       'Успех',
       accept ? 'Водитель принят' : 'Отклик отклонён',
     );
+    update(() {
+      responses = responses
+          .where((r) =>
+              !(r.idSchedule == response.idSchedule && r.idDriver == response.idDriver))
+          .toList();
+    });
+    if (accept && selectedSchedule?.id == response.idSchedule) {
+      await loadDriverContact();
+    }
     reloadPage();
   }
 
   @override
   Future<bool> loadPage() async {
+    final idToSelect = _selectScheduleIdOnNextLoad ?? selectedSchedule?.id;
+    final selectNewest = _selectNewestOnNextLoad;
+    _selectScheduleIdOnNextLoad = null;
+    _selectNewestOnNextLoad = false;
+    final previouslySelectedId = idToSelect;
+
     var scheduleResult = await NannyOrdersApi.getSchedules();
 
     if (scheduleResult.success) {
       isOffline = false;
       schedules = scheduleResult.response!;
-      selectedSchedule = schedules.firstOrNull;
+
+      // Сохраняем выбор пользователя: если до перезагрузки
+      // был выбран конкретный график, пытаемся найти его в
+      // обновлённом списке. При создании нового — выбираем по id или самый новый.
+      if (previouslySelectedId != null) {
+        selectedSchedule = schedules
+            .firstWhere(
+              (s) => s.id == previouslySelectedId,
+              orElse: () => schedules.firstOrNull ?? schedules.first,
+            );
+      } else if (selectNewest && schedules.isNotEmpty) {
+        selectedSchedule = schedules.reduce(
+            (a, b) => (a.id ?? 0) > (b.id ?? 0) ? a : b);
+      } else {
+        selectedSchedule = schedules.firstOrNull;
+      }
 
       // Кэшируем расписание
       try {
@@ -261,6 +456,15 @@ class GraphVM extends ViewModelBase {
         } catch (_) {}
       }
 
+      _updateSpentsFromSelectedSchedule();
+
+      // При первом открытии экрана сразу подтягиваем контакт водителя
+      // для автоматически выбранного графика, чтобы статус был корректным.
+      if (selectedSchedule != null) {
+        await loadDriverContact();
+      }
+
+      update(() {});
       return true;
     }
 
@@ -272,7 +476,16 @@ class GraphVM extends ViewModelBase {
         schedules = cachedSchedules
             .map((x) => Schedule.fromJson(Map<String, dynamic>.from(x)))
             .toList();
-        selectedSchedule = schedules.firstOrNull;
+
+        if (previouslySelectedId != null) {
+          selectedSchedule = schedules
+              .firstWhere(
+                (s) => s.id == previouslySelectedId,
+                orElse: () => schedules.firstOrNull ?? schedules.first,
+              );
+        } else {
+          selectedSchedule = schedules.firstOrNull;
+        }
 
         final cachedResponses = await NannyStorage.getCachedResponses();
         if (cachedResponses != null) {
@@ -281,6 +494,15 @@ class GraphVM extends ViewModelBase {
               .toList();
         }
 
+        _updateSpentsFromSelectedSchedule();
+
+        // То же поведение в оффлайн-режиме: пытаемся загрузить контакт
+        // по автоматически выбранному графику (если есть сеть).
+        if (selectedSchedule != null) {
+          await loadDriverContact();
+        }
+
+        update(() {});
         return true;
       }
     } catch (_) {}

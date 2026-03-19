@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:nanny_components/base_views/view_models/welcome_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/nanny_core.dart';
+import 'package:nanny_components/styles/new_design_auth.dart';
 
 class WelcomeView extends StatefulWidget {
   final Widget regView;
@@ -34,58 +35,91 @@ class _WelcomeViewState extends State<WelcomeView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const NannyAppBar(
-        hasBackButton: false,
-        color: Color(0xFAFAFAFA),
-      ),
-      body: Center(
+      backgroundColor: NewDesignAuthTokens.neutral50,
+      body: SafeArea(
+        child: Center(
           child: Padding(
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset("packages/nanny_components/assets/images/icon.png",
-                height: 150),
-            const SizedBox(height: 10),
-            Text("Няня Go",
-                style: Theme.of(context)
-                    .textTheme
-                    .titleLarge!
-                    .copyWith(color: NannyTheme.primary)),
-            const SizedBox(height: 10),
-            const SizedBox(height: 50),
-            ElevatedButton(
-              onPressed: vm.navigateToLogin,
-              style: ButtonStyle(
-                shape: WidgetStatePropertyAll(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
+                Image.asset(
+                  "packages/nanny_components/assets/images/icon.png",
+                  height: 120,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  "АвтоНяня",
+                  style: NewDesignAuthTokens.titleXL.copyWith(
+                    color: NewDesignAuthTokens.primaryDark,
                   ),
                 ),
-                minimumSize: const WidgetStatePropertyAll(
-                  Size(double.infinity, 60),
+                const SizedBox(height: 8),
+                Text(
+                  "Безопасные поездки для детей и спокойствие для родителей.",
+                  textAlign: TextAlign.center,
+                  style: NewDesignAuthTokens.bodyM,
                 ),
-              ),
-              child: const Text("Войти"),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              style: NannyButtonStyles.whiteButton.copyWith(
-                shape: WidgetStatePropertyAll(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: vm.navigateToLogin,
+                    style: ButtonStyle(
+                      elevation: const WidgetStatePropertyAll(0),
+                      backgroundColor: const WidgetStatePropertyAll(
+                        NewDesignAuthTokens.primary,
+                      ),
+                      shape: const WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: NewDesignAuthTokens.radiusLg,
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      "Войти",
+                      style: NewDesignAuthTokens.bodyS.copyWith(
+                        color: Colors.white,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
                 ),
-                minimumSize: const WidgetStatePropertyAll(
-                  Size(double.infinity, 60),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: OutlinedButton(
+                    onPressed: vm.navigateToReg,
+                    style: ButtonStyle(
+                      side: const WidgetStatePropertyAll(
+                        BorderSide(color: NewDesignAuthTokens.primary200, width: 1.5),
+                      ),
+                      shape: const WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: NewDesignAuthTokens.radiusLg,
+                        ),
+                      ),
+                      backgroundColor: const WidgetStatePropertyAll(
+                        NewDesignAuthTokens.neutral0,
+                      ),
+                    ),
+                    child: Text(
+                      "Зарегистрироваться",
+                      style: NewDesignAuthTokens.bodyS.copyWith(
+                        color: NewDesignAuthTokens.primary,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              onPressed: vm.navigateToReg,
-              child: const Text("Зарегистрироваться"),
+                const SizedBox(height: 12),
+              ],
             ),
-          ],
+          ),
         ),
-      )),
+      ),
     );
   }
 }

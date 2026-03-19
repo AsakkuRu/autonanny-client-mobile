@@ -171,8 +171,8 @@ class _DirectViewState extends State<DirectView> {
                         color: message.isMe
                             ? NannyTheme.secondary
                             : const Color(0xFF2B2B2B),
-                        fontSize: 12,
-                        height: 16.8 / 12,
+                        fontSize: 13,
+                        height: 1.3,
                         fontWeight: FontWeight.w400,
                         fontFamily: 'Nunito'),
                   ),
@@ -186,10 +186,11 @@ class _DirectViewState extends State<DirectView> {
   }
 
   Widget decideMessageContent(ChatMessage message) {
+    const double messageFontSize = 16;
     var textStyle = TextStyle(
         color: message.isMe ? NannyTheme.secondary : const Color(0xFF2B2B2B),
-        fontSize: 12,
-        height: 16.8 / 12,
+        fontSize: messageFontSize,
+        height: 1.35,
         fontWeight: FontWeight.w400,
         fontFamily: 'Nunito');
 

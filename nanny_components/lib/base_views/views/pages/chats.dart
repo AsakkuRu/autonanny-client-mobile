@@ -9,10 +9,13 @@ import 'package:nanny_core/nanny_core.dart';
 
 class ChatsView extends StatefulWidget {
   final bool persistState;
+  /// Вызывается после возврата из чата (для сброса бейджа непрочитанных в нижнем баре)
+  final VoidCallback? onReturnFromChat;
 
   const ChatsView({
     super.key,
     this.persistState = false,
+    this.onReturnFromChat,
   });
 
   @override
@@ -26,7 +29,11 @@ class _ChatsViewState extends State<ChatsView>
   @override
   void initState() {
     super.initState();
-    vm = ChatsVM(context: context, update: setState);
+    vm = ChatsVM(
+      context: context,
+      update: setState,
+      onReturnFromChat: widget.onReturnFromChat,
+    );
   }
 
   @override
@@ -40,84 +47,123 @@ class _ChatsViewState extends State<ChatsView>
     if (wantKeepAlive) super.build(context);
 
     return Scaffold(
-      appBar: const NannyAppBar(
-        title: "Чаты",
-        color: NannyTheme.secondary,
-        isTransparent: false,
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
         hasBackButton: false,
+        title: "Сообщения",
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: [
-              const SizedBox(height: 30),
-              NannyTextForm(
-                node: vm.node,
-                hintText: 'Поиск по чатам..',
-                onChanged: vm.chatSearch,
-                suffixIcon: const Icon(Icons.search_rounded,
-                    color: NannyTheme.onSurface),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            NannyTextForm(
+              node: vm.node,
+              hintText: 'Поиск по чатам',
+              onChanged: vm.chatSearch,
+              suffixIcon: const Icon(
+                Icons.search_rounded,
+                color: NannyTheme.neutral400,
               ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: NannyTheme.neutral50,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => vm.chatsSwitch(switchToChats: false),
-                      style: ButtonStyle(
-                        backgroundColor: WidgetStatePropertyAll(
-                            !vm.chatsSelected
-                                ? NannyTheme.primary
-                                : NannyTheme.secondary),
-                        foregroundColor: WidgetStatePropertyAll(
-                          !vm.chatsSelected
-                              ? NannyTheme.secondary
-                              : const Color(0xFF2B2B2B),
+                    child: GestureDetector(
+                      onTap: () => vm.chatsSwitch(switchToChats: false),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
                         ),
-                        shape: WidgetStatePropertyAll(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                        decoration: BoxDecoration(
+                          color: vm.chatsSelected
+                              ? Colors.transparent
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: vm.chatsSelected
+                              ? []
+                              : [
+                                  BoxShadow(
+                                    color: NannyTheme.shadow
+                                        .withOpacity(0.08),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            "Заявки",
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: vm.chatsSelected
+                                      ? NannyTheme.neutral500
+                                      : NannyTheme.neutral900,
+                                ),
                           ),
                         ),
-                        minimumSize: const WidgetStatePropertyAll(
-                          Size(double.infinity, 50),
-                        ),
                       ),
-                      child: const Text("Заявки"),
                     ),
                   ),
-                  const SizedBox(width: 24),
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => vm.chatsSwitch(switchToChats: true),
-                      style: ButtonStyle(
-                        backgroundColor: WidgetStatePropertyAll(vm.chatsSelected
-                            ? NannyTheme.primary
-                            : NannyTheme.secondary),
-                        foregroundColor: WidgetStatePropertyAll(
-                          vm.chatsSelected
-                              ? NannyTheme.secondary
-                              : const Color(0xFF2B2B2B),
+                    child: GestureDetector(
+                      onTap: () => vm.chatsSwitch(switchToChats: true),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
                         ),
-                        shape: WidgetStatePropertyAll(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                        decoration: BoxDecoration(
+                          color: vm.chatsSelected
+                              ? Colors.white
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: vm.chatsSelected
+                              ? [
+                                  BoxShadow(
+                                    color: NannyTheme.shadow
+                                        .withOpacity(0.08),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Center(
+                          child: Text(
+                            "Чаты",
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: vm.chatsSelected
+                                      ? NannyTheme.neutral900
+                                      : NannyTheme.neutral500,
+                                ),
                           ),
                         ),
-                        minimumSize: const WidgetStatePropertyAll(
-                          Size(double.infinity, 50),
-                        ),
                       ),
-                      child: const Text("Чаты"),
                     ),
-                  )
+                  ),
                 ],
               ),
-              const SizedBox(height: 24),
-              Expanded(
-                child: StatefulBuilder(builder: (context, update) {
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: StatefulBuilder(
+                builder: (context, update) {
                   vm.updateList = () => update(() {});
 
                   return vm.chatsSelected
@@ -125,197 +171,161 @@ class _ChatsViewState extends State<ChatsView>
                           request: vm.getChats,
                           completeView: (context, data) {
                             if (data == null) {
-                              return const Center(
-                                child: Text("У вас пока что нет чатов..."),
+                              return Center(
+                                child: Text(
+                                  "У вас пока нет чатов.",
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: NannyTheme.neutral500,
+                                      ),
+                                ),
                               );
                             }
 
                             return ListView.separated(
-                                padding: const EdgeInsets.only(bottom: 20),
-                                shrinkWrap: true,
-                                itemBuilder: (context, index) {
-                                  var e = data.chats[index];
-                                  return InkWell(
-                                    onTap: () {
-                                      vm.navigateToDirect(e);
-                                      if (vm.node.hasFocus) {
-                                        vm.node.unfocus();
-                                      }
-                                    },
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      child: Column(
-                                        children: [
-                                          Card(
-                                            margin: const EdgeInsets.only(
-                                                top: 10, bottom: 6),
-                                            shape:
-                                                const RoundedRectangleBorder(),
-                                            elevation: 0,
-                                            color: Colors.transparent,
-                                            child: Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                // Аватар пользователя
-                                                ProfileImage(
-                                                    url: e.photoPath,
-                                                    radius: 50),
-                                                const SizedBox(width: 11),
-
-                                                // Текстовые элементы (Имя и Сообщение)
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        e.username,
-                                                        style: const TextStyle(
-                                                            color: Color(
-                                                                0xFF2B2B2B),
-                                                            fontSize: 16,
-                                                            height: 17.6 / 16,
-                                                            fontWeight:
-                                                                FontWeight.w600,
-                                                            fontFamily:
-                                                                'Nanito'),
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                      Text(
-                                                        e.message == null
-                                                            ? "Нет сообщений"
-                                                            : e.message!.msg,
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: const TextStyle(
-                                                            color: Color(
-                                                                0xFF6D6D6D),
-                                                            fontSize: 12,
-                                                            height: 16.8 / 12,
-                                                            fontWeight:
-                                                                FontWeight.w400,
-                                                            fontFamily:
-                                                                'Nanito'),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 11),
-
-                                                // Время последнего сообщения
-                                                Text(
-                                                  e.message != null
-                                                      ? DateFormat("HH:mm")
-                                                          .format(
-                                                          DateTime
-                                                              .fromMillisecondsSinceEpoch(
-                                                            e.message!.time *
-                                                                1000,
-                                                          ),
-                                                        )
-                                                      : "",
-                                                  style: const TextStyle(
-                                                      color: Color(0xFF2B2B2B),
-                                                      fontSize: 12,
-                                                      height: 14.4 / 12,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      fontFamily: 'Nanito'),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          // Разделитель
-                                          if (index == data.chats.length - 1)
-                                            const Divider(
-                                                thickness: 1,
-                                                height: 1,
-                                                color: NannyTheme.grey),
-                                        ],
-                                      ),
+                              padding: const EdgeInsets.only(bottom: 20),
+                              shrinkWrap: true,
+                              itemBuilder: (context, index) {
+                                var e = data.chats[index];
+                                return InkWell(
+                                  onTap: () {
+                                    vm.navigateToDirect(e);
+                                    if (vm.node.hasFocus) {
+                                      vm.node.unfocus();
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 10,
                                     ),
-                                  );
-                                },
-                                separatorBuilder: (context, index) =>
-                                    const Divider(
-                                        thickness: 1,
-                                        height: 1,
-                                        color: NannyTheme.grey),
-                                itemCount: data.chats.length);
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        ProfileImage(
+                                          url: e.photoPath,
+                                          radius: 44,
+                                          showOnlineDot: false,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                e.username,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                e.message == null
+                                                    ? "Нет сообщений"
+                                                    : e.message!.msg,
+                                                maxLines: 1,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color:
+                                                          NannyTheme.neutral500,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          e.message != null
+                                              ? DateFormat("HH:mm").format(
+                                                  DateTime
+                                                      .fromMillisecondsSinceEpoch(
+                                                    e.message!.time * 1000,
+                                                  ),
+                                                )
+                                              : "",
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall
+                                              ?.copyWith(
+                                                color:
+                                                    NannyTheme.neutral400,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                              separatorBuilder: (context, index) =>
+                                  const Divider(
+                                thickness: 1,
+                                height: 1,
+                                color: NannyTheme.neutral100,
+                              ),
+                              itemCount: data.chats.length,
+                            );
                           },
-                          errorView: (context, error) => ErrorView(
-                            errorText: error.toString(),
-                          ),
+                          errorView: (context, error) =>
+                              ErrorView(errorText: error.toString()),
                         )
                       : RequestLoader(
                           request: vm.getRequests,
                           completeView: (context, data) {
-                            //List<ScheduleResponsesData>? data = List.generate(
-                            //  10,
-                            //  (index) => ScheduleResponsesData(
-                            //    id: 9,
-                            //    idDriver: 9,
-                            //    name: '123',
-                            //    photoPath: 'photoPath',
-                            //    idSchedule: 1,
-                            //    fullTime: index % 2 == 0,
-                            //    schedule: Schedule(
-                            //      title: 'title',
-                            //      duration: 500,
-                            //      childrenCount: 5,
-                            //      datetimeCreate: DateTime.now(),
-                            //      weekdays: [NannyWeekday.friday],
-                            //      tariff: DriveTariff(id: 3),
-                            //      otherParametrs: [
-                            //        OtherParametr(),
-                            //      ],
-                            //      roads: [
-                            //        //Road(
-                            //        //    weekDay: weekDay,
-                            //        //    startTime: startTime,
-                            //        //    endTime: endTime,
-                            //        //    addresses: addresses,
-                            //        //    title: title,
-                            //        //    typeDrive: typeDrive)
-                            //      ],
-                            //    ),
-                            //    idChat: index,
-                            //    data: [ResponseRoadData(idRoad: 1, weekDay: 1)],
-                            //  ),
-                            //);
-
                             if ((data ?? []).isEmpty) {
-                              return const Center(
-                                child: Text("У вас нет заявок"),
+                              return Center(
+                                child: Text(
+                                  "У вас нет заявок.",
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: NannyTheme.neutral500,
+                                      ),
+                                ),
                               );
                             }
 
                             return ListView(
-                              padding: const EdgeInsets.only(bottom: 12),
+                              padding:
+                                  const EdgeInsets.only(bottom: 12, top: 4),
                               children: [
                                 requestItem(
-                                    data: data!
-                                        .where((e) => e.fullTime)
-                                        .toList()),
+                                  data: data!
+                                      .where((e) => e.fullTime)
+                                      .toList(),
+                                ),
                                 const SizedBox(height: 12),
                                 requestItem(
-                                    data: data
-                                        .where((e) => !e.fullTime)
-                                        .toList()),
+                                  data: data
+                                      .where((e) => !e.fullTime)
+                                      .toList(),
+                                ),
                               ],
                             );
                           },
                           errorView: (context, error) =>
                               ErrorView(errorText: error.toString()),
                         );
-                }),
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -323,10 +333,17 @@ class _ChatsViewState extends State<ChatsView>
 
   Widget requestItem({required List<ScheduleResponsesData> data}) {
     return Container(
-      padding: const EdgeInsets.only(right: 16, left: 16, top: 20),
+      padding: const EdgeInsets.only(right: 16, left: 16, top: 16, bottom: 12),
       decoration: BoxDecoration(
-        color: NannyTheme.secondary,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -334,12 +351,7 @@ class _ChatsViewState extends State<ChatsView>
             data.any((e) => e.fullTime)
                 ? 'Заявки на полную занятость'
                 : 'Заявки на частичную занятость',
-            style: TextStyle(
-                color: NannyTheme.onSecondary,
-                fontSize: 18,
-                height: 20 / 18,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Nunito'),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 20),
           ListView.separated(
@@ -354,66 +366,58 @@ class _ChatsViewState extends State<ChatsView>
                     width: double.infinity,
                     child: Column(
                       children: [
-                        Card(
-                          margin: const EdgeInsets.only(top: 10, bottom: 6),
-                          shape: const RoundedRectangleBorder(),
-                          elevation: 0,
-                          color: Colors.transparent,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Аватар пользователя
-                              ProfileImage(url: e.photoPath, radius: 50),
-                              const SizedBox(width: 11),
-
-                              // Текстовые элементы (Имя и Сообщение)
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      e.name,
-                                      style: const TextStyle(
-                                          color: Color(0xFF2B2B2B),
-                                          fontSize: 16,
-                                          height: 17.6 / 16,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ProfileImage(url: e.photoPath, radius: 40),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    e.name,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
                                           fontWeight: FontWeight.w600,
-                                          fontFamily: 'Nanito'),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                        ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  if (e.schedule != null) ...[
                                     Text(
-                                      e.schedule?.title ?? '',
+                                      e.schedule!.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                          color: Color(0xFF6D6D6D),
-                                          fontSize: 12,
-                                          height: 16.8 / 12,
-                                          fontWeight: FontWeight.w400,
-                                          fontFamily: 'Nanito'),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: NannyTheme.neutral600,
+                                          ),
                                     ),
+                                    const SizedBox(height: 2),
                                   ],
-                                ),
+                                  Text(
+                                    '${e.data.length} маршрутов • ${e.fullTime ? 'полная занятость' : 'частичная'}',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: NannyTheme.neutral500,
+                                        ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 11),
-
-                              // Время последнего сообщения
-                              Text(
-                                e.schedule?.datetimeCreate != null
-                                    ? DateFormat("HH:mm").format(
-                                        e.schedule?.datetimeCreate ??
-                                            DateTime.now(),
-                                      )
-                                    : "",
-                                style: const TextStyle(
-                                    color: Color(0xFF2B2B2B),
-                                    fontSize: 12,
-                                    height: 14.4 / 12,
-                                    fontWeight: FontWeight.w600,
-                                    fontFamily: 'Nanito'),
-                              ),
-                            ],
-                          ),
+                            ),
+                            const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 16,
+                              color: NannyTheme.neutral400,
+                            ),
+                          ],
                         ),
                       ],
                     ),

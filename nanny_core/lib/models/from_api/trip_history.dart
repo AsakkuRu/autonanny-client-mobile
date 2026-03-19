@@ -54,6 +54,16 @@ class TripHistory {
         return 'Отменена водителем';
       case 'cancelled_by_client':
         return 'Отменена вами';
+      case 'active':
+        return 'Активна';
+      case 'in_progress':
+        return 'В процессе';
+      case 'created':
+        return 'Создана';
+      case 'scheduled':
+        return 'Запланирована';
+      case 'driver_assigned':
+        return 'Назначен водитель';
       default:
         return status;
     }

@@ -3,9 +3,24 @@ import 'package:nanny_core/api/dio_request.dart';
 import 'package:nanny_core/api/request_builder.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/child_medical_info.dart';
+import 'package:nanny_core/models/from_api/child_short.dart';
 import 'package:nanny_core/models/from_api/emergency_contact.dart';
 
 class NannyChildrenApi {
+  // BE-NEW-DESIGN: Краткий список детей для блока «Кто едет»
+  static Future<ApiResponse<List<ChildShort>>> getChildrenShort() async {
+    return RequestBuilder<List<ChildShort>>().create(
+      dioRequest: DioRequest.dio.get("/users/children-short"),
+      onSuccess: (response) {
+        final List<dynamic> childrenJson =
+            response.data['children'] as List<dynamic>? ?? [];
+        return childrenJson
+            .map((json) => ChildShort.fromJson(json as Map<String, dynamic>))
+            .toList();
+      },
+    );
+  }
+
   // FE-MVP-012: Получение списка детей
   static Future<ApiResponse<List<Child>>> getChildren() async {
     return RequestBuilder<List<Child>>().create(

@@ -29,16 +29,9 @@ class _FaqViewState extends State<FaqView> {
     final grouped = vm.groupedFaq;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        title: const Text(
-          'Частые вопросы',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
+        title: 'Частые вопросы',
       ),
       body: Column(
         children: [
@@ -51,7 +44,7 @@ class _FaqViewState extends State<FaqView> {
                   controller: vm.searchController,
                   onChanged: vm.onSearchChanged,
                   decoration: InputDecoration(
-                    hintText: 'Поиск по вопросам...',
+                    hintText: 'Поиск по вопросам',
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: vm.searchQuery.isNotEmpty
                         ? IconButton(
@@ -60,12 +53,13 @@ class _FaqViewState extends State<FaqView> {
                           )
                         : null,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
                     ),
                     filled: true,
-                    fillColor: Colors.grey[100],
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    fillColor: NannyTheme.neutral50,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -82,16 +76,20 @@ class _FaqViewState extends State<FaqView> {
                             cat,
                             style: TextStyle(
                               fontSize: 13,
-                              color: isSelected ? Colors.white : Colors.black87,
+                              color: isSelected
+                                  ? Colors.white
+                                  : NannyTheme.neutral700,
                             ),
                           ),
                           selected: isSelected,
                           onSelected: (_) => vm.selectCategory(cat),
-                          backgroundColor: Colors.grey[200],
+                          backgroundColor: NannyTheme.neutral100,
                           selectedColor: NannyTheme.primary,
                           checkmarkColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 4),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
                         ),
                       );
                     }).toList(),
@@ -106,11 +104,12 @@ class _FaqViewState extends State<FaqView> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off, size: 48, color: Colors.grey[400]),
+                        Icon(Icons.search_off,
+                            size: 48, color: NannyTheme.neutral300),
                         const SizedBox(height: 12),
                         Text(
                           'Ничего не найдено',
-                          style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ],
                     ),
@@ -133,10 +132,9 @@ class _FaqViewState extends State<FaqView> {
                                 const SizedBox(width: 8),
                                 Text(
                                   entry.key,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
                                 ),
                               ],
                             ),
@@ -154,19 +152,23 @@ class _FaqViewState extends State<FaqView> {
                                   ),
                                   title: Text(
                                     item.question,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                   ),
                                   children: [
                                     Text(
                                       item.answer,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey[700],
-                                        height: 1.5,
-                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: NannyTheme.neutral600,
+                                            height: 1.5,
+                                          ),
                                     ),
                                   ],
                                 ),

@@ -28,21 +28,55 @@ class NannyMapUtils {
       (e) => e.types.contains(AddressType.streetAddress)
     );
 
-    if(addresses.isEmpty) {
-      var fallback = data.geocodeResults.first;
+    if (addresses.isEmpty) {
+      final fallback = data.geocodeResults.first;
       return GeocodeFormatResult(
-        address: fallback, 
-        simplifiedAddress: simplifyAddress(fallback.formattedAddress),
+        address: fallback,
+        simplifiedAddress: buildStreetAddress(fallback),
       );
     }
 
-    GeocodeResult address = addresses.first;
-    String formatedAddress = simplifyAddress(address.formattedAddress);
+    final address = addresses.first;
+    final formattedAddress = buildStreetAddress(address);
 
     return GeocodeFormatResult(
-      address: address, 
-      simplifiedAddress: formatedAddress
+      address: address,
+      simplifiedAddress: formattedAddress,
     );
+  }
+
+  /// Формируем человекочитаемый адрес по компонентам:
+  /// улица + дом (+ город), без названий POI («памятник», «кафе» и т.п.).
+  static String buildStreetAddress(GeocodeResult result) {
+    String? street;
+    String? house;
+    String? city;
+
+    for (final c in result.addressComponents) {
+      if (c.types.contains(AddressType.route)) {
+        street ??= c.longName;
+      }
+      if (c.types.contains(AddressType.streetNumber)) {
+        house ??= c.longName;
+      }
+      if (c.types.contains(AddressType.locality) ||
+          c.types.contains(AddressType.adminArea2) ||
+          c.types.contains(AddressType.adminArea1)) {
+        city ??= c.longName;
+      }
+    }
+
+    final parts = <String>[];
+    if (street != null) parts.add(street);
+    if (house != null) parts.add(house);
+    if (city != null) parts.add(city);
+
+    if (parts.isNotEmpty) {
+      return parts.join(', ');
+    }
+
+    // Fallback на старую логику, если что‑то пошло не так.
+    return simplifyAddress(result.formattedAddress);
   }
 
   static String simplifyAddress(String address) {

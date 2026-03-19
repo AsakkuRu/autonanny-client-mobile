@@ -21,16 +21,9 @@ class _TripExportViewState extends State<TripExportView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Экспорт поездок',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
+        title: 'Экспорт поездок',
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -71,16 +64,20 @@ class _TripExportViewState extends State<TripExportView> {
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
                       )
                     : const Icon(Icons.search, color: Colors.white),
                 label: Text(
                   vm.isLoading ? 'Загрузка...' : 'Загрузить поездки',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: NannyTheme.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ),
@@ -109,13 +106,27 @@ class _TripExportViewState extends State<TripExportView> {
                   itemCount: vm.trips.length,
                   itemBuilder: (context, index) {
                     final trip = vm.trips[index];
-                    return Card(
+                    return Container(
                       margin: const EdgeInsets.only(bottom: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: NannyTheme.shadow.withOpacity(0.08),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
                       child: ListTile(
                         leading: Icon(
-                          trip.isCompleted ? Icons.check_circle : Icons.cancel,
-                          color: trip.isCompleted ? Colors.green : Colors.red,
+                          trip.isCompleted
+                              ? Icons.check_circle
+                              : Icons.cancel,
+                          color: trip.isCompleted
+                              ? NannyTheme.success
+                              : NannyTheme.danger,
                         ),
                         title: Text(
                           '${trip.addressFrom} → ${trip.addressTo}',
@@ -130,7 +141,8 @@ class _TripExportViewState extends State<TripExportView> {
                         trailing: trip.price != null
                             ? Text(
                                 '${trip.price!.toStringAsFixed(0)} ₽',
-                                style: const TextStyle(fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600),
                               )
                             : null,
                       ),
@@ -148,11 +160,15 @@ class _TripExportViewState extends State<TripExportView> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
                         )
-                      : const Icon(Icons.picture_as_pdf, color: Colors.white),
+                      : const Icon(Icons.picture_as_pdf,
+                          color: Colors.white),
                   label: Text(
-                    vm.isExporting ? 'Формирование PDF...' : 'Экспортировать PDF',
+                    vm.isExporting
+                        ? 'Формирование PDF...'
+                        : 'Экспортировать PDF',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -162,7 +178,9 @@ class _TripExportViewState extends State<TripExportView> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.deepOrange,
                     disabledBackgroundColor: Colors.grey[300],
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
               ),
@@ -172,16 +190,20 @@ class _TripExportViewState extends State<TripExportView> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.picture_as_pdf, size: 64, color: Colors.grey[400]),
+                      Icon(Icons.picture_as_pdf,
+                          size: 64, color: NannyTheme.neutral300),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'Выберите период и загрузите поездки',
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Затем экспортируйте в PDF',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: NannyTheme.neutral500),
                       ),
                     ],
                   ),
@@ -203,8 +225,11 @@ class _TripExportViewState extends State<TripExportView> {
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        side: BorderSide(color: date != null ? NannyTheme.primary : Colors.grey[300]!),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        side: BorderSide(
+          color: date != null ? NannyTheme.primary : NannyTheme.neutral200,
+        ),
       ),
       child: Row(
         children: [

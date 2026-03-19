@@ -37,6 +37,7 @@ class _AddressPickerState extends State<AddressPicker> {
       child: ListView(
         shrinkWrap: true,
         controller: widget.controller,
+        physics: const NeverScrollableScrollPhysics(),
         children: widget.addresses.asMap().entries.map(
           (e) {
             final isSelected = widget.selectedIndex == e.key;
@@ -119,7 +120,9 @@ class _AddressPickerState extends State<AddressPicker> {
         onSearch: (query) => GoogleMapApi.geocode(address: query), 
         onResponse: (response) => response.response?.geocodeResults,
         tileBuilder: (data, close) => ListTile(
-          title: Text(data.formattedAddress),
+          title: Text(
+            NannyMapUtils.buildStreetAddress(data),
+          ),
           onTap: close,
         ),
       ),
@@ -130,9 +133,9 @@ class _AddressPickerState extends State<AddressPicker> {
     if(location == null) return;
     widget.onAdded(
       AddressData(
-        address: NannyMapUtils.simplifyAddress(address.formattedAddress), 
-        location: location
-      )
+        address: NannyMapUtils.buildStreetAddress(address),
+        location: location,
+      ),
     );
   }
 
@@ -143,7 +146,9 @@ class _AddressPickerState extends State<AddressPicker> {
         onSearch: (query) => GoogleMapApi.geocode(address: query), 
         onResponse: (response) => response.response?.geocodeResults,
         tileBuilder: (data, close) => ListTile(
-          title: Text(data.formattedAddress),
+          title: Text(
+            NannyMapUtils.buildStreetAddress(data),
+          ),
           onTap: close,
         ),
       ),
@@ -155,9 +160,9 @@ class _AddressPickerState extends State<AddressPicker> {
     widget.onAddressChange(
       old,
       AddressData(
-        address: NannyMapUtils.simplifyAddress(address.formattedAddress), 
-        location: location
-      )
+        address: NannyMapUtils.buildStreetAddress(address),
+        location: location,
+      ),
     );
   }
 }

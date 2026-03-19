@@ -8,5 +8,6 @@ class NannyMapGlobals {
   static ValueNotifier< Set<Marker> > markers = ValueNotifier({});
   
   static Stream<LatLng> get onMapTap => mapTapController.stream;
-  static final StreamController<LatLng> mapTapController = StreamController();
+  static final StreamController<LatLng> mapTapController =
+      StreamController.broadcast();
 }

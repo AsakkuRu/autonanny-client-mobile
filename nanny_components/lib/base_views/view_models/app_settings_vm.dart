@@ -36,12 +36,17 @@ class AppSettingsVM extends ViewModelBase {
   }
 
   void signInWithTouchId(bool? value) async {
+    final current = await NannyStorage.getSettingsData();
     await NannyStorage.updateSettingsData(
       SettingsStorageData(
         useBiometrics: value!,
-      )
+        themeMode: current?.themeMode ?? 'system',
+        locale: current?.locale ?? 'ru',
+        pushNotificationsEnabled: current?.pushNotificationsEnabled ?? true,
+        smsNotificationsEnabled: current?.smsNotificationsEnabled ?? false,
+      ),
     );
 
-    update(() => _useTouchId = value);
+    update(() => _useTouchId = value ?? false);
   }
 }

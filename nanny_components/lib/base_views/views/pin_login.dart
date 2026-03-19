@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/view_models/pin_login_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/styles/new_design_auth.dart';
 
 class PinLoginView extends StatefulWidget {
   final Widget nextView;
@@ -34,50 +35,61 @@ class _PinLoginViewState extends State<PinLoginView> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
-        backgroundColor: NannyTheme.background,
+        backgroundColor: NewDesignAuthTokens.neutral50,
         appBar: NannyAppBar(
           hasBackButton: false,
+          color: NewDesignAuthTokens.neutral50,
           actions: [
             IconButton(
-              onPressed: vm.logout, 
+              onPressed: vm.logout,
               icon: const Icon(Icons.exit_to_app_rounded),
               splashRadius: 30,
-            )
+            ),
           ],
         ),
-        extendBodyBehindAppBar: true,
-        body: Center(
-          child: FutureLoader(
-            future: vm.isBioAuthAvailable,
-            completeView: (context, data) => Column(
-              mainAxisAlignment: MainAxisAlignment.end,
+        body: FutureLoader(
+          future: vm.isBioAuthAvailable,
+          completeView: (context, data) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            child: Column(
               children: [
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 30, top: 60, right: 30, bottom: 30),
-                    child: Text(
-                      "Введите код авторизации", 
-                      textAlign: TextAlign.center, 
-                      style: Theme.of(context).textTheme.headlineSmall
-                    ),
-                  ),
+                const SizedBox(height: 24),
+                Text(
+                  "Введите код авторизации",
+                  textAlign: TextAlign.center,
+                  style: NewDesignAuthTokens.titleM,
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  "Это PIN‑код для быстрого входа в приложение.",
+                  textAlign: TextAlign.center,
+                  style: NewDesignAuthTokens.bodyM,
+                ),
+                const SizedBox(height: 24),
                 Expanded(
                   child: FourDigitKeyboard(
-                    bottomChild: data ? TextButton(
-                      onPressed: vm.useBioAuth,
-                      child: const Text("Использовать биометрию")
-                    ) : null,
+                    bottomChild: data
+                        ? TextButton(
+                            onPressed: vm.useBioAuth,
+                            child: Text(
+                              "Использовать биометрию",
+                              style: NewDesignAuthTokens.bodyS.copyWith(
+                                color: NewDesignAuthTokens.primary,
+                              ),
+                            ),
+                          )
+                        : null,
                     onCodeChanged: (code) {
                       vm.code = code;
-                      if(code.length > 3) vm.checkPinCode();
+                      if (code.length > 3) vm.checkPinCode();
                     },
                   ),
                 ),
               ],
-            ), 
-            errorView: (context, error) => ErrorView(errorText: error.toString()),
+            ),
           ),
+          errorView: (context, error) =>
+              ErrorView(errorText: error.toString()),
         ),
       ),
     );

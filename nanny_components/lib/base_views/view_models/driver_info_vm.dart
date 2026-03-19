@@ -16,8 +16,8 @@ class DriverInfoVM extends ViewModelBase {
       this.scheduleData}) {
     if (viewingOrder) {
       assert(scheduleData != null);
-      request.idResponse = scheduleData!.id;
       request.idSchedule = scheduleData!.idSchedule;
+      request.idResponses = [scheduleData!.id];
     }
   }
 
@@ -35,7 +35,7 @@ class DriverInfoVM extends ViewModelBase {
 
   void answerSchedule({required bool confirm}) async {
     LoadScreen.showLoad(context, true);
-
+    // Бэкенд по одному id автоматически обрабатывает всю программу.
     request.flag = confirm;
     var result = await NannyOrdersApi.answerScheduleRequest(request);
 

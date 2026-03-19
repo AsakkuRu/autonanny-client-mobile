@@ -27,6 +27,10 @@ class Schedule {
     this.amountWeek,
     this.amountMonth,
     this.salary,
+    this.isPaused,
+    this.pauseFrom,
+    this.pauseUntil,
+    this.pauseReason,
   });
 
   final int? id;
@@ -43,6 +47,12 @@ class Schedule {
   final double? salary;
   final double? amountWeek;
   final double? amountMonth;
+
+  // FIX-005: поля паузы контракта
+  final bool? isPaused;
+  final String? pauseFrom;
+  final String? pauseUntil;
+  final String? pauseReason;
 
   factory Schedule.fromJson(Map<String, dynamic> json) {
     final rawRoads = json["roads"];
@@ -75,6 +85,11 @@ class Schedule {
           roads.fold<double>(0, (sum, item) => sum + (item.amount ?? 0.0)),
       amountWeek:
           roads.fold<double>(0, (sum, item) => sum + (item.amount ?? 0.0)) / 4,
+      // FIX-005: поля паузы от backend
+      isPaused: _parseBool(json["is_paused"]),
+      pauseFrom: json["pause_from"] as String?,
+      pauseUntil: json["pause_until"] as String?,
+      pauseReason: json["pause_reason"] as String?,
     );
   }
 

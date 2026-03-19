@@ -11,11 +11,36 @@ import 'package:nanny_core/models/from_api/trip_history.dart';
 import 'package:nanny_core/models/from_api/driver_rating.dart';
 import 'package:nanny_core/nanny_core.dart';
 
+/// Ответ API получения кода встречи для графика (родитель).
+class MeetingCodeForSchedule {
+  final String? meetingCode;
+  final int? idScheduleRoad;
+  MeetingCodeForSchedule({this.meetingCode, this.idScheduleRoad});
+}
+
+/// Ответ API получения кода встречи для разовой поездки.
+class MeetingCodeForOrder {
+  final String? meetingCode;
+  final int? idOrder;
+  MeetingCodeForOrder({this.meetingCode, this.idOrder});
+}
+
 class NannyOrdersApi {
-  static Future<ApiResponse<void>> createSchedule(Schedule schedule) {
-    return RequestBuilder<void>().create(
+  static Future<ApiResponse<int?>> createSchedule(Schedule schedule) {
+    return RequestBuilder<int?>().create(
         dioRequest:
             DioRequest.dio.post("/orders/schedule", data: schedule.toJson()),
+        onSuccess: (response) {
+          try {
+            final id = response.data["created_schedule"]?["id"];
+            if (id == null) return null;
+            if (id is int) return id;
+            if (id is num) return id.toInt();
+            return null;
+          } catch (_) {
+            return null;
+          }
+        },
         errorCodeMsgs: {
           402: "Недостаточно средств на балансе. Минимальный баланс - 100 руб.",
           405: "Тариф не найден!",
@@ -27,6 +52,30 @@ class NannyOrdersApi {
         dioRequest: DioRequest.dio.get("/orders/schedule/$id"),
         onSuccess: (response) => Schedule.fromJson(response.data["schedule"]),
         errorCodeMsgs: {404: "Расписание не найдено!"});
+  }
+
+  /// BE-MVP-021: Получение кода встречи для графика (для отображения родителю; водитель вводит этот код вместо QR).
+  static Future<ApiResponse<MeetingCodeForSchedule>> getMeetingCodeForSchedule(int scheduleId) {
+    return RequestBuilder<MeetingCodeForSchedule>().create(
+      dioRequest: DioRequest.dio.get("/orders/meeting_code_for_schedule/$scheduleId"),
+      onSuccess: (response) => MeetingCodeForSchedule(
+        meetingCode: response.data["meeting_code"] as String?,
+        idScheduleRoad: response.data["id_schedule_road"] as int?,
+      ),
+      errorCodeMsgs: {403: "Нет доступа к этому графику"},
+    );
+  }
+
+  /// Получение кода встречи для разовой поездки (родитель показывает водителю).
+  static Future<ApiResponse<MeetingCodeForOrder>> getMeetingCodeForOrder(int orderId) {
+    return RequestBuilder<MeetingCodeForOrder>().create(
+      dioRequest: DioRequest.dio.get("/orders/meeting_code_for_order/$orderId"),
+      onSuccess: (response) => MeetingCodeForOrder(
+        meetingCode: response.data["meeting_code"] as String?,
+        idOrder: response.data["id_order"] as int?,
+      ),
+      errorCodeMsgs: {403: "Нет доступа к этому заказу"},
+    );
   }
 
   static Future<ApiResponse<Schedule>> deleteScheduleById(int id) {
@@ -312,6 +361,19 @@ class NannyOrdersApi {
       errorCodeMsgs: {
         404: 'Заказ не найден',
         400: 'Невозможно сменить тариф в текущем статусе',
+      },
+    );
+  }
+
+  static Future<ApiResponse<void>> cancelOrder({required int orderId}) async {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.post(
+        '/orders/cancel_order',
+        queryParameters: {'id_order': orderId},
+      ),
+      errorCodeMsgs: {
+        404: 'Заказ не найден',
+        403: 'Нет доступа к этому заказу',
       },
     );
   }

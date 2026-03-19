@@ -28,16 +28,9 @@ class _ReferralViewState extends State<ReferralView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        title: const Text(
-          'Реферальная программа',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
+        title: 'Реферальная программа',
       ),
       body: vm.isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -71,9 +64,18 @@ class _ReferralViewState extends State<ReferralView> {
   }
 
   Widget _buildPromoCard() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: NannyTheme.primary,
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            NannyTheme.primary,
+            NannyTheme.primaryDark,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -86,10 +88,11 @@ class _ReferralViewState extends State<ReferralView> {
             ),
             const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
                 vm.promoCode,
@@ -184,40 +187,79 @@ class _ReferralViewState extends State<ReferralView> {
       children: [
         Row(
           children: [
-            Expanded(child: _statCard('Приглашено', '${s.totalInvited}', Icons.person_add, Colors.blue)),
+            Expanded(
+              child: _statCard(
+                  'Приглашено',
+                  '${s.totalInvited}',
+                  Icons.person_add,
+                  Colors.blue),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _statCard('Зарегистрировано', '${s.registered}', Icons.how_to_reg, Colors.indigo)),
+            Expanded(
+              child: _statCard(
+                  'Зарегистрировано',
+                  '${s.registered}',
+                  Icons.how_to_reg,
+                  Colors.indigo),
+            ),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: _statCard('Активных', '${s.active}', Icons.check_circle, Colors.green)),
+            Expanded(
+              child: _statCard('Активных', '${s.active}',
+                  Icons.check_circle, Colors.green),
+            ),
             const SizedBox(width: 8),
-            Expanded(child: _statCard('Бонус за период', '${s.periodBonus.toStringAsFixed(0)} ₽', Icons.monetization_on, NannyTheme.primary)),
+            Expanded(
+              child: _statCard(
+                  'Бонус за период',
+                  '${s.periodBonus.toStringAsFixed(0)} ₽',
+                  Icons.monetization_on,
+                  NannyTheme.primary),
+            ),
           ],
         ),
         const SizedBox(height: 8),
-        Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                const Icon(Icons.account_balance_wallet, color: NannyTheme.primary, size: 24),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${s.totalBonus.toStringAsFixed(0)} ₽',
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    Text('Всего заработано', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                  ],
-                ),
-              ],
-            ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: NannyTheme.shadow.withOpacity(0.08),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const Icon(Icons.account_balance_wallet,
+                  color: NannyTheme.primary, size: 24),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${s.totalBonus.toStringAsFixed(0)} ₽',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  Text(
+                    'Всего заработано',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(color: NannyTheme.neutral500),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ],
@@ -225,19 +267,40 @@ class _ReferralViewState extends State<ReferralView> {
   }
 
   Widget _statCard(String label, String value, IconData icon, Color color) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(height: 6),
-            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600]), textAlign: TextAlign.center),
-          ],
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: Theme.of(context)
+                .textTheme
+                .labelSmall
+                ?.copyWith(color: NannyTheme.neutral500),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -246,21 +309,29 @@ class _ReferralViewState extends State<ReferralView> {
     final referrals = vm.stats?.referrals ?? [];
     if (referrals.isEmpty) return const SizedBox.shrink();
 
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Мои рефералы',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            ...referrals.map((r) => _buildReferralTile(r)),
-          ],
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Мои рефералы',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+          ...referrals.map((r) => _buildReferralTile(r)),
+        ],
       ),
     );
   }
@@ -329,35 +400,45 @@ class _ReferralViewState extends State<ReferralView> {
     final history = vm.stats?.bonusHistory ?? [];
     if (history.isEmpty) return const SizedBox.shrink();
 
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              onTap: vm.toggleBonusHistory,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'История начислений',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  Icon(
-                    vm.showBonusHistory ? Icons.expand_less : Icons.expand_more,
-                    color: Colors.grey[600],
-                  ),
-                ],
-              ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: vm.toggleBonusHistory,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'История начислений',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                Icon(
+                  vm.showBonusHistory
+                      ? Icons.expand_less
+                      : Icons.expand_more,
+                  color: NannyTheme.neutral500,
+                ),
+              ],
             ),
-            if (vm.showBonusHistory) ...[
-              const SizedBox(height: 12),
-              ...history.map((h) => _buildBonusTile(h)),
-            ],
+          ),
+          if (vm.showBonusHistory) ...[
+            const SizedBox(height: 12),
+            ...history.map((h) => _buildBonusTile(h)),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -401,43 +482,55 @@ class _ReferralViewState extends State<ReferralView> {
   }
 
   Widget _buildRules() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            GestureDetector(
-              onTap: vm.toggleRules,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Как это работает',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  Icon(
-                    vm.showRules ? Icons.expand_less : Icons.expand_more,
-                    color: Colors.grey[600],
-                  ),
-                ],
-              ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          GestureDetector(
+            onTap: vm.toggleRules,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Как это работает',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                Icon(
+                  vm.showRules ? Icons.expand_less : Icons.expand_more,
+                  color: NannyTheme.neutral500,
+                ),
+              ],
             ),
-            if (vm.showRules) ...[
-              const SizedBox(height: 12),
-              _stepTile('1', 'Поделитесь промокодом с друзьями'),
-              _stepTile('2', 'Друг регистрируется и вводит промокод'),
-              _stepTile('3', 'Друг получает скидку 15% на первый заказ'),
-              _stepTile('4', 'Вы получаете 500 ₽ бонуса после первой поездки друга'),
-              const Divider(height: 20),
-              Text(
-                'Бонусы начисляются автоматически после завершения первой поездки приглашённого. Бонусы не имеют срока действия и могут быть использованы для оплаты поездок.',
-                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-              ),
-            ],
+          ),
+          if (vm.showRules) ...[
+            const SizedBox(height: 12),
+            _stepTile('1', 'Поделитесь промокодом с друзьями'),
+            _stepTile('2', 'Друг регистрируется и вводит промокод'),
+            _stepTile('3', 'Друг получает скидку 15% на первый заказ'),
+            _stepTile('4',
+                'Вы получаете 500 ₽ бонуса после первой поездки друга'),
+            const Divider(height: 20),
+            Text(
+              'Бонусы начисляются автоматически после завершения первой поездки приглашённого. Бонусы не имеют срока действия и могут быть использованы для оплаты поездок.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: NannyTheme.neutral600),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -463,56 +556,63 @@ class _ReferralViewState extends State<ReferralView> {
   }
 
   Widget _buildApplyPromo() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'У вас есть промокод?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: vm.promoInputController,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: InputDecoration(
-                      hintText: 'Введите промокод',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'У вас есть промокод?',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: vm.promoInputController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    hintText: 'Введите промокод',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide:
+                          BorderSide(color: NannyTheme.neutral200),
                     ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
                   ),
                 ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: vm.isApplying ? null : vm.applyPromo,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: NannyTheme.primary,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    child: vm.isApplying
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Text('Применить', style: TextStyle(color: Colors.white)),
-                  ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: vm.isApplying ? null : vm.applyPromo,
+                  child: vm.isApplying
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Применить'),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/view_models/password_reset_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/styles/new_design_auth.dart';
 
 class PasswordResetView extends StatefulWidget {
   const PasswordResetView({super.key});
@@ -22,48 +23,80 @@ class _PasswordResetViewState extends State<PasswordResetView> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
+        backgroundColor: NewDesignAuthTokens.neutral50,
         appBar: const NannyAppBar(),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Text("Восстановление пароля", style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 10),
-                Text("Задайте новый пароль для аккаунта", textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: 10),
-                Form(
-                  key: vm.passState,
-                  child: NannyPasswordForm(
-                    labelText: "Новый пароль*",
-                    validator: (text) {
-                      if(vm.password.length < 8) return "Пароль не менее 8 символов!";
-                      return null;
-                    },
-                    onChanged: (text) => vm.password = text,
+        body: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Восстановление пароля",
+                style: NewDesignAuthTokens.titleM,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Задайте новый пароль для аккаунта, чтобы продолжить пользоваться АвтоНяня.",
+                textAlign: TextAlign.left,
+                style: NewDesignAuthTokens.bodyM,
+              ),
+              const SizedBox(height: 24),
+              Form(
+                key: vm.passState,
+                child: NannyPasswordForm(
+                  labelText: "Новый пароль*",
+                  validator: (text) {
+                    if (vm.password.length < 8) {
+                      return "Пароль не менее 8 символов!";
+                    }
+                    return null;
+                  },
+                  onChanged: (text) => vm.password = text,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Form(
+                key: vm.passConfirmState,
+                child: NannyPasswordForm(
+                  labelText: "Подтвердите новый пароль*",
+                  validator: (text) {
+                    if (vm.password != vm.passwordConfirm) {
+                      return "Пароли должны совпадать!";
+                    }
+                    return null;
+                  },
+                  onChanged: (text) => vm.passwordConfirm = text,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: vm.tryResetPassword,
+                  style: ButtonStyle(
+                    elevation: const WidgetStatePropertyAll(0),
+                    backgroundColor: const WidgetStatePropertyAll(
+                      NewDesignAuthTokens.primary,
+                    ),
+                    shape: const WidgetStatePropertyAll(
+                      RoundedRectangleBorder(
+                        borderRadius: NewDesignAuthTokens.radiusLg,
+                      ),
+                    ),
+                  ),
+                  child: Text(
+                    "Обновить пароль",
+                    style: NewDesignAuthTokens.bodyS.copyWith(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                Form(
-                  key: vm.passConfirmState,
-                  child: NannyPasswordForm(
-                    labelText: "Подтвердите новый пароль*",
-                    validator: (text) {
-                      if(vm.password != vm.passwordConfirm) return "Пароли должны совпадать!";
-                      return null;
-                    },
-                    onChanged: (text) => vm.passwordConfirm = text,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: vm.tryResetPassword, 
-                  child: const Text("Обновить пароль")
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        )
+        ),
       ),
     );
   }

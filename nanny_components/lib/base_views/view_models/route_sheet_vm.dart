@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_components/models/address_view_data.dart';
 import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_core/api/google_map_api.dart';
+import 'package:nanny_components/widgets/map/address_pick_choice.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
@@ -114,17 +114,7 @@ class RouteSheetVM extends ViewModelBase {
   // TextEditingController timeToController = TextEditingController();
 
   void chooseAddress({required bool from}) async {
-    var address = await showSearch(
-      context: context,
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocode(address: query),
-        onResponse: (response) => response.response?.geocodeResults,
-        tileBuilder: (data, close) => ListTile(
-          title: Text(data.formattedAddress),
-          onTap: close,
-        ),
-      ),
-    );
+    var address = await showAddressPickChoice(context);
 
     if (address == null) return;
 
@@ -143,17 +133,7 @@ class RouteSheetVM extends ViewModelBase {
   }
 
   void chooseAddtionAddress(AddressViewData data) async {
-    var address = await showSearch(
-      context: context,
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocode(address: query),
-        onResponse: (response) => response.response?.geocodeResults,
-        tileBuilder: (data, close) => ListTile(
-          title: Text(data.formattedAddress),
-          onTap: close,
-        ),
-      ),
-    );
+    var address = await showAddressPickChoice(context);
 
     if (address == null) return;
 

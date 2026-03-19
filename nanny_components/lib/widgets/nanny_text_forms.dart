@@ -81,14 +81,18 @@ class _NannyTextFormState extends State<NannyTextForm> {
                       hintText: widget.hintText,
                     ) ??
                     InputDecoration(
-                      fillColor: NannyTheme.secondary,
+                      fillColor: Theme.of(context).colorScheme.surface,
                       filled: true,
                       labelText: widget.labelText,
-                      labelStyle: const TextStyle(
-                          color: NannyTheme.darkGrey,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'Nanito'),
+                      labelStyle: TextStyle(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.7),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'Nanito',
+                      ),
                       hintText: widget.hintText,
                       suffixIcon: Padding(
                           padding: const EdgeInsets.only(
@@ -112,7 +116,16 @@ class _NannyTextFormState extends State<NannyTextForm> {
                 enabled: widget.enabled,
                 maxLines: widget.isExpanded ? null : widget.maxLines ?? 1,
                 maxLength: widget.maxLength,
-                onChanged: widget.onChanged,
+                onChanged: (value) {
+                  // Проксируем внешний колбэк
+                  if (widget.onChanged != null) {
+                    widget.onChanged!(value);
+                  }
+                  // Локальная валидация для показа ошибки под полем
+                  if (widget.validator != null) {
+                    errorText.value = widget.validator!(value);
+                  }
+                },
                 onTap: widget.onTap,
                 controller: widget.controller,
               ),
@@ -192,11 +205,14 @@ class _NannyPasswordFormState extends State<NannyPasswordForm> {
                       ? const EdgeInsets.only(
                           top: 25, bottom: 25, right: 20, left: 20)
                       : null,
-                  fillColor: NannyTheme.secondary,
+                  fillColor: Theme.of(context).colorScheme.surface,
                   filled: true,
                   labelText: widget.labelText,
-                  labelStyle: const TextStyle(
-                      color: NannyTheme.darkGrey,
+                  labelStyle: TextStyle(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.7),
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       fontFamily: 'Nanito'),

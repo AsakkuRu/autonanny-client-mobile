@@ -14,6 +14,7 @@ class NannyAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String? title;
   final Function()? onBackPressed;
   final Color? color;
+  final Gradient? gradient;
 
   const NannyAppBar({
     super.key,
@@ -26,31 +27,76 @@ class NannyAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.title,
     this.color,
     this.onBackPressed,
+    this.gradient,
   });
+
+  /// Светлый вариант AppBar (белый фон, тёмный текст).
+  const NannyAppBar.light({
+    super.key,
+    this.isTransparent = false,
+    this.hasBackButton = true,
+    this.isWhiteSystemBar = true,
+    this.actions,
+    this.leading,
+    this.bottom,
+    this.title,
+    this.onBackPressed,
+  })  : color = NannyTheme.secondary,
+        gradient = null;
+
+  /// Градиентный вариант для экранов баланс/профиль/детали.
+  const NannyAppBar.gradient({
+    super.key,
+    this.hasBackButton = true,
+    this.isWhiteSystemBar = true,
+    this.actions,
+    this.leading,
+    this.bottom,
+    this.title,
+    this.onBackPressed,
+    required this.gradient,
+  })  : isTransparent = false,
+        color = Colors.transparent;
 
   @override
   Widget build(BuildContext context) {
+    final bool isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+    final Color bgColor = gradient != null
+        ? Colors.transparent
+        : (color == NannyTheme.secondary && isDarkTheme
+            ? Theme.of(context).colorScheme.surface
+            : (color ?? NannyTheme.background));
     final bool isDarkBackground =
-        (color ?? NannyTheme.background).computeLuminance() < 0.5;
+        (gradient != null ? NannyTheme.neutral900 : bgColor)
+                .computeLuminance() <
+            0.5;
 
     return AppBar(
       elevation: isTransparent ? 0 : 10,
-      backgroundColor: color ??
-          (isTransparent
-              ? Colors.transparent
-              : Theme.of(context).colorScheme.surface),
+      backgroundColor: bgColor,
       systemOverlayStyle: SystemUiOverlayStyle(
-        statusBarColor: color ?? NannyTheme.background,
+        statusBarColor: bgColor,
         statusBarIconBrightness:
             isDarkBackground ? Brightness.light : Brightness.dark,
         statusBarBrightness:
             isDarkBackground ? Brightness.dark : Brightness.light,
       ),
-      foregroundColor: NannyTheme.onSurface,
-      forceMaterialTransparency: isTransparent,
+      foregroundColor:
+          isDarkBackground ? Colors.white : NannyTheme.onSurface,
+      forceMaterialTransparency: isTransparent || gradient != null,
+      flexibleSpace: gradient != null
+          ? Container(
+              decoration: BoxDecoration(
+                gradient: gradient,
+                borderRadius: const BorderRadius.vertical(
+                  bottom: Radius.circular(24),
+                ),
+              ),
+            )
+          : null,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(20),
+          bottom: Radius.circular(24),
         ),
       ),
       toolbarHeight: preferredSize.height,
@@ -65,7 +111,13 @@ class NannyAppBar extends StatelessWidget implements PreferredSizeWidget {
                   onPressed: onBackPressed != null
                       ? () => onBackPressed?.call()
                       : () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back_outlined),
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    size: 20,
+                    color: isDarkBackground
+                        ? Colors.white
+                        : NannyTheme.neutral700,
+                  ),
                   splashRadius: 25,
                 )
               : null),
@@ -75,9 +127,16 @@ class NannyAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       title: title != null
           ? FittedBox(
-              child: Text(title!,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                  textAlign: TextAlign.center))
+              child: Text(
+                title!,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: isDarkBackground
+                          ? Colors.white
+                          : NannyTheme.neutral900,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+            )
           : null,
       centerTitle: true,
       shadowColor: NannyTheme.shadow.withOpacity(.19),

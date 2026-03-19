@@ -37,8 +37,8 @@ class TripHistoryVM extends ViewModelBase {
       filteredTrips = List.from(trips);
       filteredTrips.sort((a, b) => b.date.compareTo(a.date));
     } else {
-      trips = _generateMockData();
-      filteredTrips = List.from(trips);
+      trips = [];
+      filteredTrips = [];
     }
 
     update(() => isLoading = false);
@@ -82,58 +82,6 @@ class TripHistoryVM extends ViewModelBase {
     );
   }
 
-  List<TripHistory> _generateMockData() {
-    final now = DateTime.now();
-    return [
-      TripHistory(
-        id: 1,
-        date: now.subtract(const Duration(days: 1)),
-        addressFrom: 'ул. Ленина, 15',
-        addressTo: 'Школа №42, ул. Пушкина, 10',
-        driverName: 'Иван Петров',
-        price: 450,
-        status: 'completed',
-        rating: 5,
-        durationMinutes: 25,
-        distanceKm: 8.5,
-      ),
-      TripHistory(
-        id: 2,
-        date: now.subtract(const Duration(days: 2)),
-        addressFrom: 'Школа №42, ул. Пушкина, 10',
-        addressTo: 'ул. Ленина, 15',
-        driverName: 'Иван Петров',
-        price: 420,
-        status: 'completed',
-        rating: 5,
-        durationMinutes: 22,
-        distanceKm: 8.2,
-      ),
-      TripHistory(
-        id: 3,
-        date: now.subtract(const Duration(days: 5)),
-        addressFrom: 'ул. Ленина, 15',
-        addressTo: 'Детский сад "Солнышко"',
-        driverName: 'Мария Сидорова',
-        price: 350,
-        status: 'completed',
-        rating: 4,
-        durationMinutes: 18,
-        distanceKm: 5.0,
-      ),
-      TripHistory(
-        id: 4,
-        date: now.subtract(const Duration(days: 7)),
-        addressFrom: 'ул. Ленина, 15',
-        addressTo: 'Бассейн "Дельфин"',
-        driverName: 'Алексей Козлов',
-        price: 0,
-        status: 'cancelled_by_driver',
-        durationMinutes: null,
-        distanceKm: null,
-      ),
-    ];
-  }
 }
 
 class _FilterSheet extends StatefulWidget {

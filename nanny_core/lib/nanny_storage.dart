@@ -49,4 +49,18 @@ class NannyStorage {
   static Future<List<dynamic>?> getCachedResponses() async {
     return await _storage.getItem('cached_responses');
   }
+
+  static Future<void> setCustomItem(String key, dynamic value) async {
+    await _storage.setItem(key, value);
+  }
+
+  static Future<T?> getCustomItem<T>(String key) async {
+    final data = await _storage.getItem(key);
+    if (data is T) return data;
+    return null;
+  }
+
+  static Future<void> deleteCustomItem(String key) async {
+    await _storage.deleteItem(key);
+  }
 }

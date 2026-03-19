@@ -25,10 +25,21 @@ class _GraphCreateState extends State<GraphCreate> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditMode = widget.schedule != null;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFf7f7f7),
-      appBar: const NannyAppBar(
-          color: Color(0xFFf7f7f7), title: "Новый график поездок"),
+      backgroundColor: NannyTheme.background,
+      appBar: NannyAppBar.gradient(
+        title: isEditMode ? "Редактирование графика" : "Новый график поездок",
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            NannyTheme.primary,
+            NannyTheme.primaryDark,
+          ],
+        ),
+      ),
       body: FutureLoader(
         future: vm.loadRequest,
         completeView: (context, data) => !data
@@ -36,7 +47,7 @@ class _GraphCreateState extends State<GraphCreate> {
                 errorText:
                     "Не удалось загрузить данные для создания графика!\nПовторитк попытку")
             : SingleChildScrollView(
-                padding: const EdgeInsets.only(top: 5),
+                padding: const EdgeInsets.only(top: 8, bottom: 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -45,197 +56,264 @@ class _GraphCreateState extends State<GraphCreate> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          const SizedBox(height: 8),
+                          Text(
+                            isEditMode
+                                ? 'Настройте расписание и параметры контракта'
+                                : 'Создаём новый график регулярных поездок',
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: NannyTheme.neutral500,
+                                    ),
+                          ),
+                          const SizedBox(height: 16),
                           NannyTextForm(
-                              controller: vm.nameController,
-                              labelText: 'Название графика',
-                              isExpanded: true,
-                              hintText: "Название",
-                              onChanged: vm.changeTitle),
+                            controller: vm.nameController,
+                            labelText: 'Название графика',
+                            isExpanded: true,
+                            hintText: "Например, Школа и секции",
+                            onChanged: vm.changeTitle,
+                          ),
                           const SizedBox(height: 24),
-                          
+
                           // FE-MVP-015: Выбор детей
-                          const Text(
+                          Text(
                             'Дети',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF2B2B2B),
-                            ),
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
                           const SizedBox(height: 12),
                           if (vm.children.isEmpty)
                             Container(
-                              padding: const EdgeInsets.all(16),
+                              padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFFF3CD),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFFFE69C)),
+                                color: NannyTheme.warning.withOpacity(0.06),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color:
+                                      NannyTheme.warning.withOpacity(0.7),
+                                ),
                               ),
-                              child: const Row(
+                              child: Row(
                                 children: [
-                                  Icon(Icons.info_outline, color: Color(0xFF856404)),
-                                  SizedBox(width: 12),
+                                  const Icon(
+                                    Icons.info_outline,
+                                    color: NannyTheme.warning,
+                                  ),
+                                  const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      'Сначала добавьте профили детей в разделе "Дети"',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xFF856404),
-                                      ),
+                                      'Сначала добавьте профили детей в разделе «Дети».',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: NannyTheme.warningText,
+                                          ),
                                     ),
                                   ),
                                 ],
                               ),
                             )
                           else
-                            ...vm.children.map((child) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                    color: vm.selectedChildrenIds.contains(child.id)
-                                        ? NannyTheme.primary
-                                        : const Color(0xFFE0E0E0),
-                                    width: vm.selectedChildrenIds.contains(child.id) ? 2 : 1,
-                                  ),
-                                ),
-                                child: CheckboxListTile(
-                                  value: vm.selectedChildrenIds.contains(child.id),
-                                  onChanged: (value) => vm.toggleChildSelection(child.id!),
-                                  title: Text(
-                                    '${child.surname} ${child.name}',
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500,
+                            ...vm.children.map(
+                              (child) => Padding(
+                                padding:
+                                    const EdgeInsets.only(bottom: 8),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius:
+                                        BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: vm.selectedChildrenIds
+                                              .contains(child.id)
+                                          ? NannyTheme.primary
+                                          : NannyTheme.neutral200,
+                                      width: vm.selectedChildrenIds
+                                              .contains(child.id)
+                                          ? 2
+                                          : 1,
                                     ),
                                   ),
-                                  subtitle: child.birthday != null
-                                      ? Text(
-                                          'Возраст: ${DateTime.now().year - child.birthday!.year} лет',
-                                          style: const TextStyle(fontSize: 13),
-                                        )
-                                      : null,
-                                  secondary: child.photoPath != null
-                                      ? CircleAvatar(
-                                          backgroundImage: NetworkImage(child.photoPath!),
-                                        )
-                                      : const CircleAvatar(
-                                          child: Icon(Icons.child_care),
-                                        ),
-                                  activeColor: NannyTheme.primary,
+                                  child: CheckboxListTile(
+                                    value: vm.selectedChildrenIds
+                                        .contains(child.id),
+                                    onChanged: (value) =>
+                                        vm.toggleChildSelection(
+                                            child.id!),
+                                    title: Text(
+                                      '${child.surname} ${child.name}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight:
+                                                FontWeight.w600,
+                                          ),
+                                    ),
+                                    subtitle: child.birthday != null
+                                        ? Text(
+                                            'Возраст: ${DateTime.now().year - child.birthday!.year} лет',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall,
+                                          )
+                                        : null,
+                                    secondary: NannyConsts.buildFileUrl(child.photoPath) != null
+                                        ? CircleAvatar(
+                                            backgroundImage:
+                                                NetworkImage(
+                                                    NannyConsts.buildFileUrl(child.photoPath)!),
+                                          )
+                                        : const CircleAvatar(
+                                            child:
+                                                Icon(Icons.child_care),
+                                          ),
+                                    activeColor: NannyTheme.primary,
+                                  ),
                                 ),
                               ),
-                            )),
+                            ),
                           const SizedBox(height: 24),
                           DropDownWidget(
-                            title: "Тип загруженности графика:",
+                            title: "Тип загруженности графика",
                             value: vm.editor.type,
-                            dropdownTexts:
-                                GraphType.values.map((e) => e.name).toList(),
-                            dropdownValues:
-                                GraphType.values.map((e) => e).toList(),
-                            onChanged: (value) => vm.graphTypeChanged(value),
+                            dropdownTexts: GraphType.values
+                                .map((e) => e.name)
+                                .toList(),
+                            dropdownValues: GraphType.values
+                                .map((e) => e)
+                                .toList(),
+                            onChanged: (value) =>
+                                vm.graphTypeChanged(value),
                           ),
                           const SizedBox(height: 24),
                           WeeksSelector(
-                              selectedWeekday: vm.selectedWeekday,
-                              onChanged: vm.weekdaySelected),
+                            selectedWeekday: vm.selectedWeekday,
+                            onChanged: vm.weekdaySelected,
+                          ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.maxFinite,
                       child: Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        color: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
                         elevation: 0,
                         child: Padding(
-                          padding: const EdgeInsets.only(
-                              top: 20, bottom: 32, left: 16, right: 16),
+                          padding: const EdgeInsets.fromLTRB(
+                              16, 20, 16, 24),
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
                             children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Расписание',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                  IconButton(
+                                    onPressed: vm.addOrEditRoute,
+                                    icon: const Icon(
+                                      Icons.add_rounded,
+                                      color: NannyTheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
                               ScheduleViewer(
-                                schedule: vm.editor
-                                    .createSchedule(vm.selectedWeekday),
+                                schedule: vm.editor.createSchedule(
+                                    vm.selectedWeekday),
                                 selectedWeedkays: vm.selectedWeekday,
-                                onDeleteRoad: (road) => vm.deleteRoute(road),
+                                onDeleteRoad: (road) =>
+                                    vm.deleteRoute(road),
                                 onEditRoad: (road) =>
-                                    vm.addOrEditRoute(updatingRoad: road),
+                                    vm.addOrEditRoute(
+                                        updatingRoad: road),
                               ),
                               // FE-MVP-008: Счётчик поездок в месяц
                               if (vm.editor.roads.isNotEmpty) ...[
                                 const SizedBox(height: 16),
                                 _buildTripsCounter(vm),
                               ],
-                              const SizedBox(height: 16),
-                              FloatingActionButton(
-                                onPressed: vm.addOrEditRoute,
-                                child: const Icon(Icons.add),
-                              )
                             ],
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Column(
                         children: [
                           // Упрощенный UI тарифов (FE-MVP-006)
-                          // Если тариф один - показываем информацию, иначе dropdown
                           if (vm.tariffs.length > 1)
                             DropDownWidget(
-                              title: "Тариф:",
+                              title: "Тариф",
                               value: vm.editor.tariff,
                               dropdownTexts: vm.tariffs
-                                  .map((e) => e.title ?? 'Неизвестный тариф')
+                                  .map((e) =>
+                                      e.title ?? 'Неизвестный тариф')
                                   .toList(),
-                              dropdownValues: vm.tariffs.map((e) => e).toList(),
-                              onChanged: (value) => vm.tariffSelected(value),
+                              dropdownValues:
+                                  vm.tariffs.map((e) => e).toList(),
+                              onChanged: (value) =>
+                                  vm.tariffSelected(value),
                             )
                           else
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF5F5F5),
-                                borderRadius: BorderRadius.circular(10),
+                                color: NannyTheme.neutral50,
+                                borderRadius:
+                                    BorderRadius.circular(16),
                                 border: Border.all(
-                                  color: const Color(0xFFE0E0E0),
+                                  color: NannyTheme.neutral200,
                                   width: 1,
                                 ),
                               ),
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Категория:',
-                                    style: TextStyle(
-                                      color: Color(0xFF757575),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w400,
-                                    ),
+                                  Text(
+                                    'Категория',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: NannyTheme.neutral500,
+                                        ),
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    vm.tariffs.first.title ?? 'Заказ маршрута',
-                                    style: const TextStyle(
-                                      color: Color(0xFF2B2B2B),
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                    vm.tariffs.first.title ??
+                                        'Заказ маршрута',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
                                   ),
                                   const SizedBox(height: 4),
-                                  const Text(
-                                    'Акцент на квалификации и опыте автоняни',
-                                    style: TextStyle(
-                                      color: Color(0xFF757575),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w400,
-                                    ),
+                                  Text(
+                                    'Акцент на квалификации и опыте автоняни.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: NannyTheme.neutral500,
+                                        ),
                                   ),
                                 ],
                               ),
@@ -245,14 +323,19 @@ class _GraphCreateState extends State<GraphCreate> {
                           const SizedBox(height: 20),
                           ElevatedButton(
                             style: NannyButtonStyles.main.copyWith(
-                              minimumSize: const WidgetStatePropertyAll(
-                                Size(double.infinity, 50),
+                              minimumSize:
+                                  const WidgetStatePropertyAll(
+                                Size(double.infinity, 56),
                               ),
                             ),
                             onPressed: vm.confirm,
-                            child: const Text("Отправить заявку"),
+                            child: Text(
+                              vm.schedule == null
+                                  ? "Создать график"
+                                  : "Обновить график",
+                            ),
                           ),
-                          const SizedBox(height: 50),
+                          const SizedBox(height: 40),
                         ],
                       ),
                     )

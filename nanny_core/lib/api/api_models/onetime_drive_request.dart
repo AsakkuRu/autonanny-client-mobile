@@ -12,6 +12,7 @@ class OnetimeDriveRequest implements NannyBaseRequest {
         required this.typeDrive,
         required this.idTariff,
         required this.otherParametrs,
+        this.childrenIds,
     });
 
     final Position? myLocation;
@@ -23,6 +24,8 @@ class OnetimeDriveRequest implements NannyBaseRequest {
     final int typeDrive;
     final int idTariff;
     final List<Map<String, dynamic>> otherParametrs;
+    // BE-NEW-DESIGN: список id детей для поездки (1-4)
+    final List<int>? childrenIds;
 
     // factory OnetimeDriveRequest.fromJson(Map<String, dynamic> json){ 
     //     return OnetimeDriveRequest(
@@ -40,18 +43,26 @@ class OnetimeDriveRequest implements NannyBaseRequest {
 
     @override
     Map<String, dynamic> toJson() => {
-        "my_location": myLocation != null ? {
-          "latitude": myLocation!.latitude,
-          "longitude": myLocation!.longitude
-        } : {"latitude": 0, "longitude": 0},
+        "my_location": myLocation != null
+            ? {
+                "latitude": myLocation!.latitude,
+                "longitude": myLocation!.longitude,
+              }
+            : {
+                "latitude": 0,
+                "longitude": 0,
+              },
         "addresses": addresses.map((x) => x.toJson()).toList(),
         "price": price,
         "distance": distance,
         "duration": duration,
         "description": description,
-        "type_drive": typeDrive,
+        // В соответствии с openapi для start_onetime_drive бэкенд ожидает ключ "typeDrive"
+        "typeDrive": typeDrive,
         "idTariff": idTariff,
         "other_parametrs": otherParametrs,
+        if (childrenIds != null && childrenIds!.isNotEmpty)
+          "children_ids": childrenIds,
     };
 }
 

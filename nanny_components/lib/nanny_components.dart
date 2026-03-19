@@ -63,3 +63,8 @@ export 'package:google_maps_flutter/google_maps_flutter.dart';
 export 'package:d_chart/d_chart.dart';
 export 'package:sliding_up_panel/sliding_up_panel.dart';
 export 'package:flutter_svg/flutter_svg.dart';
+
+// Новый дизайн
+export 'styles/new_design_app.dart';
+export 'new_design/new_design.dart';
+export 'widgets/map_viewer.dart';

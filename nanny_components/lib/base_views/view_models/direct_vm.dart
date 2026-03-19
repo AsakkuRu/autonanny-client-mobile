@@ -152,6 +152,8 @@ class DirectVM extends ViewModelBase {
   // Обработка входящих сообщений
   void chatStreamCallback(dynamic data) {
     Map<String, dynamic> json = jsonDecode(data);
+    // Служебные события (отклики водителей и т.п.) не парсить как сообщения чата
+    if (json['event'] == 'schedule_responses_updated') return;
     ChatMessage msg = ChatMessage.fromJson(json);
 
     final existingMessageIndex = messages?.indexWhere((m) => m.id == msg.id);

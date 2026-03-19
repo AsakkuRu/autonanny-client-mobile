@@ -2,13 +2,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_components/modal_widgets/base_modal.dart';
 import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_core/api/google_map_api.dart';
+import 'package:nanny_components/widgets/map/address_pick_choice.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/nanny_core.dart';
-import 'package:nanny_core/nanny_search_delegate.dart';
 import 'package:time_range_picker/time_range_picker.dart';
 
 class GraphChangeWidget extends StatefulWidget {
@@ -34,8 +33,10 @@ class _GraphChangeState extends State<GraphChangeWidget> {
       : '(Адрес)';
 
   String get startTime => road.startTime.formatTime();
-  late String selectedStartAddress = from;
-  late String selectedEndAddress = to;
+  late String selectedStartAddress =
+      NannyMapUtils.simplifyAddress(from);
+  late String selectedEndAddress =
+      NannyMapUtils.simplifyAddress(to);
   late String calculatedAmount = '${road.amount?.toStringAsFixed(2)} ₽';
   GeocodeResult? startAddress;
   GeocodeResult? endAddress;
@@ -206,24 +207,18 @@ class _GraphChangeState extends State<GraphChangeWidget> {
   }
 
   Future<void> chooseAddress({required bool from}) async {
-    var address = await showSearch(
-      context: context,
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocode(address: query),
-        onResponse: (response) => response.response?.geocodeResults,
-        tileBuilder: (data, close) =>
-            ListTile(title: Text(data.formattedAddress), onTap: close),
-      ),
-    );
+    var address = await showAddressPickChoice(context);
 
     if (address == null) return;
 
     if (from) {
       startAddress = address;
-      selectedStartAddress = address.formattedAddress;
+      selectedStartAddress =
+          NannyMapUtils.simplifyAddress(address.formattedAddress);
     } else {
       endAddress = address;
-      selectedEndAddress = address.formattedAddress;
+      selectedEndAddress =
+          NannyMapUtils.simplifyAddress(address.formattedAddress);
     }
     setState(() {});
   }

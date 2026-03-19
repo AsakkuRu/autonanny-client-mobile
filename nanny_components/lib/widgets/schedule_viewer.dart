@@ -193,27 +193,34 @@ class _ScheduleWidgetState extends State<ScheduleWidget> {
               },
               separatorBuilder: (context, index) => const SizedBox(),
               itemCount: widget.road.addresses.length),
-          const SizedBox(height: 10),
-          ElevatedButton(
-            style: NannyButtonStyles.main.copyWith(
-              minimumSize: const WidgetStatePropertyAll(
-                Size(double.infinity, 50),
+          // Кнопки редактирования/удаления показываем только там, где
+          // реально переданы коллбеки (экран создания/редактирования графика).
+          if (widget.onEditRoad != null || widget.onDeleteRoad != null) ...[
+            const SizedBox(height: 10),
+            if (widget.onEditRoad != null)
+              ElevatedButton(
+                style: NannyButtonStyles.main.copyWith(
+                  minimumSize: const WidgetStatePropertyAll(
+                    Size(double.infinity, 50),
+                  ),
+                ),
+                onPressed: () => widget.onEditRoad?.call(widget.road),
+                child: const Text("Изменить маршрут"),
               ),
-            ),
-            onPressed: () => widget.onEditRoad?.call(widget.road),
-            child: const Text("Изменить маршрут"),
-          ),
-          const SizedBox(height: 10),
-          ElevatedButton(
-            style: NannyButtonStyles.secondary.copyWith(
-              elevation: const WidgetStatePropertyAll(0),
-              minimumSize: const WidgetStatePropertyAll(
-                Size(double.infinity, 50),
+            if (widget.onDeleteRoad != null) ...[
+              const SizedBox(height: 10),
+              ElevatedButton(
+                style: NannyButtonStyles.secondary.copyWith(
+                  elevation: const WidgetStatePropertyAll(0),
+                  minimumSize: const WidgetStatePropertyAll(
+                    Size(double.infinity, 50),
+                  ),
+                ),
+                onPressed: () => widget.onDeleteRoad?.call(widget.road),
+                child: const Text("Удалить маршрут"),
               ),
-            ),
-            onPressed: () => widget.onDeleteRoad?.call(widget.road),
-            child: const Text("Удалить маршрут"),
-          ),
+            ],
+          ],
         ],
       ),
     );

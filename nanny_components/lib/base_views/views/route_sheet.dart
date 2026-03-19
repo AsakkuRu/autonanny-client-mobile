@@ -168,6 +168,7 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                   const SizedBox(height: 10),
                   ListView(
                     shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
                     children: vm.addresses
                         .map(
                           (e) => Padding(

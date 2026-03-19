@@ -8,74 +8,89 @@ class NannyButtonStyles {
       TextButtonThemeData(style: defaultButtonStyleWithNoSize);
 
   static final ButtonThemeData defaultButtonTheme = ButtonThemeData(
-      shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(20),
-  ));
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(24),
+    ),
+  );
 
+  // Базовый стиль для старых мест использования
   static final ButtonStyle defaultButtonStyle = ElevatedButton.styleFrom(
-      minimumSize: const Size(200, 50),
-      maximumSize: const Size(double.infinity, 100),
-      elevation: 10,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ));
+    minimumSize: const Size(200, 56),
+    maximumSize: const Size(double.infinity, 100),
+    elevation: 0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(24),
+    ),
+    backgroundColor: NannyTheme.primary,
+    foregroundColor: Colors.white,
+  );
 
   static final ButtonStyle defaultButtonStyleWithNoSize =
       ElevatedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(20),
-  ));
+    elevation: 0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(24),
+    ),
+  );
 
+  // Светлая кнопка (outline/secondary)
   static const ButtonStyle whiteButton = ButtonStyle(
-    backgroundColor: MaterialStatePropertyAll(NannyTheme.secondary),
-    foregroundColor: MaterialStatePropertyAll(NannyTheme.onSecondary),
-    overlayColor: MaterialStatePropertyAll(NannyTheme.lightPink),
+    backgroundColor: WidgetStatePropertyAll(NannyTheme.secondary),
+    foregroundColor: WidgetStatePropertyAll(NannyTheme.onSecondary),
+    overlayColor: WidgetStatePropertyAll(NannyTheme.neutral100),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(24)),
+      ),
+    ),
   );
 
   static const ButtonStyle lightGreen = ButtonStyle(
-    backgroundColor: MaterialStatePropertyAll(NannyTheme.lightGreen),
-    foregroundColor: MaterialStatePropertyAll(NannyTheme.onSecondary),
-    overlayColor: MaterialStatePropertyAll(NannyTheme.green),
+    backgroundColor: WidgetStatePropertyAll(NannyTheme.lightGreen),
+    foregroundColor: WidgetStatePropertyAll(NannyTheme.onSecondary),
+    overlayColor: WidgetStatePropertyAll(NannyTheme.green),
   );
 
   static const ButtonStyle green = ButtonStyle(
-    backgroundColor: MaterialStatePropertyAll(NannyTheme.green),
-    foregroundColor: MaterialStatePropertyAll(NannyTheme.onSecondary),
-    overlayColor: MaterialStatePropertyAll(NannyTheme.lightGreen),
+    backgroundColor: WidgetStatePropertyAll(NannyTheme.success),
+    foregroundColor: WidgetStatePropertyAll(NannyTheme.onSecondary),
+    overlayColor: WidgetStatePropertyAll(NannyTheme.lightGreen),
   );
 
   static const ButtonStyle transparent = ButtonStyle(
-    backgroundColor: MaterialStatePropertyAll(Colors.transparent),
-    foregroundColor: MaterialStatePropertyAll(NannyTheme.onSecondary),
-    overlayColor: MaterialStatePropertyAll(NannyTheme.grey),
-    elevation: MaterialStatePropertyAll(0),
+    backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+    foregroundColor: WidgetStatePropertyAll(NannyTheme.onSecondary),
+    overlayColor: WidgetStatePropertyAll(NannyTheme.neutral100),
+    elevation: WidgetStatePropertyAll(0),
   );
 
-  static ButtonStyle main = ButtonStyle(
-    elevation: const WidgetStatePropertyAll(2),
-    backgroundColor: const WidgetStatePropertyAll(NannyTheme.primary),
-    foregroundColor: const WidgetStatePropertyAll(NannyTheme.secondary),
+  // Основная CTA-кнопка
+  static ButtonStyle main = const ButtonStyle(
+    elevation: WidgetStatePropertyAll(0),
+    backgroundColor: WidgetStatePropertyAll(NannyTheme.primary),
+    foregroundColor: WidgetStatePropertyAll(Colors.white),
     shape: WidgetStatePropertyAll(
       RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.all(Radius.circular(24)),
       ),
     ),
-    minimumSize: const WidgetStatePropertyAll(
-      Size(double.infinity, 60),
+    minimumSize: WidgetStatePropertyAll(
+      Size(double.infinity, 56),
     ),
   );
 
-  static ButtonStyle secondary = ButtonStyle(
-    elevation: const WidgetStatePropertyAll(2),
-    backgroundColor: const WidgetStatePropertyAll(NannyTheme.secondary),
-    foregroundColor: const WidgetStatePropertyAll(NannyTheme.onSecondary),
+  // Вторичная кнопка (на белом фоне)
+  static ButtonStyle secondary = const ButtonStyle(
+    elevation: WidgetStatePropertyAll(0),
+    backgroundColor: WidgetStatePropertyAll(NannyTheme.secondary),
+    foregroundColor: WidgetStatePropertyAll(NannyTheme.neutral700),
     shape: WidgetStatePropertyAll(
       RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.all(Radius.circular(24)),
       ),
     ),
-    minimumSize: const WidgetStatePropertyAll(
-      Size(double.infinity, 60),
+    minimumSize: WidgetStatePropertyAll(
+      Size(double.infinity, 56),
     ),
   );
 }

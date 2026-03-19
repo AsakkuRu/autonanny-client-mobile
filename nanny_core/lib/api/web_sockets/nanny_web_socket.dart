@@ -1,78 +1,129 @@
 import 'dart:async';
 import 'package:nanny_core/nanny_core.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class NannyWebSocket {
   NannyWebSocket();
-  NannyWebSocket._({
-    required this.channel,
-    required this.stream,
-    required this.sink,
-  }) {
-    _sub = stream.listen(
-      (data) {
-        Logger().i("🟢 Received data:\n$data\nFrom address: $address");
-      },
-      onError: (error) {
-        Logger().e("🔴 Error in stream:\n$error");
-      },
-      onDone: () {
-        Logger().w("⚠️ Stream closed for address: $address");
-        _connected = false;
-      },
-      cancelOnError: true,
-    );
-    _connected = true;
-    Logger().i("✅ WebSocket subscription initialized for address: $address");
-  }
 
-  late final WebSocketChannel channel;
-  late final Stream stream;
-  late final WebSocketSink sink;
-  late final StreamSubscription _sub;
+  WebSocketChannel? _channel;
+  WebSocketSink? _sink;
+  StreamSubscription? _sub;
+
+  final _controller = StreamController<String>.broadcast();
+  Stream get stream => _controller.stream;
 
   bool _connected = false;
-  bool get connected => _connected;
+  bool _reconnecting = false;
+  int _retryCount = 0;
+  static const int _maxRetries = 15;
+  static const Duration _retryDelay = Duration(seconds: 3);
 
-  String get address => ""; // Убедись, что здесь возвращается корректный адрес
+  bool get connected => _connected;
+  String get address => "";
+
+  WebSocketSink get sink => _sink ?? _noOpSink;
 
   Future<NannyWebSocket> connect() async {
+    final url = address;
+    if (url.isEmpty) {
+      Logger().e("❌ [WebSocket] address is empty");
+      throw StateError('WebSocket address is empty');
+    }
     try {
-      Logger().i("🔄 Attempting to connect to WebSocket at address: $address");
-      var channel = WebSocketChannel.connect(Uri.parse(address));
-      await channel.ready;
+      Logger().i("🔄 [WebSocket] Подключение к $url...");
+      _channel = WebSocketChannel.connect(Uri.parse(url));
+      _sink = _channel!.sink;
+      await _channel!.ready;
       _connected = true;
+      _retryCount = 0;
 
-      Logger().i("✅ Successfully connected to WebSocket at address: $address");
+      Logger().i("✅ [WebSocket] Подключено к $url");
 
-      return NannyWebSocket._(
-        channel: channel,
-        stream: channel.stream.asBroadcastStream(),
-        sink: channel.sink,
+      _sub?.cancel();
+      _sub = _channel!.stream.listen(
+        (data) {
+          Logger().i("🟢 [WebSocket] Получено: $data");
+          _controller.add(data);
+        },
+        onError: (error) {
+          Logger().e("🔴 [WebSocket] Ошибка потока: $error");
+          _connected = false;
+          _reconnect();
+        },
+        onDone: () {
+          Logger().w("⚠️ [WebSocket] Поток закрыт для $url — переподключение...");
+          _connected = false;
+          _reconnect();
+        },
+        cancelOnError: true,
       );
+
+      return this;
     } catch (e) {
-      Logger().e("❌ Failed to connect to WebSocket: $e");
+      Logger().e("❌ [WebSocket] Ошибка подключения к $url: $e");
+      _connected = false;
+      _reconnect();
       rethrow;
     }
   }
 
+  void _reconnect() {
+    if (_reconnecting) return;
+    if (_retryCount >= _maxRetries) {
+      Logger().w("⏳ [WebSocket] Достигнут лимит попыток ($_maxRetries)");
+      return;
+    }
+    _reconnecting = true;
+    _retryCount++;
+    Logger().i("🔄 [WebSocket] Попытка #$_retryCount через ${_retryDelay.inSeconds} сек...");
+    Future.delayed(_retryDelay, () async {
+      _reconnecting = false;
+      if (!_connected) {
+        try {
+          await connect();
+        } catch (_) {}
+      }
+    });
+  }
+
   void send(String message) {
-    if (_connected) {
-      Logger().i("📤 Sending message:\n$message");
-      sink.add(message);
+    if (_connected && _sink != null) {
+      Logger().i("📤 [WebSocket] Отправка: $message");
+      _sink!.add(message);
     } else {
-      Logger().w("⚠️ Attempted to send message while disconnected:\n$message");
+      Logger().w("⚠️ [WebSocket] Отправка при отключении: $message");
     }
   }
 
   void dispose() {
     try {
-      Logger().w("🛑 Disposing WebSocket at address: $address");
-      sink.close();
-      _sub.cancel();
+      Logger().w("🛑 [WebSocket] Закрытие $address...");
+      _sub?.cancel();
+      _sink?.close();
+      _controller.close();
       _connected = false;
-      Logger().i("✅ WebSocket successfully disposed");
+      Logger().i("✅ [WebSocket] Закрыт");
     } catch (e) {
-      Logger().e("❌ Error during WebSocket disposal: $e");
+      Logger().e("❌ [WebSocket] Ошибка при закрытии: $e");
     }
   }
+}
+
+final _noOpSink = _NoOpSink();
+
+class _NoOpSink implements WebSocketSink {
+  @override
+  void add(data) {}
+
+  @override
+  void addError(Object error, [StackTrace? stackTrace]) {}
+
+  @override
+  Future addStream(Stream stream) => Future.value();
+
+  @override
+  Future close([int? code, String? reason]) => Future.value();
+
+  @override
+  Future get done => Future.value();
 }

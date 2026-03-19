@@ -198,6 +198,8 @@ class GraphCreateVM extends ViewModelBase {
   }
 
   void weekdaySelected(NannyWeekday weekday) {
+    final previousDays = List<NannyWeekday>.from(selectedWeekday);
+
     update(() {
       if (!selectedWeekday.contains(weekday)) {
         selectedWeekday.add(weekday);
@@ -208,6 +210,8 @@ class GraphCreateVM extends ViewModelBase {
         selectedWeekday.remove(weekday);
       }
     });
+
+    _syncRoutesForAllDays(previousDays, selectedWeekday);
   }
 
   void selectCarType(DriveTariff type) {
@@ -245,6 +249,72 @@ class GraphCreateVM extends ViewModelBase {
     update(() {});
   }
 
+  void _syncRoutesForAllDays(
+    List<NannyWeekday> previousDays,
+    List<NannyWeekday> currentDays,
+  ) {
+    if (previousDays.isEmpty || editor.roads.isEmpty) return;
+
+    final prevSet = previousDays.toSet();
+    final currentSet = currentDays.toSet();
+
+    final addedDays = currentSet.difference(prevSet);
+    final removedDays = prevSet.difference(currentSet);
+
+    if (addedDays.isEmpty && removedDays.isEmpty) return;
+
+    final List<Road> templates = [];
+    final Map<Road, Set<NannyWeekday>> templateDays = {};
+
+    for (final road in editor.roads) {
+      final existing = templates.cast<Road?>().firstWhere(
+            (t) => t != null && t.isIdenticalTo(road),
+            orElse: () => null,
+          );
+
+      if (existing == null) {
+        templates.add(road);
+        templateDays[road] = {road.weekDay};
+      } else {
+        templateDays[existing]!.add(road.weekDay);
+      }
+    }
+
+    final List<Road> roadsToAdd = [];
+    final List<Road> roadsToRemove = [];
+
+    for (final template in templates) {
+      final days = templateDays[template] ?? {};
+
+      // Считаем маршрут "общим", если на момент изменения он покрывал
+      // все ранее выбранные дни графика.
+      if (prevSet.difference(days).isEmpty) {
+        for (final day in addedDays) {
+          roadsToAdd.add(
+            template.copyWith(
+              weekDay: day,
+            ),
+          );
+        }
+
+        for (final day in removedDays) {
+          roadsToRemove.addAll(
+            editor.roads.where(
+              (r) => r.isIdenticalTo(template) && r.weekDay == day,
+            ),
+          );
+        }
+      }
+    }
+
+    for (final road in roadsToRemove) {
+      editor.deleteRoad(road);
+    }
+    for (final road in roadsToAdd) {
+      editor.addRoad(road);
+    }
+  }
+
   void confirm() async {
     if (selectedChildrenIds.isEmpty) {
       NannyDialogs.showMessageBox(
@@ -257,7 +327,26 @@ class GraphCreateVM extends ViewModelBase {
     editor.childCount = selectedChildrenIds.length;
 
     if (!editor.valiateSchedule()) {
-      NannyDialogs.showMessageBox(context, "Ошибка", "Заполните форму!");
+      // Более понятные сообщения об ошибке вместо общего «Заполните форму!»
+      if (editor.title.isEmpty) {
+        NannyDialogs.showMessageBox(
+          context,
+          "Ошибка",
+          "Введите название графика поездок",
+        );
+      } else if (editor.roads.isEmpty) {
+        NannyDialogs.showMessageBox(
+          context,
+          "Ошибка",
+          "Добавьте хотя бы один маршрут в график",
+        );
+      } else {
+        NannyDialogs.showMessageBox(
+          context,
+          "Ошибка",
+          "Заполните обязательные поля формы",
+        );
+      }
       return;
     }
 
@@ -292,19 +381,30 @@ class GraphCreateVM extends ViewModelBase {
 
     LoadScreen.showLoad(context, true);
 
-    var result = schedule == null
-        ? await NannyOrdersApi.createSchedule(
-            editor.createSchedule(selectedWeekday, id: schedule?.id),
-          )
-        : await NannyOrdersApi.updateScheduleById(
-            editor.createSchedule(selectedWeekday, id: schedule?.id),
-          );
-    if (!result.success) {
-      if (context.mounted) {
-        LoadScreen.showLoad(context, false);
-        NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
+    int? createdId;
+    if (schedule == null) {
+      final result = await NannyOrdersApi.createSchedule(
+          editor.createSchedule(selectedWeekday, id: schedule?.id));
+      if (!result.success) {
+        if (context.mounted) {
+          LoadScreen.showLoad(context, false);
+          NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
+        }
+        return;
       }
-      return;
+      createdId = result.response != null && result.response! > 0
+          ? result.response
+          : null;
+    } else {
+      final result = await NannyOrdersApi.updateScheduleById(
+          editor.createSchedule(selectedWeekday, id: schedule?.id));
+      if (!result.success) {
+        if (context.mounted) {
+          LoadScreen.showLoad(context, false);
+          NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
+        }
+        return;
+      }
     }
 
     if (!context.mounted) return;
@@ -312,7 +412,11 @@ class GraphCreateVM extends ViewModelBase {
 
     await NannyDialogs.showMessageBox(context, "Успех",
         "График успешно ${schedule == null ? "создан" : "обновлен"}!");
-    Navigator.of(context).pop();
+    // При создании возвращаем id нового графика (или -1 как fallback "выбрать самый новый")
+    final resultToPop = schedule == null
+        ? (createdId ?? -1)
+        : null;
+    Navigator.of(context).pop(resultToPop);
   }
 
   // FE-MVP-008: Подсчёт количества поездок в месяц

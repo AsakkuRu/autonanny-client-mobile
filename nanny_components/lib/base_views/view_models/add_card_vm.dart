@@ -237,6 +237,12 @@ class AddCardVM extends ViewModelBase {
     if (!context.mounted) return;
     var initRes = (await init).response!;
 
+    // В демо-режиме paymentUrl пустой, баланс уже пополнен ручкой /demo/balance/topup — не открываем браузер
+    if (initRes.paymentUrl.isEmpty) {
+      await _addMoney(0);
+      return;
+    }
+
     await _waitForSbpConfirm(initRes);
     await _addMoney(int.parse(initRes.paymentId));
 

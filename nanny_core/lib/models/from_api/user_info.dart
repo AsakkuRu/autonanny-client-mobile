@@ -60,8 +60,9 @@ class UserInfo<T> {
     userTypes = UserType.values.where((e) => roles.contains(e.name)).toList();
 
     String photo = json["photo_path"] ?? "";
-    photo = photo.replaceAll(
-        "https://77.232.137.74:5000/api/v1.0", NannyConsts.baseUrl);
+    photo = photo
+        .replaceAll("https://77.232.137.74:5000/api/v1.0", NannyConsts.baseUrl)
+        .replaceAll("http://188.225.76.45:8000/api/v1.0", NannyConsts.baseUrl);
 
     return UserInfo(
       id: json["id"] ?? json["id_user_referal"] ?? 0,

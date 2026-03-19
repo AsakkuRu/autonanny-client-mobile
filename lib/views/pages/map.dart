@@ -42,6 +42,8 @@ class _ClientMapViewState extends State<ClientMapView>
               zoom: 15,
             ),
             onMapCreated: vm.onMapCreated,
+            onTap: (latLng) =>
+                NannyMapGlobals.mapTapController.add(latLng),
             markers: NannyMapGlobals.markers.value,
             polylines: NannyMapGlobals.routes.value,
           ),

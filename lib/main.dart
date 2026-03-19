@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nanny_client/theme_notifier.dart';
+import 'package:nanny_client/feature_flags.dart';
 import 'package:nanny_client/views/home.dart';
+import 'package:nanny_client/views/new_main/new_home_view.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/app_link_handler.dart';
@@ -15,30 +17,45 @@ import 'firebase_options.dart';
 final ThemeNotifier themeNotifier = ThemeNotifier();
 final LocaleNotifier localeNotifier = LocaleNotifier();
 
+DateTime? _lastBackPressAt;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Нужно для фикса бага с жестами
-  // Если включено управление жестами, то при попытке скрыть клавиатуру происходит выход из раздела
+  // BUG-140326-011: кнопка «Назад» — навигация внутри приложения, на корне — двойное нажатие для выхода
   SystemChannels.navigation.setMethodCallHandler((call) async {
     if (call.method == 'popRoute') {
-      // Получаем контекст через navigatorKey
       final context = NannyGlobals.navKey.currentContext;
-
-      if (context != null && MediaQuery.of(context).viewInsets.bottom > 0) {
-        // Закрываем клавиатуру
-        FocusManager.instance.primaryFocus?.unfocus();
-        return; // Блокируем действие "назад"
+      if (context == null) {
+        SystemNavigator.pop();
+        return;
       }
-
-      SystemNavigator
-          .pop(); // Если клавиатура закрыта, разрешаем действие "назад"
+      if (MediaQuery.of(context).viewInsets.bottom > 0) {
+        FocusManager.instance.primaryFocus?.unfocus();
+        return;
+      }
+      final didPop = await Navigator.of(context).maybePop();
+      if (didPop) return;
+      final now = DateTime.now();
+      if (_lastBackPressAt != null &&
+          now.difference(_lastBackPressAt!) < const Duration(seconds: 2)) {
+        SystemNavigator.pop();
+        return;
+      }
+      _lastBackPressAt = now;
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Нажмите ещё раз для выхода')),
+        );
+      }
     }
   });
 
   // Location service только для мобильных платформ
   if (Platform.isAndroid || Platform.isIOS) {
     LocationService.initBackgroundLocation();
+    // Инициализируем информацию о городе для bias в подсказках адреса
+    LocationService.initLocInfo();
   }
 
   HttpOverrides.global = MyHttpOverrides();
@@ -66,7 +83,12 @@ void main() async {
   DioRequest.initDebugLogs();
 
   NannyConsts.setLoginPaths([
-    LoginPath(userType: UserType.client, path: const HomeView()),
+    LoginPath(
+      userType: UserType.client,
+      path: NannyFeatureFlags.useNewHomeView
+          ? const NewHomeView()
+          : const HomeView(),
+    ),
     LoginPath(
         userType: UserType.admin,
         path: const AdminHomeView(regView: RegView())),

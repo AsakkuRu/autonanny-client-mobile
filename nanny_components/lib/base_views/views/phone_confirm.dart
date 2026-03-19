@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/view_models/phone_confirm_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/styles/new_design_auth.dart';
 import 'package:nanny_core/models/login_path.dart';
 
 class PhoneConfirmView extends StatefulWidget {
@@ -44,33 +45,36 @@ class _PhoneConfirmViewState extends State<PhoneConfirmView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: NannyTheme.lightPink,
-        appBar: NannyAppBar(
-          color: NannyTheme.lightPink,
-          actions: [
-            if (_vm.currentView is PhoneEnterView)
-              CupertinoButton(
-                child: Text(
-                  'Войти',
-                  style: NannyTextStyles.defaultTextStyle.copyWith(
-                    color: const Color(0xFF212121).withOpacity(.2),
+      backgroundColor: NewDesignAuthTokens.neutral50,
+      appBar: NannyAppBar(
+        hasBackButton: true,
+        color: NewDesignAuthTokens.neutral50,
+        actions: [
+          if (_vm.currentView is PhoneEnterView)
+            CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                'Войти',
+                style: NewDesignAuthTokens.bodyS.copyWith(
+                  color: NewDesignAuthTokens.primary,
+                ),
+              ),
+              onPressed: () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => LoginView(
+                    imgPath:
+                        "packages/nanny_components/assets/images/Saly-10.png",
+                    paths: widget.loginPaths,
                   ),
                 ),
-                onPressed: () => Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => LoginView(
-                        imgPath:
-                            "packages/nanny_components/assets/images/Saly-10.png",
-                        paths: widget.loginPaths),
-                  ),
-                ),
-              )
-          ],
-        ),
-        extendBodyBehindAppBar: _vm.extendBehindAppBar,
-        resizeToAvoidBottomInset: false,
-        body: _vm.currentView);
+              ),
+            ),
+        ],
+      ),
+      resizeToAvoidBottomInset: true,
+      body: _vm.currentView,
+    );
   }
 }
 
@@ -89,66 +93,65 @@ class PhoneEnterView extends StatelessWidget {
     return Form(
       key: _vm.phoneState,
       child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Center(
-          child: Column(
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                    color: NannyTheme.onSecondary,
-                    fontSize: 25,
-                    fontWeight: FontWeight.w700,
-                    fontFamily: 'Nunito'),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                text,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: Color(0xFF212121),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w400,
-                    fontFamily: 'Nunito'),
-              ),
-              const SizedBox(height: 27),
-              NannyTextForm(
-                isExpanded: true,
-                labelText: "Номер телефона*",
-                hintText: "+7 (777) 777-77-77",
-                keyType: TextInputType.number,
-                formatters: [_vm.phoneMask],
-                validator: (text) {
-                  // Проверяем, что пользователь ввел данные
-                  if (text == null || text.isEmpty) {
-                    return "Введите номер телефона!";
-                  }
-
-                  // Проверяем длину номера (без маски)
-                  if (_vm.phoneMask.getUnmaskedText().length < 11) {
-                    return "Введите полный номер телефона!";
-                  }
-
-                  return null; // Все ок, ошибок нет
-                },
-              ),
-              const SizedBox(height: 25),
-              ElevatedButton(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: NewDesignAuthTokens.titleXL,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              text,
+              textAlign: TextAlign.left,
+              style: NewDesignAuthTokens.bodyM,
+            ),
+            const SizedBox(height: 24),
+            NannyTextForm(
+              isExpanded: true,
+              labelText: "Номер телефона*",
+              hintText: "+7 (777) 777-77-77",
+              keyType: TextInputType.number,
+              formatters: [_vm.phoneMask],
+              validator: (text) {
+                if (text == null || text.isEmpty) {
+                  return "Введите номер телефона!";
+                }
+                if (_vm.phoneMask.getUnmaskedText().length < 11) {
+                  return "Введите полный номер телефона!";
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
                 onPressed: _vm.toPhoneConfirmation,
                 style: ButtonStyle(
-                  shape: WidgetStatePropertyAll(
+                  elevation: const WidgetStatePropertyAll(0),
+                  backgroundColor: const WidgetStatePropertyAll(
+                    NewDesignAuthTokens.primary,
+                  ),
+                  shape: const WidgetStatePropertyAll(
                     RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: NewDesignAuthTokens.radiusLg,
                     ),
                   ),
-                  minimumSize: const WidgetStatePropertyAll(
-                    Size(double.infinity, 60),
+                ),
+                child: Text(
+                  "Отправить код",
+                  style: NewDesignAuthTokens.bodyS.copyWith(
+                    color: Colors.white,
+                    fontSize: 16,
                   ),
                 ),
-                child: const Text("Отправить код"),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -176,34 +179,32 @@ class _PhoneEnterConfirmViewState extends State<PhoneEnterConfirmView> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 20, top: 150, right: 20, bottom: 40),
+          Padding(
+            padding:
+                const EdgeInsets.only(left: 20, top: 80, right: 20, bottom: 24),
             child: Text(
               "Мы отправили вам\nСМС код",
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Fregat'),
+              style: NewDesignAuthTokens.titleM,
             ),
           ),
           Expanded(
             child: FourDigitKeyboard(
               topChild: RichText(
                 text: TextSpan(
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: NewDesignAuthTokens.bodyM,
                   children: [
-                    const TextSpan(
+                    TextSpan(
                       text: "На номер: ",
-                      style: TextStyle(
-                          color: Color(0xFF6D6D6D),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w400,
-                          fontFamily: 'Nunito'),
+                      style: NewDesignAuthTokens.bodyM.copyWith(
+                        color: NewDesignAuthTokens.neutral400,
+                      ),
                     ),
                     TextSpan(
                         text: _vm.phoneMask.getMaskedText(),
-                        style: const TextStyle(color: NannyTheme.primary)),
+                        style: NewDesignAuthTokens.bodyM.copyWith(
+                          color: NewDesignAuthTokens.primary,
+                        )),
                   ],
                 ),
               ),

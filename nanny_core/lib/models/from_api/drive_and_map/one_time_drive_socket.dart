@@ -35,7 +35,7 @@ class OneTimeDriveResponse {
         username: json['username'],
         phone: json['phone'],
         userPhoto: json['user_photo'],
-        amount: json['amount'],
+        amount: ((json['amount'] ?? json['total_price']) as num?)?.toDouble(),
         idStatus: json['id_status'],
         addresses: (json['addresses'] as List?)
             ?.map((e) => AddressOneTimeDrive.fromJson(e))
@@ -85,10 +85,11 @@ class AddressOneTimeDrive {
       this.duration});
 
   factory AddressOneTimeDrive.fromJson(Map<String, dynamic> json) {
+    final finish = json['is_finish'] ?? json['isFinish'];
     return AddressOneTimeDrive(
-        from: json['from_address'],
-        isFinish: json['is_finish'],
-        to: json['to_address'],
+        from: json['from_address'] ?? json['from'],
+        isFinish: finish is bool ? finish : finish == 1 || finish == '1',
+        to: json['to_address'] ?? json['to'],
         fromLat: json['from_lat'],
         fromLon: json['from_lon'],
         toLat: json['to_lat'],

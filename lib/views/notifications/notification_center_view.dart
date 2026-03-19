@@ -23,35 +23,20 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: Row(
-          children: [
-            const Text(
-              'Уведомления',
-              style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-            ),
-            if (vm.unreadCount > 0) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(10)),
-                child: Text(
-                  '${vm.unreadCount}',
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ],
-        ),
-        iconTheme: const IconThemeData(color: Colors.black),
+      backgroundColor: NannyTheme.background,
+      appBar: NannyAppBar.light(
+        title: 'Уведомления',
         actions: [
           if (vm.unreadCount > 0)
-            TextButton(
-              onPressed: vm.markAllAsRead,
-              child: Text('Прочитать все', style: TextStyle(color: NannyTheme.primary, fontSize: 13)),
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: TextButton(
+                onPressed: vm.markAllAsRead,
+                child: const Text(
+                  'Прочитать все',
+                  style: TextStyle(fontSize: 13),
+                ),
+              ),
             ),
         ],
       ),
@@ -97,7 +82,7 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
                 selectedColor: NannyTheme.primary.withOpacity(0.15),
                 checkmarkColor: NannyTheme.primary,
                 labelStyle: TextStyle(
-                  color: isSelected ? NannyTheme.primary : Colors.black87,
+                  color: isSelected ? NannyTheme.primary : NannyTheme.neutral700,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
@@ -114,10 +99,10 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: item.isRead ? Colors.white : NannyTheme.primary.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
+          color: item.isRead ? Colors.white : NannyTheme.primary.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: item.isRead ? Colors.grey.shade200 : NannyTheme.primary.withOpacity(0.3),
+            color: item.isRead ? NannyTheme.neutral100 : NannyTheme.primary.withOpacity(0.3),
           ),
         ),
         child: Row(

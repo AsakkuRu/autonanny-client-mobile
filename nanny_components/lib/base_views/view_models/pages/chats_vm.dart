@@ -14,12 +14,15 @@ class ChatsVM extends ViewModelBase {
     required super.context,
     required super.update,
     this.updateList,
+    this.onReturnFromChat,
   }) {
     sub = NannyGlobals.chatsSocket.stream.listen((msg) => updateList?.call());
   }
 
   FocusNode node = FocusNode();
   VoidCallback? updateList;
+  /// Вызывается после возврата из чата (для сброса бейджа непрочитанных в нижнем баре)
+  VoidCallback? onReturnFromChat;
   bool chatsSelected = false;
   String query = "";
 
@@ -55,6 +58,7 @@ class ChatsVM extends ViewModelBase {
 
   void navigateToDirect(ChatElement chat) async {
     await navigateToView(DirectView(idChat: chat.idChat, name: chat.username));
+    onReturnFromChat?.call();
     updateList?.call();
   }
 

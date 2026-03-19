@@ -19,14 +19,26 @@ class Transaction {
   final int? relatedId;
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
+    final amount = (json['amount'] as num?)?.toDouble() ?? 0.0;
+
+    // Тип определяем из amount если поле type отсутствует
+    final type = json['type'] as String? ??
+        (amount >= 0 ? 'deposit' : 'payment');
+
+    // datetime_create может быть null — используем текущее время как fallback
+    final rawDate = json['created_at'] as String? ??
+        json['datetime_create'] as String?;
+    final createdAt =
+        rawDate != null ? DateTime.tryParse(rawDate) ?? DateTime.now() : DateTime.now();
+
     return Transaction(
-      id: json['id'],
-      amount: (json['amount'] as num).toDouble(),
-      type: json['type'] ?? 'unknown',
-      description: json['description'] ?? '',
-      createdAt: DateTime.parse(json['created_at'] ?? json['datetime_create']),
-      status: json['status'],
-      relatedId: json['related_id'],
+      id: json['id'] as int? ?? 0,
+      amount: amount,
+      type: type,
+      description: json['description'] as String? ?? '',
+      createdAt: createdAt,
+      status: json['status'] as String?,
+      relatedId: json['related_id'] as int?,
     );
   }
 
@@ -108,5 +120,33 @@ class TransactionFilter {
       }
     }
     return true;
+  }
+}
+
+/// Ответ от /users/transactions с пагинацией
+class TransactionListResponse {
+  final List<Transaction> transactions;
+  final int page;
+  final int totalPages;
+  final int total;
+
+  TransactionListResponse({
+    required this.transactions,
+    required this.page,
+    required this.totalPages,
+    required this.total,
+  });
+
+  factory TransactionListResponse.fromJson(Map<String, dynamic> json) {
+    final rawList = json['transactions'] as List<dynamic>? ?? [];
+    final pagination = json['pagination'] as Map<String, dynamic>? ?? {};
+    return TransactionListResponse(
+      transactions: rawList
+          .map((e) => Transaction.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      page: pagination['page'] as int? ?? 1,
+      totalPages: pagination['pages'] as int? ?? 1,
+      total: pagination['total'] as int? ?? 0,
+    );
   }
 }

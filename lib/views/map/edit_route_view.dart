@@ -34,36 +34,66 @@ class _EditRouteViewState extends State<EditRouteView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Изменить маршрут',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
-        actions: [
-          if (vm.hasChanges)
-            TextButton(
-              onPressed: vm.resetChanges,
-              child: const Text('Сбросить'),
-            ),
-        ],
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
+        title: 'Изменить маршрут',
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: vm.addAddress,
+                    child: Container(
+                      height: 48,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: NannyTheme.neutral50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: NannyTheme.neutral200),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.search_rounded,
+                            color: NannyTheme.neutral400,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Добавить или изменить адрес',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: NannyTheme.neutral400,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                if (vm.hasChanges) ...[
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: vm.resetChanges,
+                    child: const Text('Сбросить'),
+                  ),
+                ],
+              ],
+            ),
+          ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               children: [
-                const Text(
+                Text(
                   'Текущий маршрут',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 12),
                 ...vm.addresses.asMap().entries.map((entry) {
@@ -71,51 +101,50 @@ class _EditRouteViewState extends State<EditRouteView> {
                   final address = entry.value;
                   return _buildAddressCard(index, address);
                 }),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: vm.addAddress,
-                  icon: const Icon(Icons.add_location_alt),
-                  label: const Text('Добавить адрес'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
                 if (vm.priceChange != null) ...[
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.amber),
+                      color: NannyTheme.warning.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: NannyTheme.warning.withOpacity(0.7),
+                      ),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.info_outline, color: Colors.amber),
-                        const SizedBox(width: 12),
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          color: NannyTheme.warning,
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'Изменение стоимости',
-                                style: TextStyle(fontWeight: FontWeight.w600),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 vm.priceChange! > 0
                                     ? '+${vm.priceChange!.toStringAsFixed(0)} ₽'
                                     : '${vm.priceChange!.toStringAsFixed(0)} ₽',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: vm.priceChange! > 0
-                                      ? Colors.red
-                                      : Colors.green,
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(
+                                      color: vm.priceChange! > 0
+                                          ? NannyTheme.danger
+                                          : NannyTheme.success,
+                                      fontWeight: FontWeight.w800,
+                                    ),
                               ),
                             ],
                           ),
@@ -131,31 +160,24 @@ class _EditRouteViewState extends State<EditRouteView> {
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
-              top: 16,
+              top: 12,
               bottom: MediaQuery.of(context).padding.bottom + 16,
             ),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -2),
+                  color: NannyTheme.shadow.withOpacity(0.12),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
                 ),
               ],
             ),
             child: SizedBox(
               width: double.infinity,
-              height: 50,
+              height: 56,
               child: ElevatedButton(
                 onPressed: vm.hasChanges && !vm.isSaving ? vm.saveChanges : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: NannyTheme.primary,
-                  disabledBackgroundColor: Colors.grey[300],
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
                 child: vm.isSaving
                     ? const SizedBox(
                         width: 24,
@@ -165,14 +187,7 @@ class _EditRouteViewState extends State<EditRouteView> {
                           strokeWidth: 2,
                         ),
                       )
-                    : const Text(
-                        'Сохранить изменения',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
+                    : const Text('Сохранить изменения'),
               ),
             ),
           ),
@@ -185,76 +200,103 @@ class _EditRouteViewState extends State<EditRouteView> {
     final isFirst = index == 0;
     final isLast = index == vm.addresses.length - 1;
 
+    final Color dotColor =
+        isFirst ? NannyTheme.primary : (isLast ? NannyTheme.danger : NannyTheme.neutral400);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Column(
             children: [
-              Icon(
-                isFirst ? Icons.circle : Icons.location_on,
-                size: isFirst ? 12 : 20,
-                color: isFirst ? NannyTheme.primary : Colors.red,
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
               if (!isLast)
                 Container(
                   width: 2,
                   height: 40,
-                  color: Colors.grey[300],
+                  margin: const EdgeInsets.only(top: 4),
+                  decoration: BoxDecoration(
+                    color: NannyTheme.neutral200,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
             ],
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Card(
-              margin: EdgeInsets.zero,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: NannyTheme.neutral100),
+                boxShadow: [
+                  BoxShadow(
+                    color: NannyTheme.shadow.withOpacity(0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: InkWell(
                 onTap: () => vm.editAddress(index),
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isFirst ? 'Откуда' : (isLast ? 'Куда' : 'Остановка ${index}'),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              address.address,
-                              style: const TextStyle(fontSize: 14),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
+                borderRadius: BorderRadius.circular(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isFirst
+                                ? AppLocalizations.of(context).from
+                                : (isLast
+                                    ? AppLocalizations.of(context).to
+                                    : AppLocalizations.of(context)
+                                        .intermediateStopLabel(index)),
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: NannyTheme.neutral500,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            address.address,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                      const Icon(Icons.edit, size: 18, color: Colors.grey),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(
+                      Icons.edit_outlined,
+                      size: 18,
+                      color: NannyTheme.neutral400,
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-          if (!isFirst && !isLast)
+          if (!isFirst && !isLast) ...[
+            const SizedBox(width: 8),
             IconButton(
               onPressed: () => vm.removeAddress(index),
-              icon: const Icon(Icons.close, color: Colors.red),
+              icon: const Icon(Icons.close_rounded, color: NannyTheme.danger),
               iconSize: 20,
-            )
-          else
-            const SizedBox(width: 48),
+            ),
+          ] else
+            const SizedBox(width: 40),
         ],
       ),
     );

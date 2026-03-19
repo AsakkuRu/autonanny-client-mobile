@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nanny_client/view_models/home_vm.dart';
@@ -38,11 +40,13 @@ class _HomeViewState extends State<HomeView> {
       const ClientMapView(persistState: true),
       const GraphView(persistState: true),
       const BalanceView(persistState: true),
-      const ChatsView(persistState: false),
+      ChatsView(persistState: false, onReturnFromChat: () => vm.refreshUnreadChatsCount()),
       _ClientProfileView(
         persistState: true,
         logoutView: WelcomeView(
-            regView: const RegView(), loginPaths: NannyConsts.availablePaths),
+          regView: const RegView(),
+          loginPaths: NannyConsts.availablePaths,
+        ),
       ),
     ];
   }
@@ -52,55 +56,43 @@ class _HomeViewState extends State<HomeView> {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
         statusBarColor: Theme.of(context).scaffoldBackgroundColor));
     return DefaultTabController(
-      initialIndex: 1,
+      initialIndex: 0,
       length: pages.length,
-      child: Scaffold(
-        body: TabBarView(
-          physics: const NeverScrollableScrollPhysics(),
-          children: pages,
-        ),
-        bottomNavigationBar: TabBar(
-          onTap: (index) {
-            vm.indexChanged(index);
-            if (index == 0) {
-              Future.delayed(
-                const Duration(milliseconds: 100),
-                () => _setTransparentStatusBar(),
-              );
-            }
-          },
-          labelColor: NannyTheme.primary,
-          unselectedLabelColor: NannyTheme.darkGrey,
-          indicatorColor: NannyTheme.primary,
-          tabs: const [
-            Tab(
-              icon: Icon(
-                Icons.directions_car_filled_rounded,
-              ),
-            ),
-            Tab(
-              icon: Icon(
-                Icons.calendar_month_rounded,
-              ),
-            ),
-            Tab(
-              icon: Icon(
-                Icons.wallet_rounded,
-              ),
-            ),
-            Tab(
-              icon: Icon(
-                Icons.chat_rounded,
-              ),
-            ),
-            Tab(
-              icon: Icon(
-                Icons.account_circle_rounded,
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: Builder(builder: (context) {
+        final controller = DefaultTabController.of(context);
+        return Scaffold(
+          body: TabBarView(
+            physics: const NeverScrollableScrollPhysics(),
+            children: pages,
+          ),
+          bottomNavigationBar: _ClientBottomNavBar(
+            currentIndex: vm.currentIndex,
+            unreadChatsCount: vm.unreadChatsCount,
+            onTap: (index) {
+              vm.indexChanged(index);
+              controller.index = index;
+              if (index == 1) {
+                NannyGlobals.scheduleTabSelectedController.add(null);
+              }
+              if (index == 0) {
+                Future.delayed(
+                  const Duration(milliseconds: 100),
+                  () => _setTransparentStatusBar(),
+                );
+              } else {
+                SystemChrome.setSystemUIOverlayStyle(
+                  SystemUiOverlayStyle(
+                    statusBarColor:
+                        Theme.of(context).scaffoldBackgroundColor,
+                    statusBarIconBrightness: Brightness.dark,
+                    statusBarBrightness: Brightness.light,
+                  ),
+                );
+              }
+            },
+          ),
+        );
+      }),
     );
   }
 
@@ -110,6 +102,159 @@ class _HomeViewState extends State<HomeView> {
         statusBarColor: Colors.transparent, // Прозрачный статус бар
         statusBarIconBrightness: Brightness.dark, // Темные иконки
         statusBarBrightness: Brightness.light, // Для iOS (светлый статус бар)
+      ),
+    );
+  }
+}
+
+class _ClientBottomNavBar extends StatelessWidget {
+  final int currentIndex;
+  final int unreadChatsCount;
+  final ValueChanged<int> onTap;
+
+  const _ClientBottomNavBar({
+    required this.currentIndex,
+    required this.unreadChatsCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    final borderColor = Theme.of(context).dividerColor;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          height: 83,
+          decoration: BoxDecoration(
+            color: surface.withOpacity(0.97),
+            border: Border(
+              top: BorderSide(color: borderColor, width: 0.5),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _NavItem(
+                label: "Главная",
+                icon: Icons.directions_car_filled_rounded,
+                index: 0,
+                isActive: currentIndex == 0,
+                onTap: onTap,
+              ),
+              _NavItem(
+                label: "Расписание",
+                icon: Icons.calendar_month_rounded,
+                index: 1,
+                isActive: currentIndex == 1,
+                onTap: onTap,
+              ),
+              _NavItem(
+                label: "Баланс",
+                icon: Icons.wallet_rounded,
+                index: 2,
+                isActive: currentIndex == 2,
+                onTap: onTap,
+              ),
+              _NavItem(
+                label: "Чаты",
+                icon: Icons.chat_rounded,
+                index: 3,
+                isActive: currentIndex == 3,
+                onTap: onTap,
+                badgeText: unreadChatsCount > 0
+                    ? (unreadChatsCount > 99 ? '99+' : '$unreadChatsCount')
+                    : null,
+              ),
+              _NavItem(
+                label: "Профиль",
+                icon: Icons.account_circle_rounded,
+                index: 4,
+                isActive: currentIndex == 4,
+                onTap: onTap,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final int index;
+  final bool isActive;
+  final ValueChanged<int> onTap;
+  final String? badgeText;
+
+  const _NavItem({
+    required this.label,
+    required this.icon,
+    required this.index,
+    required this.isActive,
+    required this.onTap,
+    this.badgeText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final color =
+        isActive ? NannyTheme.primary : onSurface.withOpacity(0.6);
+
+    Widget iconWidget = Icon(icon, size: 24, color: color);
+    if (badgeText != null) {
+      iconWidget = Badge(
+        isLabelVisible: true,
+        label: Text(badgeText!),
+        child: iconWidget,
+      );
+    }
+
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onTap(index),
+        child: AnimatedScale(
+          scale: isActive ? 0.96 : 1.0,
+          duration: const Duration(milliseconds: 150),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Column(
+                  children: [
+                    iconWidget,
+                    const SizedBox(height: 3),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                height: 4,
+                width: 4,
+                margin: const EdgeInsets.only(top: 2),
+                decoration: BoxDecoration(
+                  color: isActive ? NannyTheme.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -150,412 +295,346 @@ class _ClientProfileViewState extends State<_ClientProfileView>
     if (wantKeepAlive) super.build(context);
 
     return Scaffold(
-      appBar: NannyAppBar(
-        title: "Профиль",
-        color: NannyTheme.secondary,
-        isTransparent: false,
+      appBar: NannyAppBar.gradient(
         hasBackButton: false,
+        title: "Профиль",
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            NannyTheme.primary,
+            NannyTheme.primaryDark,
+          ],
+        ),
         leading: IconButton(
           onPressed: vm.navigateToAppSettings,
           icon: const Icon(Icons.settings),
-          splashRadius: 30,
+          splashRadius: 26,
+          color: Colors.white,
         ),
         actions: [
           IconButton(
             onPressed: vm.logout,
             icon: const Icon(Icons.exit_to_app_rounded),
-            splashRadius: 30,
+            splashRadius: 26,
+            color: Colors.white,
           )
         ],
       ),
       body: AdaptBuilder(
         builder: (context, size) {
-          return Center(
-            child: Column(
-              children: [
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      ProfileImage(
-                        url: NannyUser.userInfo!.photoPath,
-                        radius: size.shortestSide * .3,
-                        onTap: vm.changeProfilePhoto,
+          final user = NannyUser.userInfo;
+          final name = user?.name ?? '';
+          final surname = user?.surname ?? '';
+          final initials = (name.isNotEmpty || surname.isNotEmpty)
+              ? '${name.isNotEmpty ? name[0] : ''}${surname.isNotEmpty ? surname[0] : ''}'
+              : 'A';
+
+          return Column(
+            children: [
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    ProfileImage(
+                      url: user?.photoPath ?? '',
+                      radius: 72,
+                      initials: initials,
+                      showOnlineDot: true,
+                      onTap: vm.changeProfilePhoto,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$name $surname'.trim(),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            TextMasks.phoneMask()
+                                .maskText(user?.phone.substring(1) ?? ''),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: NannyTheme.neutral500),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Wrap(
-                              spacing: 5,
-                              children: [
-                                Text(
-                                  NannyUser.userInfo!.name,
-                                  style: Theme.of(context).textTheme.headlineSmall,
-                                ),
-                                Text(
-                                  NannyUser.userInfo!.surname,
-                                  style: Theme.of(context).textTheme.headlineSmall,
-                                ),
-                              ],
-                            ),
-                            Text(
-                              TextMasks.phoneMask().maskText(
-                                  NannyUser.userInfo!.phone.substring(1)),
-                              style: Theme.of(context).textTheme.labelLarge,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
-                Expanded(
-                  child: NannyBottomSheet(
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 20),
-                            NannyTextForm(
-                              isExpanded: true,
-                              labelText: "Имя",
-                              initialValue: vm.firstName,
-                              onChanged: (text) => vm.firstName = text.trim(),
-                            ),
-                            const SizedBox(height: 20),
-                            NannyTextForm(
-                              isExpanded: true,
-                              labelText: "Фамилия",
-                              initialValue: vm.lastName,
-                              onChanged: (text) => vm.lastName = text.trim(),
-                            ),
-                            const SizedBox(height: 20),
-                            NannyTextForm(
-                              isExpanded: true,
-                              readOnly: true,
-                              labelText: "Пароль",
-                              initialValue: "••••••••",
-                              onTap: vm.changePassword,
-                            ),
-                            const SizedBox(height: 20),
-                            NannyTextForm(
-                              isExpanded: true,
-                              readOnly: true,
-                              labelText: "Пин-код",
-                              initialValue: "••••",
-                              onTap: vm.changePincode,
-                            ),
-                            const SizedBox(height: 20),
-                            // Кнопка "Мои дети"
-                            OutlinedButton.icon(
-                              onPressed: vm.navigateToChildren,
-                              icon: const Icon(Icons.child_care),
-                              label: const Text('Мои дети'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 60),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                side: BorderSide(color: NannyTheme.primary),
-                                foregroundColor: NannyTheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Кнопка "История поездок"
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const TripHistoryView()),
-                              ),
-                              icon: const Icon(Icons.history),
-                              label: const Text('История поездок'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 60),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                side: BorderSide(color: NannyTheme.primary),
-                                foregroundColor: NannyTheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Кнопка "Техподдержка"
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const SupportChatView()),
-                              ),
-                              icon: const Icon(Icons.support_agent),
-                              label: const Text('Техподдержка'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 60),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                side: BorderSide(color: NannyTheme.primary),
-                                foregroundColor: NannyTheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Кнопка "Аналитика расходов"
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const SpendingAnalyticsView()),
-                              ),
-                              icon: const Icon(Icons.pie_chart_outline),
-                              label: const Text('Аналитика расходов'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 60),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                side: BorderSide(color: NannyTheme.primary),
-                                foregroundColor: NannyTheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Кнопка "Экспорт PDF"
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const TripExportView()),
-                              ),
-                              icon: const Icon(Icons.picture_as_pdf),
-                              label: const Text('Экспорт поездок PDF'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 60),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                side: BorderSide(color: NannyTheme.primary),
-                                foregroundColor: NannyTheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Кнопка "FAQ"
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const FaqView()),
-                              ),
-                              icon: const Icon(Icons.help_outline),
-                              label: const Text('Частые вопросы'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 60),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                side: BorderSide(color: NannyTheme.primary),
-                                foregroundColor: NannyTheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Кнопка "Совместные поездки"
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const SharedRideView()),
-                              ),
-                              icon: const Icon(Icons.people_outline),
-                              label: const Text('Совместные поездки'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 60),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                side: BorderSide(color: NannyTheme.primary),
-                                foregroundColor: NannyTheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Кнопка "Реферальная программа"
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const ReferralView()),
-                              ),
-                              icon: const Icon(Icons.card_giftcard),
-                              label: const Text('Реферальная программа'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 60),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                side: BorderSide(color: NannyTheme.primary),
-                                foregroundColor: NannyTheme.primary,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            // Кнопка "Подать жалобу"
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const ComplaintView()),
-                              ),
-                              icon: const Icon(Icons.report_problem_outlined),
-                              label: const Text('Подать жалобу'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 60),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                side: const BorderSide(color: Colors.orange),
-                                foregroundColor: Colors.orange,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            // Переключатель темы
-                            ValueListenableBuilder<ThemeMode>(
-                              valueListenable: themeNotifier,
-                              builder: (context, mode, _) {
-                                final modes = [ThemeMode.light, ThemeMode.system, ThemeMode.dark];
-                                return Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.surface,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Theme.of(context).dividerColor,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(Icons.brightness_6, color: NannyTheme.primary),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Тема оформления',
-                                            style: Theme.of(context).textTheme.titleMedium,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 12),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ToggleButtons(
-                                          isSelected: modes.map((m) => m == mode).toList(),
-                                          onPressed: (index) {
-                                            themeNotifier.setThemeMode(modes[index]);
-                                          },
-                                          borderRadius: BorderRadius.circular(8),
-                                          selectedColor: Colors.white,
-                                          fillColor: NannyTheme.primary,
-                                          color: NannyTheme.primary,
-                                          constraints: BoxConstraints(
-                                            minWidth: (MediaQuery.of(context).size.width - 100) / 3,
-                                            minHeight: 40,
-                                          ),
-                                          children: const [
-                                            Row(mainAxisSize: MainAxisSize.min, children: [
-                                              Icon(Icons.light_mode, size: 18),
-                                              SizedBox(width: 4),
-                                              Text('Светлая'),
-                                            ]),
-                                            Row(mainAxisSize: MainAxisSize.min, children: [
-                                              Icon(Icons.settings_brightness, size: 18),
-                                              SizedBox(width: 4),
-                                              Text('Авто'),
-                                            ]),
-                                            Row(mainAxisSize: MainAxisSize.min, children: [
-                                              Icon(Icons.dark_mode, size: 18),
-                                              SizedBox(width: 4),
-                                              Text('Тёмная'),
-                                            ]),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            // Переключатель языка
-                            ValueListenableBuilder<Locale>(
-                              valueListenable: localeNotifier,
-                              builder: (context, locale, _) {
-                                final isRu = locale.languageCode == 'ru';
-                                return Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.surface,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Theme.of(context).dividerColor,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(Icons.language, color: NannyTheme.primary),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            'Язык / Language',
-                                            style: Theme.of(context).textTheme.titleMedium,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 12),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ToggleButtons(
-                                          isSelected: [isRu, !isRu],
-                                          onPressed: (index) {
-                                            localeNotifier.setLocale(index == 0 ? 'ru' : 'en');
-                                          },
-                                          borderRadius: BorderRadius.circular(8),
-                                          selectedColor: Colors.white,
-                                          fillColor: NannyTheme.primary,
-                                          color: NannyTheme.primary,
-                                          constraints: BoxConstraints(
-                                            minWidth: (MediaQuery.of(context).size.width - 80) / 2,
-                                            minHeight: 40,
-                                          ),
-                                          children: const [
-                                            Text('Русский'),
-                                            Text('English'),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                            ElevatedButton(
-                              onPressed: vm.saveChanges,
-                              style: ButtonStyle(
-                                shape: WidgetStatePropertyAll(
-                                  RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                minimumSize: const WidgetStatePropertyAll(
-                                  Size(double.infinity, 60),
-                                ),
-                              ),
-                              child: const Text("Сохранить"),
-                            ),
-                            const SizedBox(height: 20),
-                          ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: NannyBottomSheet(
+                  child: SingleChildScrollView(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Личные данные',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                      ),
+                        const SizedBox(height: 12),
+                        NannyTextForm(
+                          isExpanded: true,
+                          labelText: "Имя",
+                          initialValue: vm.firstName,
+                          onChanged: (text) => vm.firstName = text.trim(),
+                        ),
+                        const SizedBox(height: 12),
+                        NannyTextForm(
+                          isExpanded: true,
+                          labelText: "Фамилия",
+                          initialValue: vm.lastName,
+                          onChanged: (text) => vm.lastName = text.trim(),
+                        ),
+                        const SizedBox(height: 12),
+                        NannyTextForm(
+                          isExpanded: true,
+                          readOnly: true,
+                          labelText: "Пароль",
+                          initialValue: "••••••••",
+                          onTap: vm.changePassword,
+                        ),
+                        const SizedBox(height: 12),
+                        NannyTextForm(
+                          isExpanded: true,
+                          readOnly: true,
+                          labelText: "Пин-код",
+                          initialValue: "••••",
+                          onTap: vm.changePincode,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Сервис и безопасность',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        _ProfileActionButton(
+                          icon: Icons.child_care,
+                          label: 'Мои дети',
+                          onTap: vm.navigateToChildren,
+                        ),
+                        _ProfileActionButton(
+                          icon: Icons.history,
+                          label: 'История поездок',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const TripHistoryView(),
+                            ),
+                          ),
+                        ),
+                        _ProfileActionButton(
+                          icon: Icons.support_agent,
+                          label: 'Техподдержка',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SupportChatView(),
+                            ),
+                          ),
+                        ),
+                        _ProfileActionButton(
+                          icon: Icons.help_outline,
+                          label: 'Частые вопросы',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const FaqView(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Аналитика и документы',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        _ProfileActionButton(
+                          icon: Icons.pie_chart_outline,
+                          label: 'Аналитика расходов',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SpendingAnalyticsView(),
+                            ),
+                          ),
+                        ),
+                        _ProfileActionButton(
+                          icon: Icons.picture_as_pdf,
+                          label: 'Экспорт поездок PDF',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const TripExportView(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Совместные поездки и бонусы',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        _ProfileActionButton(
+                          icon: Icons.people_outline,
+                          label: 'Совместные поездки',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SharedRideView(),
+                            ),
+                          ),
+                        ),
+                        _ProfileActionButton(
+                          icon: Icons.card_giftcard,
+                          label: 'Реферальная программа',
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ReferralView(),
+                            ),
+                          ),
+                        ),
+                        _ProfileActionButton(
+                          icon: Icons.report_problem_outlined,
+                          label: 'Подать жалобу',
+                          iconColor: Colors.orange,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ComplaintView(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Настройки приложения',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 12),
+                        ValueListenableBuilder<ThemeMode>(
+                          valueListenable: themeNotifier,
+                          builder: (context, mode, _) {
+                            final modes = [
+                              ThemeMode.light,
+                              ThemeMode.system,
+                              ThemeMode.dark
+                            ];
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color:
+                                    Theme.of(context).colorScheme.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Theme.of(context).dividerColor,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.brightness_6,
+                                          color: NannyTheme.primary),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Тема оформления',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _ProfileSegmentRow(
+                                    labels: const [
+                                      'Светлая',
+                                      'Авто',
+                                      'Тёмная',
+                                    ],
+                                    selectedIndex: modes.indexOf(mode),
+                                    onSelected: (i) =>
+                                        themeNotifier.setThemeMode(modes[i]),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        ValueListenableBuilder<Locale>(
+                          valueListenable: localeNotifier,
+                          builder: (context, locale, _) {
+                            final isRu = locale.languageCode == 'ru';
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color:
+                                    Theme.of(context).colorScheme.surface,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Theme.of(context).dividerColor,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.language,
+                                          color: NannyTheme.primary),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Язык / Language',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _ProfileSegmentRow(
+                                    labels: const [
+                                      'Русский',
+                                      'English',
+                                    ],
+                                    selectedIndex: isRu ? 0 : 1,
+                                    onSelected: (i) => localeNotifier
+                                        .setLocale(i == 0 ? 'ru' : 'en'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: vm.saveChanges,
+                            child: const Text("Сохранить изменения"),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         },
       ),
@@ -564,6 +643,143 @@ class _ClientProfileViewState extends State<_ClientProfileView>
 
   @override
   bool get wantKeepAlive => widget.persistState;
+}
+
+/// Сегментированный переключатель для профиля (тема, язык).
+class _ProfileSegmentRow extends StatelessWidget {
+  final List<String> labels;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  const _ProfileSegmentRow({
+    required this.labels,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final trackColor = isDark
+        ? const Color(0xFF2A2A3E)
+        : NannyTheme.neutral100;
+    final borderColor = isDark
+        ? Theme.of(context).colorScheme.outline.withOpacity(0.3)
+        : NannyTheme.neutral200;
+    final unselectedTextColor = isDark
+        ? Theme.of(context).colorScheme.onSurface
+        : NannyTheme.neutral700;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: trackColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          children: List.generate(labels.length, (i) {
+            final selected = i == selectedIndex;
+            final isFirst = i == 0;
+            final isLast = i == labels.length - 1;
+            return Expanded(
+              child: Material(
+                color: selected ? NannyTheme.primary : Colors.transparent,
+                borderRadius: BorderRadius.horizontal(
+                  left: isFirst ? const Radius.circular(11) : Radius.zero,
+                  right: isLast ? const Radius.circular(11) : Radius.zero,
+                ),
+                child: InkWell(
+                  onTap: () => onSelected(i),
+                  borderRadius: BorderRadius.horizontal(
+                    left: isFirst ? const Radius.circular(11) : Radius.zero,
+                    right: isLast ? const Radius.circular(11) : Radius.zero,
+                  ),
+                  child: Center(
+                    child: Text(
+                      labels[i],
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: selected
+                                ? Colors.white
+                                : unselectedTextColor,
+                            fontWeight:
+                                selected ? FontWeight.w600 : FontWeight.w500,
+                          ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color? iconColor;
+  final VoidCallback onTap;
+
+  const _ProfileActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: Theme.of(context).dividerColor.withOpacity(0.5)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color:
+                      (iconColor ?? NannyTheme.primary).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  icon,
+                  size: 18,
+                  color: iconColor ?? NannyTheme.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: NannyTheme.neutral300,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ClientProfileVM extends ProfileVM {

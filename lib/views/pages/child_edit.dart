@@ -28,9 +28,8 @@ class _ChildEditViewState extends State<ChildEditView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
-      appBar: NannyAppBar(
-        color: const Color(0xFFF7F7F7),
+      backgroundColor: NannyTheme.background,
+      appBar: NannyAppBar.light(
         hasBackButton: true,
         title: widget.child == null ? "Добавить ребенка" : "Редактировать",
       ),
@@ -58,9 +57,9 @@ class _ChildEditViewState extends State<ChildEditView> {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
+                              color: NannyTheme.shadow.withOpacity(0.25),
+                              blurRadius: 6,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
@@ -81,6 +80,12 @@ class _ChildEditViewState extends State<ChildEditView> {
             NannyTextForm(
               controller: vm.surnameController,
               hintText: "Фамилия",
+              validator: (text) {
+                if (text == null || text.trim().isEmpty) {
+                  return "Введите фамилию";
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 12),
 
@@ -88,6 +93,12 @@ class _ChildEditViewState extends State<ChildEditView> {
             NannyTextForm(
               controller: vm.nameController,
               hintText: "Имя",
+              validator: (text) {
+                if (text == null || text.trim().isEmpty) {
+                  return "Введите имя";
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 12),
 
@@ -105,6 +116,12 @@ class _ChildEditViewState extends State<ChildEditView> {
                 child: NannyTextForm(
                   controller: vm.birthdayController,
                   hintText: "Дата рождения",
+                  validator: (text) {
+                    if (text == null || text.trim().isEmpty) {
+                      return "Выберите дату рождения";
+                    }
+                    return null;
+                  },
                 ),
               ),
             ),
@@ -112,28 +129,28 @@ class _ChildEditViewState extends State<ChildEditView> {
 
             // Пол
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+                    color: NannyTheme.shadow.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.wc, color: Color(0xFF757575)),
+                  const Icon(Icons.wc, color: NannyTheme.neutral500),
                   const SizedBox(width: 12),
-                  const Text(
-                    'Пол:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF757575),
-                    ),
+                  Text(
+                    'Пол',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: NannyTheme.neutral700,
+                        ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -178,15 +195,16 @@ class _ChildEditViewState extends State<ChildEditView> {
 
             // Особенности характера
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+                    color: NannyTheme.shadow.withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -194,7 +212,8 @@ class _ChildEditViewState extends State<ChildEditView> {
                 controller: vm.characterNotesController,
                 maxLines: 4,
                 decoration: const InputDecoration(
-                  hintText: "Особенности характера, интересы, важная информация...",
+                  hintText:
+                      "Особенности характера, интересы, важная информация...",
                   border: InputBorder.none,
                   hintStyle: TextStyle(
                     color: Color(0xFFBDBDBD),
@@ -206,13 +225,9 @@ class _ChildEditViewState extends State<ChildEditView> {
             const SizedBox(height: 32),
 
             // FE-MVP-013: Медицинская информация
-            const Text(
+            Text(
               'Медицинская информация',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF2B2B2B),
-              ),
+              style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 16),
 
@@ -295,17 +310,14 @@ class _ChildEditViewState extends State<ChildEditView> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Экстренные контакты',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2B2B2B),
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
                 IconButton(
                   onPressed: vm.addEmergencyContact,
-                  icon: const Icon(Icons.add_circle, color: NannyTheme.primary),
+                  icon: const Icon(Icons.add_circle,
+                      color: NannyTheme.primary),
                   tooltip: 'Добавить контакт',
                 ),
               ],
@@ -317,107 +329,101 @@ class _ChildEditViewState extends State<ChildEditView> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF5F5F5),
-                  borderRadius: BorderRadius.circular(10),
+                  color: NannyTheme.neutral50,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Color(0xFF757575), size: 20),
-                    SizedBox(width: 12),
+                    const Icon(Icons.info_outline,
+                        color: NannyTheme.neutral500, size: 20),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         'Добавьте контакты близких на случай экстренной ситуации',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF757575),
-                        ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: NannyTheme.neutral600),
                       ),
                     ),
                   ],
                 ),
               )
             else
-              ...vm.emergencyContacts.map((contact) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.contact_emergency, color: Color(0xFF757575)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              contact.name,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF2B2B2B),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${contact.relationship} • ${contact.phone}',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF757575),
-                              ),
-                            ),
-                          ],
+              ...vm.emergencyContacts.map(
+                (contact) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: NannyTheme.shadow.withOpacity(0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
-                      ),
-                      IconButton(
-                        onPressed: () => vm.editEmergencyContact(contact),
-                        icon: const Icon(Icons.edit, size: 20),
-                        color: const Color(0xFF757575),
-                      ),
-                      // NEW-009: не показывать «Удалить» у единственного контакта
-                      if (vm.emergencyContacts.length > 1)
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.contact_emergency,
+                            color: NannyTheme.neutral500),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                contact.name,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${contact.relationship} • ${contact.phone}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: NannyTheme.neutral600,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
                         IconButton(
-                          onPressed: () => vm.deleteEmergencyContact(contact),
-                          icon: const Icon(Icons.delete, size: 20),
-                          color: Colors.red,
+                          onPressed: () =>
+                              vm.editEmergencyContact(contact),
+                          icon: const Icon(Icons.edit, size: 20),
+                          color: NannyTheme.neutral500,
                         ),
-                    ],
+                        if (vm.emergencyContacts.length > 1)
+                          IconButton(
+                            onPressed: () =>
+                                vm.deleteEmergencyContact(contact),
+                            icon: const Icon(Icons.delete, size: 20),
+                            color: NannyTheme.danger,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              )),
+              ),
             const SizedBox(height: 24),
 
-            // Кнопка сохранения. NEW-008: при создании ребёнка недоступна без экстренного контакта
+            // Кнопка сохранения. NEW-008 / ТЗ: недоступна без минимум одного экстренного контакта (создание и редактирование)
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: (widget.child == null && vm.emergencyContacts.isEmpty)
-                    ? null
-                    : vm.save,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: NannyTheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+                onPressed: vm.emergencyContacts.isEmpty ? null : vm.save,
                 child: Text(
                   widget.child == null ? 'Добавить' : 'Сохранить',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
                 ),
               ),
             ),

@@ -5,7 +5,8 @@ import 'dart:math';
 import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
-import 'package:nanny_client/views/map/driver_search.dart';
+import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
+import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart';
 import 'package:nanny_components/dialogs/loading.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/onetime_drive_request.dart';
@@ -29,11 +30,15 @@ class DriveOrderVM extends ViewModelBase {
       update(() {
         addresses = [
           AddressData(
-              address: initAddress.formattedAddress,
-              location: initAddress.geometry?.location ??
-                  NannyMapUtils.position2LatLng(curLoc!)),
+            address: NannyMapUtils.simplifyAddress(
+              initAddress.formattedAddress,
+            ),
+            location: initAddress.geometry?.location ??
+                NannyMapUtils.position2LatLng(curLoc!),
+          ),
         ];
       });
+      _syncMarkersWithAddresses();
     }
 
     _mapTapSub = NannyMapGlobals.onMapTap.listen(_onMapTap);
@@ -50,6 +55,30 @@ class DriveOrderVM extends ViewModelBase {
   int selectedAddressIndex = -1;
 
   ValueNotifier<Set<Marker>> markers = NannyMapGlobals.markers;
+
+  void _syncMarkersWithAddresses() {
+    final currentMarkers = markers.value;
+    final currentPosMarkers = currentMarkers
+        .where((m) => m.markerId == NannyConsts.curPosId)
+        .toList();
+
+    final updatedMarkers = <Marker>{...currentPosMarkers};
+
+    for (final address in addresses) {
+      updatedMarkers.add(
+        Marker(
+          markerId: MarkerId(address.address),
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            HSLColor.fromColor(NannyTheme.primary).hue,
+          ),
+          position: address.location,
+        ),
+      );
+    }
+
+    markers.value = updatedMarkers;
+    markers.notifyListeners();
+  }
 
   Future<void> _initLocation() async {
     try {
@@ -75,11 +104,13 @@ class DriveOrderVM extends ViewModelBase {
       update(() {
         addresses = [
           AddressData(
-              address: initAddress.formattedAddress,
-              location: initAddress.geometry?.location ??
-                  NannyMapUtils.position2LatLng(v)),
+            address: initAddress.formattedAddress,
+            location: initAddress.geometry?.location ??
+                NannyMapUtils.position2LatLng(v),
+          ),
         ];
       });
+      _syncMarkersWithAddresses();
     } catch (e) {
       print('Error getting location: $e');
     }
@@ -204,15 +235,7 @@ class DriveOrderVM extends ViewModelBase {
 
   void onAdd(AddressData address) {
     addresses.add(address);
-
-    markers.value.add(Marker(
-      markerId: MarkerId(address.address),
-      icon: BitmapDescriptor.defaultMarkerWithHue(
-          HSLColor.fromColor(NannyTheme.primary).hue),
-      position: address.location,
-    ));
-
-    markers.notifyListeners();
+    _syncMarkersWithAddresses();
     calculatePrices();
     update(() {});
   }
@@ -221,26 +244,14 @@ class DriveOrderVM extends ViewModelBase {
     int index = addresses.indexOf(oldAd);
     addresses.removeAt(index);
     addresses.insert(index, newAd);
-
-    markers.value.removeWhere((e) => e.markerId == MarkerId(oldAd.address));
-    markers.value.add(Marker(
-      markerId: MarkerId(newAd.address),
-      icon: BitmapDescriptor.defaultMarkerWithHue(
-          HSLColor.fromColor(NannyTheme.primary).hue),
-      position: newAd.location,
-    ));
-
-    markers.notifyListeners();
+    _syncMarkersWithAddresses();
     calculatePrices();
     update(() {});
   }
 
   void onDelete(AddressData address) {
     addresses.remove(address);
-
-    markers.value.removeWhere((e) => e.markerId == MarkerId(address.address));
-
-    markers.notifyListeners();
+    _syncMarkersWithAddresses();
     calculatePrices();
     update(() {});
   }
@@ -282,10 +293,16 @@ class DriveOrderVM extends ViewModelBase {
       if (!res.success || res.data == null) return;
 
       if (!context.mounted) return;
+      await ActiveTripSessionStore.save(
+        ActiveTripSessionData(
+          token: res.data!,
+          statusId: 4,
+        ),
+      );
       Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (context) => DriverSearchView(token: res.data!)));
+              builder: (context) => ActiveTripScreen(token: res.data!)));
     } catch (e) {
       Logger().e('searchForDrivers error: $e');
       if (context.mounted) {

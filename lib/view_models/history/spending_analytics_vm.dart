@@ -67,7 +67,7 @@ class SpendingAnalyticsVM extends ViewModelBase {
     if (result.success && result.response != null) {
       trips = result.response!.where((t) => t.isCompleted).toList();
     } else {
-      trips = _generateMockData();
+      trips = [];
     }
 
     _calculateAnalytics();
@@ -134,29 +134,8 @@ class SpendingAnalyticsVM extends ViewModelBase {
     }
   }
 
-  List<TripHistory> _generateMockData() {
-    final now = DateTime.now();
-    final List<TripHistory> mock = [];
-    final drivers = ['Иван Петров', 'Мария Сидорова', 'Алексей Козлов'];
-    final prices = [450.0, 380.0, 520.0, 400.0, 350.0];
-
-    for (int i = 0; i < 25; i++) {
-      mock.add(TripHistory(
-        id: i + 1,
-        date: now.subtract(Duration(days: i * 3)),
-        addressFrom: 'ул. Ленина, 15',
-        addressTo: 'Школа №42',
-        driverName: drivers[i % drivers.length],
-        driverId: (i % drivers.length) + 1,
-        price: prices[i % prices.length],
-        status: 'completed',
-        rating: 4 + (i % 2),
-        durationMinutes: 20 + (i % 10),
-        distanceKm: 5.0 + (i % 5),
-      ));
-    }
-    return mock;
-  }
+  // Исторические мок-данные оставлены только для локальной отладки и не используются в production-логике.
+  List<TripHistory> _generateMockData() => [];
 }
 
 class _DriverAcc {

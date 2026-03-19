@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/view_models/first_pin_set_vm.dart';
 import 'package:nanny_components/widgets/four_digit_keyboard.dart';
+import 'package:nanny_components/styles/new_design_auth.dart';
 
 class FirstPinSet extends StatefulWidget {
   final Widget nextView;
@@ -27,25 +28,29 @@ class _FirstPinSetState extends State<FirstPinSet> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
-        body: Center(
+        backgroundColor: NewDesignAuthTokens.neutral50,
+        body: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(50),
-                  child: Text(
-                    "Задайте код авторизации в приложении", 
-                    textAlign: TextAlign.center, 
-                    style: Theme.of(context).textTheme.headlineSmall
-                  ),
-                ),
+              const SizedBox(height: 16),
+              Text(
+                "Задайте код авторизации в приложении",
+                textAlign: TextAlign.center,
+                style: NewDesignAuthTokens.titleM,
               ),
+              const SizedBox(height: 8),
+              Text(
+                "Этот PIN‑код будет использоваться для быстрого и безопасного входа.",
+                textAlign: TextAlign.center,
+                style: NewDesignAuthTokens.bodyM,
+              ),
+              const SizedBox(height: 24),
               Expanded(
                 child: FourDigitKeyboard(
                   onCodeChanged: (code) {
                     vm.code = code;
-                    if(code.length > 3) vm.setPinCode();
+                    if (code.length > 3) vm.setPinCode();
                   },
                 ),
               ),

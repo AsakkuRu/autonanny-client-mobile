@@ -24,25 +24,9 @@ class _TripHistoryViewState extends State<TripHistoryView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'История поездок',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-        ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
-        actions: [
-          IconButton(
-            icon: Badge(
-              isLabelVisible: vm.hasActiveFilters,
-              child: const Icon(Icons.filter_list),
-            ),
-            onPressed: vm.showFilterDialog,
-          ),
-        ],
+      backgroundColor: NannyTheme.background,
+      appBar: const NannyAppBar.light(
+        title: 'История поездок',
       ),
       body: vm.isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -58,6 +42,14 @@ class _TripHistoryViewState extends State<TripHistoryView> {
                     },
                   ),
                 ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: vm.showFilterDialog,
+        icon: Badge(
+          isLabelVisible: vm.hasActiveFilters,
+          child: const Icon(Icons.filter_list),
+        ),
+        label: const Text('Фильтры'),
+      ),
     );
   }
 
@@ -66,24 +58,20 @@ class _TripHistoryViewState extends State<TripHistoryView> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.history, size: 64, color: Colors.grey[400]),
+          Icon(Icons.history, size: 64, color: NannyTheme.neutral300),
           const SizedBox(height: 16),
           Text(
             'Нет поездок',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: Colors.grey[600],
-            ),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
           Text(
             'Ваши завершённые поездки\nбудут отображаться здесь',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: NannyTheme.neutral500),
           ),
         ],
       ),
@@ -93,14 +81,24 @@ class _TripHistoryViewState extends State<TripHistoryView> {
   Widget _buildTripCard(TripHistory trip) {
     final dateFormat = DateFormat('dd MMM yyyy, HH:mm', 'ru');
     
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: NannyTheme.shadow.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: InkWell(
         onTap: () => vm.showTripDetails(trip),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -110,26 +108,28 @@ class _TripHistoryViewState extends State<TripHistoryView> {
                 children: [
                   Text(
                     dateFormat.format(trip.date),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: NannyTheme.neutral500,
+                        ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: trip.isCompleted
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
+                          ? NannyTheme.success.withOpacity(0.1)
+                          : NannyTheme.danger.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
                       trip.statusText,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: trip.isCompleted ? Colors.green : Colors.red,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: trip.isCompleted
+                                    ? NannyTheme.successText
+                                    : NannyTheme.danger,
+                              ),
                     ),
                   ),
                 ],
@@ -142,13 +142,15 @@ class _TripHistoryViewState extends State<TripHistoryView> {
                 children: [
                   Column(
                     children: [
-                      const Icon(Icons.circle, size: 10, color: NannyTheme.primary),
+                      const Icon(Icons.circle,
+                          size: 10, color: NannyTheme.primary),
                       Container(
                         width: 2,
                         height: 24,
-                        color: Colors.grey[300],
+                        color: NannyTheme.neutral200,
                       ),
-                      const Icon(Icons.location_on, size: 14, color: Colors.red),
+                      const Icon(Icons.location_on,
+                          size: 14, color: NannyTheme.danger),
                     ],
                   ),
                   const SizedBox(width: 12),
@@ -157,15 +159,19 @@ class _TripHistoryViewState extends State<TripHistoryView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          trip.addressFrom,
-                          style: const TextStyle(fontSize: 14),
+                          trip.addressFrom.isNotEmpty
+                              ? trip.addressFrom
+                              : 'Адрес отправления не указан',
+                          style: Theme.of(context).textTheme.bodyMedium,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10),
                         Text(
-                          trip.addressTo,
-                          style: const TextStyle(fontSize: 14),
+                          trip.addressTo.isNotEmpty
+                              ? trip.addressTo
+                              : 'Адрес назначения не указан',
+                          style: Theme.of(context).textTheme.bodyMedium,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -185,23 +191,30 @@ class _TripHistoryViewState extends State<TripHistoryView> {
                       children: [
                         ProfileImage(
                           url: trip.driverPhoto ?? '',
-                          radius: 14,
+                          radius: 24,
+                          showOnlineDot: false,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           trip.driverName!,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                         ),
                         if (trip.rating != null) ...[
-                          const SizedBox(width: 8),
-                          const Icon(Icons.star, size: 14, color: Color(0xFFFFA726)),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.star,
+                              size: 14, color: Color(0xFFFFA726)),
                           const SizedBox(width: 2),
                           Text(
                             trip.rating.toString(),
-                            style: const TextStyle(fontSize: 12),
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: NannyTheme.neutral600,
+                                ),
                           ),
                         ],
                       ],
@@ -211,10 +224,10 @@ class _TripHistoryViewState extends State<TripHistoryView> {
                   if (trip.price != null)
                     Text(
                       '${trip.price!.toStringAsFixed(0)} ₽',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                 ],
               ),
