@@ -40,7 +40,9 @@ class _HomeViewState extends State<HomeView> {
       const ClientMapView(persistState: true),
       const GraphView(persistState: true),
       const BalanceView(persistState: true),
-      ChatsView(persistState: false, onReturnFromChat: () => vm.refreshUnreadChatsCount()),
+      ChatsView(
+          persistState: false,
+          onReturnFromChat: () => vm.refreshUnreadChatsCount()),
       _ClientProfileView(
         persistState: true,
         logoutView: WelcomeView(
@@ -82,8 +84,7 @@ class _HomeViewState extends State<HomeView> {
               } else {
                 SystemChrome.setSystemUIOverlayStyle(
                   SystemUiOverlayStyle(
-                    statusBarColor:
-                        Theme.of(context).scaffoldBackgroundColor,
+                    statusBarColor: Theme.of(context).scaffoldBackgroundColor,
                     statusBarIconBrightness: Brightness.dark,
                     statusBarBrightness: Brightness.light,
                   ),
@@ -104,6 +105,12 @@ class _HomeViewState extends State<HomeView> {
         statusBarBrightness: Brightness.light, // Для iOS (светлый статус бар)
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    vm.dispose();
+    super.dispose();
   }
 }
 
@@ -203,8 +210,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    final color =
-        isActive ? NannyTheme.primary : onSurface.withOpacity(0.6);
+    final color = isActive ? NannyTheme.primary : onSurface.withOpacity(0.6);
 
     Widget iconWidget = Icon(icon, size: 24, color: color);
     if (badgeText != null) {
@@ -375,8 +381,8 @@ class _ClientProfileViewState extends State<_ClientProfileView>
               Expanded(
                 child: NannyBottomSheet(
                   child: SingleChildScrollView(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -535,8 +541,7 @@ class _ClientProfileViewState extends State<_ClientProfileView>
                             return Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color:
-                                    Theme.of(context).colorScheme.surface,
+                                color: Theme.of(context).colorScheme.surface,
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: Theme.of(context).dividerColor,
@@ -582,8 +587,7 @@ class _ClientProfileViewState extends State<_ClientProfileView>
                             return Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color:
-                                    Theme.of(context).colorScheme.surface,
+                                color: Theme.of(context).colorScheme.surface,
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(
                                   color: Theme.of(context).dividerColor,
@@ -660,9 +664,7 @@ class _ProfileSegmentRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final trackColor = isDark
-        ? const Color(0xFF2A2A3E)
-        : NannyTheme.neutral100;
+    final trackColor = isDark ? const Color(0xFF2A2A3E) : NannyTheme.neutral100;
     final borderColor = isDark
         ? Theme.of(context).colorScheme.outline.withOpacity(0.3)
         : NannyTheme.neutral200;
@@ -701,9 +703,8 @@ class _ProfileSegmentRow extends StatelessWidget {
                     child: Text(
                       labels[i],
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: selected
-                                ? Colors.white
-                                : unselectedTextColor,
+                            color:
+                                selected ? Colors.white : unselectedTextColor,
                             fontWeight:
                                 selected ? FontWeight.w600 : FontWeight.w500,
                           ),
@@ -753,8 +754,7 @@ class _ProfileActionButton extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color:
-                      (iconColor ?? NannyTheme.primary).withOpacity(0.08),
+                  color: (iconColor ?? NannyTheme.primary).withOpacity(0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(

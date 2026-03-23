@@ -6,6 +6,7 @@ import 'package:nanny_components/base_views/views/driver_info.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/search_query_request.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
+import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -16,17 +17,32 @@ class ChatsVM extends ViewModelBase {
     this.updateList,
     this.onReturnFromChat,
   }) {
-    sub = NannyGlobals.chatsSocket.stream.listen((msg) => updateList?.call());
+    unawaited(_bindRealtimeUpdates());
   }
 
   FocusNode node = FocusNode();
   VoidCallback? updateList;
+
   /// Вызывается после возврата из чата (для сброса бейджа непрочитанных в нижнем баре)
   VoidCallback? onReturnFromChat;
   bool chatsSelected = false;
   String query = "";
 
-  late StreamSubscription sub;
+  StreamSubscription<Map<String, dynamic>>? sub;
+
+  Future<void> _bindRealtimeUpdates() async {
+    await sub?.cancel();
+    final socket = UnifiedSocket.instance ?? await UnifiedSocket.connect();
+    sub = socket.events.listen((msg) {
+      final event = msg['event']?.toString();
+      if (event == 'chat.message_created' ||
+          event == 'chat.message_edited' ||
+          event == 'chat.unread_changed' ||
+          event == 'contract.responses.updated') {
+        updateList?.call();
+      }
+    });
+  }
 
   void chatsSwitch({required bool switchToChats}) => update(() {
         chatsSelected = switchToChats;
@@ -63,7 +79,7 @@ class ChatsVM extends ViewModelBase {
   }
 
   void dispose() {
-    sub.cancel();
+    sub?.cancel();
   }
 
   void checkScheduleRequest(ScheduleResponsesData data) async {

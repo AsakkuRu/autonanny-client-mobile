@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -13,8 +12,8 @@ import 'package:nanny_client/views/pages/balance.dart';
 import 'package:nanny_client/views/pages/graph.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_components/styles/new_design_app.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
+import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 /// Новый корневой экран клиента.
@@ -28,15 +27,21 @@ class NewHomeView extends StatefulWidget {
   State<NewHomeView> createState() => _NewHomeViewState();
 }
 
-class _NewHomeViewState extends State<NewHomeView>
-    with WidgetsBindingObserver {
+class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
   late HomeVM vm;
   late List<Widget> pages;
 
   bool _hasActiveTrip = false;
   String? _activeToken;
   Timer? _pollTimer;
-  StreamSubscription? _chatSocketSub;
+  StreamSubscription<Map<String, dynamic>>? _realtimeTripSub;
+  static const Set<String> _activeTripInvalidationEvents = {
+    'connected',
+    'order.expired',
+    'trip.assigned',
+    'trip.status_changed',
+    'trip.cancelled',
+  };
 
   @override
   void initState() {
@@ -44,7 +49,7 @@ class _NewHomeViewState extends State<NewHomeView>
     vm = HomeVM(
       context: context,
       update: setState,
-      onChatSocketReady: subscribeToChatSocketAfterInit,
+      onRealtimeReady: subscribeToRealtimeAfterInit,
     );
     pages = [
       const NewClientMapView(),
@@ -68,23 +73,37 @@ class _NewHomeViewState extends State<NewHomeView>
     });
   }
 
-  // Вызывается из HomeVM после того, как initChatSocket() завершился
-  // и NannyGlobals.chatsSocket гарантированно подключён.
-  void subscribeToChatSocketAfterInit() {
-    _chatSocketSub?.cancel();
-    _chatSocketSub = NannyGlobals.chatsSocket.stream.listen((data) {
-      try {
-        final json = jsonDecode(data);
-        if (json is Map<String, dynamic> && json['event'] == 'trip_started') {
-          final token = json['token'];
-          if (token is String && token.isNotEmpty && mounted) {
-            setState(() { _hasActiveTrip = true; _activeToken = token; });
-          } else {
-            _checkActiveTrip();
-          }
+  // Вызывается из HomeVM после инициализации UnifiedSocket.
+  void subscribeToRealtimeAfterInit() async {
+    _realtimeTripSub?.cancel();
+    try {
+      final socket = UnifiedSocket.instance ?? await UnifiedSocket.connect();
+      _realtimeTripSub = socket.events.listen((msg) {
+        final event = msg['event']?.toString();
+        if (event == null || !_activeTripInvalidationEvents.contains(event)) {
+          return;
         }
-      } catch (_) {}
-    });
+        _handleActiveTripInvalidation(msg);
+      });
+    } catch (e, st) {
+      debugPrint('[ActiveTrip] subscribeToRealtimeAfterInit error: $e\n$st');
+    }
+  }
+
+  void _handleActiveTripInvalidation(Map<String, dynamic> msg) {
+    if (!mounted) return;
+
+    final data = msg['data'];
+    final token = data is Map ? data['token'] : null;
+    if (token is String && token.isNotEmpty) {
+      setState(() {
+        _hasActiveTrip = true;
+        _activeToken = token;
+      });
+      return;
+    }
+
+    _checkActiveTrip();
   }
 
   void _startPolling() {
@@ -95,43 +114,115 @@ class _NewHomeViewState extends State<NewHomeView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _checkActiveTrip();
+    if (state == AppLifecycleState.resumed) {
+      _checkActiveTrip();
+    }
   }
 
   Future<void> _checkActiveTrip() async {
     if (!mounted) return;
     try {
       final cached = await ActiveTripSessionStore.load();
-      if (cached != null && cached.token.isNotEmpty) {
-        if (mounted) setState(() { _hasActiveTrip = true; _activeToken = cached.token; });
-        return;
-      }
       final res = await NannyOrdersApi.getCurrentOrder();
-      if (!mounted) return;
       if (res.success && res.response != null) {
-        // Ответ бэкенда: {status, message, data: {orders: [...]}}
-        // res.response — Dio Response, .data — декодированное тело JSON
         final body = res.response!.data;
-        final nested = body is Map ? body['data'] : null;
-        final orders = nested is Map ? nested['orders'] : null;
-        if (orders is List) {
-          for (final rawOrder in orders) {
-            if (rawOrder is! Map) continue;
-            final status = rawOrder['id_status'];
-            final statusId = status is num ? status.toInt() : int.tryParse('$status');
-            final orderToken = rawOrder['token'];
-            if (statusId == null || statusId == 2 || statusId == 3 || statusId == 11) continue;
-            if (orderToken is String && orderToken.isNotEmpty) {
-              if (mounted) setState(() { _hasActiveTrip = true; _activeToken = orderToken; });
-              return;
-            }
+        final activeOrder = _selectActiveOrder(
+          body is Map ? body['orders'] : null,
+          preferredToken: cached?.token,
+          preferredOrderId: cached?.orderId,
+        );
+        if (activeOrder != null) {
+          final orderToken = activeOrder['token']?.toString();
+          if (orderToken != null && orderToken.isNotEmpty) {
+            await ActiveTripSessionStore.save(
+              ActiveTripSessionData(
+                token: orderToken,
+                orderId: _toInt(activeOrder['id_order']),
+                statusId: _toInt(activeOrder['id_status']),
+                chatId: _toInt(activeOrder['id_chat']),
+              ),
+            );
+            if (!mounted) return;
+            setState(() {
+              _hasActiveTrip = true;
+              _activeToken = orderToken;
+            });
+            return;
           }
         }
+        await ActiveTripSessionStore.clear();
+        if (!mounted) return;
+        setState(() {
+          _hasActiveTrip = false;
+          _activeToken = null;
+        });
+        return;
       }
-      if (mounted) setState(() { _hasActiveTrip = false; _activeToken = null; });
+
+      if (cached != null && cached.token.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _hasActiveTrip = true;
+          _activeToken = cached.token;
+        });
+        return;
+      }
+
+      if (mounted) {
+        setState(() {
+          _hasActiveTrip = false;
+          _activeToken = null;
+        });
+      }
     } catch (e, st) {
       debugPrint('[ActiveTrip] _checkActiveTrip error: $e\n$st');
     }
+  }
+
+  Map<String, dynamic>? _selectActiveOrder(
+    dynamic rawOrders, {
+    String? preferredToken,
+    int? preferredOrderId,
+  }) {
+    if (rawOrders is! List) return null;
+
+    final activeOrders = rawOrders.whereType<Map>().map((raw) {
+      return Map<String, dynamic>.from(raw);
+    }).where((order) {
+      final statusId = _toInt(order['id_status']);
+      return statusId != null &&
+          statusId != 2 &&
+          statusId != 3 &&
+          statusId != 11;
+    }).toList(growable: false);
+
+    if (activeOrders.isEmpty) return null;
+
+    if (preferredOrderId != null) {
+      for (final order in activeOrders) {
+        if (_toInt(order['id_order']) == preferredOrderId) return order;
+      }
+    }
+
+    if (preferredToken != null && preferredToken.isNotEmpty) {
+      for (final order in activeOrders) {
+        final orderToken = order['token']?.toString();
+        if (orderToken != null &&
+            orderToken.isNotEmpty &&
+            orderToken == preferredToken) {
+          return order;
+        }
+      }
+    }
+
+    return activeOrders.first;
+  }
+
+  int? _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   Future<void> _openActiveTrip() async {
@@ -146,7 +237,8 @@ class _NewHomeViewState extends State<NewHomeView>
   @override
   void dispose() {
     _pollTimer?.cancel();
-    _chatSocketSub?.cancel();
+    _realtimeTripSub?.cancel();
+    vm.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

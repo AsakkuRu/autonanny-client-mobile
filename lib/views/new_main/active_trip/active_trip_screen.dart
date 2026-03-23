@@ -1,4 +1,3 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dart';
@@ -57,6 +56,13 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
           body: Stack(
             children: [
               _LiveTripMap(vm: vm),
+              Positioned(
+                left: 16,
+                top: MediaQuery.of(context).padding.top + 12,
+                child: _BackToAppButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ),
               Positioned(
                 right: 16,
                 top: MediaQuery.of(context).padding.top + 12,
@@ -181,8 +187,10 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       ),
     );
     if (approve != true) return;
-    await vm.cancelSearchOrTrip();
-    if (mounted) Navigator.of(context).pop();
+    final cancelled = await vm.cancelSearchOrTrip();
+    if (cancelled && mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _showChangeRouteSheet() async {
@@ -395,7 +403,8 @@ class _LiveTripMapState extends State<_LiveTripMap> {
           Marker(
             markerId: MarkerId('nearby_driver_$id'),
             position: LatLng(lat, lon),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueViolet),
             infoWindow: const InfoWindow(title: 'Доступный водитель'),
           ),
         );
@@ -408,7 +417,8 @@ class _LiveTripMapState extends State<_LiveTripMap> {
         Marker(
           markerId: const MarkerId('driver_marker'),
           position: driver,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+          icon:
+              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
           infoWindow: const InfoWindow(title: 'Водитель'),
         ),
       );
@@ -423,7 +433,8 @@ class _LiveTripMapState extends State<_LiveTripMap> {
           Marker(
             markerId: const MarkerId('route_from'),
             position: from,
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+            icon:
+                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
             infoWindow: const InfoWindow(title: 'Откуда'),
           ),
         );
@@ -433,7 +444,8 @@ class _LiveTripMapState extends State<_LiveTripMap> {
           Marker(
             markerId: const MarkerId('route_to'),
             position: to,
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+            icon:
+                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
             infoWindow: const InfoWindow(title: 'Куда'),
           ),
         );
@@ -511,86 +523,86 @@ class _TripSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: NDT.neutral200,
-                borderRadius: BorderRadius.circular(999),
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: NDT.neutral200,
+                  borderRadius: BorderRadius.circular(999),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 14),
-          Text(vm.statusText, style: NDT.h3),
-          const SizedBox(height: 6),
-          Text(
-            route,
-            style: NDT.bodyS.copyWith(color: NDT.neutral500),
-          ),
-          const SizedBox(height: 12),
-          _statusBlocks(),
-          if (vm.noDriversFound) ...[
+            const SizedBox(height: 14),
+            Text(vm.statusText, style: NDT.h3),
+            const SizedBox(height: 6),
             Text(
-              'В вашем районе сейчас нет доступных водителей.',
-              style: NDT.bodyM.copyWith(color: NDT.neutral500),
+              route,
+              style: NDT.bodyS.copyWith(color: NDT.neutral500),
             ),
             const SizedBox(height: 12),
-          ],
-          if (vm.connectionTimedOut) ...[
-            Text(
-              'Проблемы соединения. Сессия сохраняется, идет переподключение.',
-              style: NDT.bodyM.copyWith(color: NDT.neutral500),
-            ),
-            const SizedBox(height: 12),
-          ],
-          // FIX-008: при статусе 2 (водитель отменил) — показываем сообщение и кнопку «Закрыть»
-          if (vm.statusId == 2) ...[
-            Text(
-              'Водитель отменил поездку. Вы можете заказать нового водителя.',
-              style: NDT.bodyM.copyWith(color: NDT.neutral500),
-            ),
-            const SizedBox(height: 12),
-            NdPrimaryButton(label: 'Закрыть', onTap: onDonePressed),
-          ] else if (vm.isFinished) ...[
-            Text(
-              'Поездка завершена. Оцените поездку в истории.',
-              style: NDT.bodyM.copyWith(color: NDT.neutral500),
-            ),
-            const SizedBox(height: 12),
-            NdPrimaryButton(label: 'Готово', onTap: onDonePressed),
-          ] else ...[
-            if (vm.isArrived) const SizedBox(height: 24),
-            Row(
-              children: [
-                if (!vm.isInProgress) ...[
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: vm.isBusy ? null : onCancelPressed,
-                      child: const Text('Отменить'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                // FIX-011: скрываем «Изменить маршрут» когда водитель прибыл (statusId 15)
-                if (vm.statusId != 15)
-                  Expanded(
-                    child: NdPrimaryButton(
-                      label: 'Изменить маршрут',
-                      onTap: vm.isBusy ? null : onChangeRoutePressed,
-                    ),
-                  ),
-              ],
-            ),
-            if (vm.routeChangeStatus.isNotEmpty) ...[
-              const SizedBox(height: 10),
+            _statusBlocks(),
+            if (vm.noDriversFound) ...[
               Text(
-                'Статус изменения: ${vm.routeChangeStatus}',
-                style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                'В вашем районе сейчас нет доступных водителей.',
+                style: NDT.bodyM.copyWith(color: NDT.neutral500),
               ),
+              const SizedBox(height: 12),
+            ],
+            if (vm.connectionTimedOut) ...[
+              Text(
+                'Проблемы соединения. Сессия сохраняется, идет переподключение.',
+                style: NDT.bodyM.copyWith(color: NDT.neutral500),
+              ),
+              const SizedBox(height: 12),
+            ],
+            // FIX-008: при статусе 2 (водитель отменил) — показываем сообщение и кнопку «Закрыть»
+            if (vm.statusId == 2) ...[
+              Text(
+                'Водитель отменил поездку. Вы можете заказать нового водителя.',
+                style: NDT.bodyM.copyWith(color: NDT.neutral500),
+              ),
+              const SizedBox(height: 12),
+              NdPrimaryButton(label: 'Закрыть', onTap: onDonePressed),
+            ] else if (vm.isFinished) ...[
+              Text(
+                'Поездка завершена. Оцените поездку в истории.',
+                style: NDT.bodyM.copyWith(color: NDT.neutral500),
+              ),
+              const SizedBox(height: 12),
+              NdPrimaryButton(label: 'Готово', onTap: onDonePressed),
+            ] else ...[
+              if (vm.isArrived) const SizedBox(height: 24),
+              Row(
+                children: [
+                  if (!vm.isInProgress) ...[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: vm.isBusy ? null : onCancelPressed,
+                        child: const Text('Отменить'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  // FIX-011: скрываем «Изменить маршрут» когда водитель прибыл (statusId 15)
+                  if (vm.statusId != 15)
+                    Expanded(
+                      child: NdPrimaryButton(
+                        label: 'Изменить маршрут',
+                        onTap: vm.isBusy ? null : onChangeRoutePressed,
+                      ),
+                    ),
+                ],
+              ),
+              if (vm.routeChangeStatus.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Статус изменения: ${vm.routeChangeStatus}',
+                  style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                ),
+              ],
             ],
           ],
-        ],
         ),
       ),
     );
@@ -621,7 +633,8 @@ class _TripSheet extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: _metricCard('До прибытия', vm.etaMinutes != null ? '${vm.etaMinutes} мин' : '—'),
+              child: _metricCard('До прибытия',
+                  vm.etaMinutes != null ? '${vm.etaMinutes} мин' : '—'),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -675,7 +688,8 @@ class _TripSheet extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: _metricCard('До точки', vm.etaMinutes != null ? '${vm.etaMinutes} мин' : '—'),
+              child: _metricCard('До точки',
+                  vm.etaMinutes != null ? '${vm.etaMinutes} мин' : '—'),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -746,6 +760,34 @@ class _SosButton extends StatelessWidget {
         child: const Text(
           'SOS',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+}
+
+class _BackToAppButton extends StatelessWidget {
+  const _BackToAppButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: NDT.neutral0,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: NDT.cardShadow,
+        ),
+        alignment: Alignment.center,
+        child: const Icon(
+          Icons.arrow_back_rounded,
+          size: 20,
+          color: NDT.neutral900,
         ),
       ),
     );

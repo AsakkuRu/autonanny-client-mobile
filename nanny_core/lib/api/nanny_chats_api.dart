@@ -6,14 +6,17 @@ import 'package:nanny_core/models/from_api/direct_chat.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class NannyChatsApi {
-  static Future<ApiResponse<ChatsData>> getChats(SearchQueryRequest request) async {
+  static Future<ApiResponse<ChatsData>> getChats(
+      SearchQueryRequest request) async {
     return RequestBuilder<ChatsData>().create(
-      dioRequest: DioRequest.dio.post("/chats/get_chats", data: request.toJson()),
+      dioRequest:
+          DioRequest.dio.post("/chats/get_chats", data: request.toJson()),
       onSuccess: (response) => ChatsData.fromJson(response.data),
     );
   }
+
   static Future<ApiResponse<Chat>> getChat(int id) async {
-    var data = <String, dynamic> {
+    var data = <String, dynamic>{
       "id": id,
     };
     return RequestBuilder<Chat>().create(
@@ -21,10 +24,52 @@ class NannyChatsApi {
       onSuccess: (response) => Chat.fromJson(response.data),
     );
   }
-  static Future<ApiResponse<DirectChat>> getMessages(MessagesRequest request) async {
+
+  static Future<ApiResponse<DirectChat>> getMessages(
+      MessagesRequest request) async {
     return RequestBuilder<DirectChat>().create(
-      dioRequest: DioRequest.dio.post("/chats/get_messages", data: request.toJson()),
+      dioRequest:
+          DioRequest.dio.post("/chats/get_messages", data: request.toJson()),
       onSuccess: (response) => DirectChat.fromJson(response.data),
+    );
+  }
+
+  static Future<ApiResponse<Map<String, dynamic>>> sendMessage({
+    required int chatId,
+    required String text,
+    int msgType = 1,
+  }) async {
+    return RequestBuilder<Map<String, dynamic>>().create(
+      dioRequest: DioRequest.dio.post(
+        "/chats/$chatId/messages",
+        data: {
+          "text": text,
+          "msg_type": msgType,
+        },
+      ),
+      onSuccess: (response) => Map<String, dynamic>.from(response.data as Map),
+      errorCodeMsgs: {
+        403: "Нет доступа к чату",
+        404: "Чат не найден",
+      },
+    );
+  }
+
+  static Future<ApiResponse<Map<String, dynamic>>> editMessage({
+    required int chatId,
+    required int messageId,
+    required String text,
+  }) async {
+    return RequestBuilder<Map<String, dynamic>>().create(
+      dioRequest: DioRequest.dio.patch(
+        "/chats/$chatId/messages/$messageId",
+        data: {"text": text},
+      ),
+      onSuccess: (response) => Map<String, dynamic>.from(response.data as Map),
+      errorCodeMsgs: {
+        403: "Нельзя редактировать это сообщение",
+        404: "Сообщение не найдено",
+      },
     );
   }
 

@@ -6,7 +6,6 @@ import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/route_deviation.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/shared_ride.dart';
-import 'package:nanny_core/models/from_api/drive_and_map/tariff_alternative.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
 import 'package:nanny_core/models/from_api/driver_rating.dart';
 import 'package:nanny_core/nanny_core.dart';
@@ -55,9 +54,11 @@ class NannyOrdersApi {
   }
 
   /// BE-MVP-021: Получение кода встречи для графика (для отображения родителю; водитель вводит этот код вместо QR).
-  static Future<ApiResponse<MeetingCodeForSchedule>> getMeetingCodeForSchedule(int scheduleId) {
+  static Future<ApiResponse<MeetingCodeForSchedule>> getMeetingCodeForSchedule(
+      int scheduleId) {
     return RequestBuilder<MeetingCodeForSchedule>().create(
-      dioRequest: DioRequest.dio.get("/orders/meeting_code_for_schedule/$scheduleId"),
+      dioRequest:
+          DioRequest.dio.get("/orders/meeting_code_for_schedule/$scheduleId"),
       onSuccess: (response) => MeetingCodeForSchedule(
         meetingCode: response.data["meeting_code"] as String?,
         idScheduleRoad: response.data["id_schedule_road"] as int?,
@@ -67,7 +68,8 @@ class NannyOrdersApi {
   }
 
   /// Получение кода встречи для разовой поездки (родитель показывает водителю).
-  static Future<ApiResponse<MeetingCodeForOrder>> getMeetingCodeForOrder(int orderId) {
+  static Future<ApiResponse<MeetingCodeForOrder>> getMeetingCodeForOrder(
+      int orderId) {
     return RequestBuilder<MeetingCodeForOrder>().create(
       dioRequest: DioRequest.dio.get("/orders/meeting_code_for_order/$orderId"),
       onSuccess: (response) => MeetingCodeForOrder(
@@ -167,7 +169,7 @@ class NannyOrdersApi {
 
   static Future<ApiResponse<Response<dynamic>>> getCurrentOrder() async {
     return RequestBuilder<Response<dynamic>>().create(
-        dioRequest: DioRequest.dio.get('/orders/get_current_order'),
+        dioRequest: DioRequest.dio.get('/orders/current'),
         onSuccess: (data) => data);
   }
 
@@ -209,11 +211,11 @@ class NannyOrdersApi {
   static Future<ApiResponse<String>> startOnetimeOrder(
       OnetimeDriveRequest request) async {
     return RequestBuilder<String>().create(
-      dioRequest: DioRequest.dio
-          .post("/orders/start_onetime_drive", data: request.toJson()),
-      onSuccess: (response) {
-        print('response info ${response.data}');
-        return response.data["token"];
+      dioRequest:
+          DioRequest.dio.post("/orders/one-time", data: request.toJson()),
+      onSuccess: (response) => response.data["token"],
+      errorCodeMsgs: {
+        409: 'У вас уже есть активная поездка',
       },
     );
   }
@@ -224,7 +226,8 @@ class NannyOrdersApi {
     String? status,
   }) async {
     final queryParams = <String, dynamic>{};
-    if (startDate != null) queryParams['start_date'] = startDate.toIso8601String();
+    if (startDate != null)
+      queryParams['start_date'] = startDate.toIso8601String();
     if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
     if (status != null) queryParams['status'] = status;
 
@@ -341,7 +344,8 @@ class NannyOrdersApi {
 
   static Future<ApiResponse<void>> leaveSharedRide(int sharedRideId) async {
     return RequestBuilder<void>().create(
-      dioRequest: DioRequest.dio.delete('/orders/leave_shared_ride/$sharedRideId'),
+      dioRequest:
+          DioRequest.dio.delete('/orders/leave_shared_ride/$sharedRideId'),
       errorCodeMsgs: {
         404: 'Поездка не найдена',
       },
@@ -368,8 +372,7 @@ class NannyOrdersApi {
   static Future<ApiResponse<void>> cancelOrder({required int orderId}) async {
     return RequestBuilder<void>().create(
       dioRequest: DioRequest.dio.post(
-        '/orders/cancel_order',
-        queryParameters: {'id_order': orderId},
+        '/orders/one-time/$orderId/cancel',
       ),
       errorCodeMsgs: {
         404: 'Заказ не найден',
@@ -384,8 +387,8 @@ class NannyOrdersApi {
     required List<Map<String, dynamic>> addresses,
   }) async {
     return RequestBuilder<void>().create(
-      dioRequest: DioRequest.dio.put(
-        '/orders/update_route/$orderId',
+      dioRequest: DioRequest.dio.post(
+        '/orders/$orderId/route-change',
         data: {
           'addresses': addresses,
         },

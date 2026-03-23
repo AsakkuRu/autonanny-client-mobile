@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:nanny_client/views/pages/graph_create.dart';
 import 'package:nanny_components/base_views/views/driver_info.dart';
 import 'package:nanny_components/dialogs/loading.dart';
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
@@ -39,13 +39,14 @@ class GraphVM extends ViewModelBase {
   DateTime? _lastResponsesLoadAt;
   static const _responsesDebounceMs = 500;
 
-  /// Подгрузка откликов (при событии schedule_responses_updated или fallback).
+  /// Подгрузка откликов (при событии contract.responses.updated или fallback).
   /// При обновлении откликов также подгружаем контакт водителя — заявка могла быть принята в чате.
   Future<void> loadResponsesOnly() async {
     if (isOffline) return;
     final now = DateTime.now();
     if (_lastResponsesLoadAt != null &&
-        now.difference(_lastResponsesLoadAt!).inMilliseconds < _responsesDebounceMs) {
+        now.difference(_lastResponsesLoadAt!).inMilliseconds <
+            _responsesDebounceMs) {
       return;
     }
     _lastResponsesLoadAt = now;
@@ -61,18 +62,21 @@ class GraphVM extends ViewModelBase {
     }
   }
 
-  /// Подписка на уведомления о новых откликах водителей по ChatsSocket.
+  /// Подписка на уведомления о новых откликах водителей по UnifiedSocket.
   void startScheduleUpdatesListener() {
     _scheduleUpdatesSub?.cancel();
-    _scheduleUpdatesSub = NannyGlobals.chatsSocket.stream.listen((data) {
-      try {
-        final json = jsonDecode(data);
-        if (json is Map<String, dynamic> &&
-            json['event'] == 'schedule_responses_updated') {
-          reloadPage(); // FIX-005: перезагрузить полностью, чтобы подтянуть is_paused
-        }
-      } catch (_) {}
-    });
+    unawaited(_bindScheduleUpdatesListener());
+  }
+
+  Future<void> _bindScheduleUpdatesListener() async {
+    try {
+      final socket = UnifiedSocket.instance ?? await UnifiedSocket.connect();
+      _scheduleUpdatesSub = socket.on('contract.responses.updated').listen((_) {
+        reloadPage(); // FIX-005: перезагрузить полностью, чтобы подтянуть is_paused
+      });
+    } catch (e, st) {
+      Logger().e('GraphVM unified schedule listener error: $e\n$st');
+    }
   }
 
   void stopScheduleUpdatesListener() {
@@ -127,15 +131,13 @@ class GraphVM extends ViewModelBase {
   String? get nextTripLabel {
     if (selectedSchedule == null || selectedWeekday.isEmpty) return null;
     final day = selectedWeekday.first;
-    final roadsForDay = selectedSchedule!.roads
-        .where((r) => r.weekDay == day)
-        .toList()
-      ..sort(
-        (a, b) =>
-            a.startTime.hour.compareTo(b.startTime.hour) != 0
+    final roadsForDay =
+        selectedSchedule!.roads.where((r) => r.weekDay == day).toList()
+          ..sort(
+            (a, b) => a.startTime.hour.compareTo(b.startTime.hour) != 0
                 ? a.startTime.hour.compareTo(b.startTime.hour)
                 : a.startTime.minute.compareTo(b.startTime.minute),
-      );
+          );
     if (roadsForDay.isEmpty) return null;
     final road = roadsForDay.first;
     return '${road.startTime.formatTime()} – ${road.endTime.formatTime()}';
@@ -235,14 +237,14 @@ class GraphVM extends ViewModelBase {
       driverContact = null; // Сбрасываем предыдущие контакты
     });
     _updateSpentsFromSelectedSchedule();
-    
+
     // Загружаем контакты водителя
     await loadDriverContact();
   }
-  
+
   Future<void> loadDriverContact() async {
     if (selectedSchedule == null || selectedSchedule!.id == null) return;
-    
+
     var result = await NannyUsersApi.getDriverContact(selectedSchedule!.id!);
     if (result.success && result.response != null) {
       update(() {
@@ -252,16 +254,19 @@ class GraphVM extends ViewModelBase {
   }
 
   void deleteSchedule(Schedule schedule) async {
-    if (!await NannyDialogs.confirmAction(context, "Удалить выбранный график?"))
+    if (!await NannyDialogs.confirmAction(
+        context, "Удалить выбранный график?")) {
       return;
+    }
     if (!context.mounted) return;
 
     LoadScreen.showLoad(context, true);
 
     var result = await NannyOrdersApi.deleteScheduleById(schedule.id!);
     if (!result.success) {
-      if (context.mounted)
+      if (context.mounted) {
         NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
+      }
     }
 
     if (context.mounted) LoadScreen.showLoad(context, false);
@@ -306,7 +311,8 @@ class GraphVM extends ViewModelBase {
     // Запрашиваем код встречи — он содержит meetingCode и id_schedule_road
     String? meetingCodePin;
     int? scheduleRoadId;
-    final codeResult = await NannyOrdersApi.getMeetingCodeForSchedule(selectedSchedule!.id!);
+    final codeResult =
+        await NannyOrdersApi.getMeetingCodeForSchedule(selectedSchedule!.id!);
     if (codeResult.success && codeResult.response?.meetingCode != null) {
       meetingCodePin = codeResult.response!.meetingCode;
       scheduleRoadId = codeResult.response!.idScheduleRoad;
@@ -319,7 +325,8 @@ class GraphVM extends ViewModelBase {
       qrData = 'schedule:$scheduleRoadId:$meetingCodePin';
     } else {
       // Fallback: старый формат если код недоступен
-      qrData = '${selectedSchedule!.id}:${NannyUser.userInfo!.id}:${DateTime.now().millisecondsSinceEpoch}';
+      qrData =
+          '${selectedSchedule!.id}:${NannyUser.userInfo!.id}:${DateTime.now().millisecondsSinceEpoch}';
     }
 
     if (!context.mounted) return;
@@ -399,8 +406,8 @@ class GraphVM extends ViewModelBase {
     );
     update(() {
       responses = responses
-          .where((r) =>
-              !(r.idSchedule == response.idSchedule && r.idDriver == response.idDriver))
+          .where((r) => !(r.idSchedule == response.idSchedule &&
+              r.idDriver == response.idDriver))
           .toList();
     });
     if (accept && selectedSchedule?.id == response.idSchedule) {
@@ -427,14 +434,13 @@ class GraphVM extends ViewModelBase {
       // был выбран конкретный график, пытаемся найти его в
       // обновлённом списке. При создании нового — выбираем по id или самый новый.
       if (previouslySelectedId != null) {
-        selectedSchedule = schedules
-            .firstWhere(
-              (s) => s.id == previouslySelectedId,
-              orElse: () => schedules.firstOrNull ?? schedules.first,
-            );
+        selectedSchedule = schedules.firstWhere(
+          (s) => s.id == previouslySelectedId,
+          orElse: () => schedules.firstOrNull ?? schedules.first,
+        );
       } else if (selectNewest && schedules.isNotEmpty) {
-        selectedSchedule = schedules.reduce(
-            (a, b) => (a.id ?? 0) > (b.id ?? 0) ? a : b);
+        selectedSchedule =
+            schedules.reduce((a, b) => (a.id ?? 0) > (b.id ?? 0) ? a : b);
       } else {
         selectedSchedule = schedules.firstOrNull;
       }
@@ -478,11 +484,10 @@ class GraphVM extends ViewModelBase {
             .toList();
 
         if (previouslySelectedId != null) {
-          selectedSchedule = schedules
-              .firstWhere(
-                (s) => s.id == previouslySelectedId,
-                orElse: () => schedules.firstOrNull ?? schedules.first,
-              );
+          selectedSchedule = schedules.firstWhere(
+            (s) => s.id == previouslySelectedId,
+            orElse: () => schedules.firstOrNull ?? schedules.first,
+          );
         } else {
           selectedSchedule = schedules.firstOrNull;
         }
@@ -490,7 +495,8 @@ class GraphVM extends ViewModelBase {
         final cachedResponses = await NannyStorage.getCachedResponses();
         if (cachedResponses != null) {
           responses = cachedResponses
-              .map((x) => ScheduleResponsesData.fromJson(Map<String, dynamic>.from(x)))
+              .map((x) =>
+                  ScheduleResponsesData.fromJson(Map<String, dynamic>.from(x)))
               .toList();
         }
 

@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
+import 'package:nanny_client/view_models/new_main/active_trip/active_trip_resolver.dart';
 import 'package:nanny_client/view_models/pages/map_vm.dart';
-import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart';
 import 'package:nanny_client/views/new_main/new_client_main_panel.dart';
 import 'package:nanny_client/views/new_main/new_client_main_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_components/widgets/map_viewer.dart';
-import 'package:nanny_components/styles/new_design_app.dart';
 import 'package:nanny_core/api/google_map_api.dart';
-import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -52,8 +48,7 @@ class _NewClientMapViewState extends State<NewClientMapView> {
         future: _mapVm.initLoad,
         completeView: (context, initialPos) =>
             _MapBody(mapVm: _mapVm, initialPos: initialPos),
-        errorView: (context, error) =>
-            ErrorView(errorText: error.toString()),
+        errorView: (context, error) => ErrorView(errorText: error.toString()),
       ),
     );
   }
@@ -121,8 +116,7 @@ class _MapBodyState extends State<_MapBody> {
                 markers: markers,
                 polylines: routes,
                 onMapCreated: widget.mapVm.onMapCreated,
-                onTap: (latLng) =>
-                    NannyMapGlobals.mapTapController.add(latLng),
+                onTap: (latLng) => NannyMapGlobals.mapTapController.add(latLng),
                 myLocationEnabled: true,
                 myLocationButtonEnabled: false,
                 zoomControlsEnabled: false,
@@ -195,69 +189,7 @@ class _MapBodyState extends State<_MapBody> {
   Future<void> _tryRestoreActiveTrip() async {
     if (!_active || !mounted || _restoreChecked) return;
     _restoreChecked = true;
-
-    String? token;
-    final cached = await ActiveTripSessionStore.load();
-    final res = await NannyOrdersApi.getCurrentOrder();
-
-    // Server-first: if backend confirms there is no active order, clear stale local session.
-    if (res.success && res.response != null) {
-      // Ответ: {status, message, data: {orders: [...]}}
-      final body = res.response!.data;
-      final nested = body is Map ? body['data'] : null;
-      final orders = nested is Map ? nested['orders'] : null;
-      bool hasActive = false;
-      if (orders is List) {
-        for (final rawOrder in orders) {
-          if (rawOrder is! Map) continue;
-          final status = rawOrder['id_status'];
-          final statusId = status is num ? status.toInt() : int.tryParse('$status');
-          final orderToken = rawOrder['token'];
-          if (statusId == null || statusId == 3 || statusId == 11) {
-            continue;
-          }
-          if (orderToken is String && orderToken.isNotEmpty) {
-            token = orderToken;
-            hasActive = true;
-            break;
-          }
-        }
-      }
-
-      if (!hasActive) {
-        await ActiveTripSessionStore.clear();
-        _restoreChecked = false;
-        return;
-      }
-    } else if (cached != null && cached.token.isNotEmpty) {
-      // Offline fallback only when backend cannot answer.
-      token = cached.token;
-    }
-
-    if (!_active || !mounted || token == null || token.isEmpty) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ActiveTripScreen(token: token!),
-      ),
-    );
+    await ActiveTripResolver.resolveCurrentActiveTrip();
     _restoreChecked = false;
-  }
-}
-
-// ─── Заглушка загрузки ───────────────────────────────────────────────────────
-
-class _MapLoadingPlaceholder extends StatelessWidget {
-  const _MapLoadingPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: NDT.neutral100,
-      child: const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation(NDT.primary),
-        ),
-      ),
-    );
   }
 }

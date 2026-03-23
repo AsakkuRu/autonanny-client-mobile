@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:nanny_core/nanny_core.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// Единый WebSocket-клиент для всех событий (заказы, чат, системные).
 ///
@@ -12,7 +11,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// Использование:
 /// ```dart
 /// final socket = await UnifiedSocket.connect();
-/// socket.on('order.status_changed').listen((msg) { ... });
+/// socket.on('trip.status_changed').listen((msg) { ... });
 /// socket.send('ping', {});
 /// ```
 class UnifiedSocket {
@@ -21,6 +20,8 @@ class UnifiedSocket {
   WebSocketChannel? _channel;
   WebSocketSink? _sink;
   StreamSubscription? _sub;
+  Future<void>? _connectFuture;
+  bool _disposed = false;
 
   final _controller = StreamController<Map<String, dynamic>>.broadcast();
   bool _connected = false;
@@ -44,16 +45,38 @@ class UnifiedSocket {
 
   /// Подключение. Если уже есть активный инстанс — возвращает его.
   static Future<UnifiedSocket> connect() async {
-    if (_instance != null && _instance!._connected) return _instance!;
-    _instance = UnifiedSocket._();
-    await _instance!._connect();
-    return _instance!;
+    final instance = _instance ??= UnifiedSocket._();
+    await instance._ensureConnected();
+    return instance;
   }
 
   /// Получить текущий инстанс (без подключения). Null если не подключён.
   static UnifiedSocket? get instance => _instance;
 
+  Future<void> _ensureConnected() async {
+    if (_disposed) return;
+    if (_connected && _sink != null && _channel != null) return;
+
+    final pending = _connectFuture;
+    if (pending != null) {
+      await pending;
+      return;
+    }
+
+    final completer = Completer<void>();
+    _connectFuture = completer.future;
+    try {
+      await _connect();
+      if (!completer.isCompleted) completer.complete();
+    } catch (e, st) {
+      if (!completer.isCompleted) completer.completeError(e, st);
+    } finally {
+      _connectFuture = null;
+    }
+  }
+
   Future<void> _connect() async {
+    if (_disposed) return;
     final token = DioRequest.authToken;
     if (token.isEmpty) {
       Logger().e("❌ [UnifiedSocket] No auth token available");
@@ -67,6 +90,9 @@ class UnifiedSocket {
       _channel = WebSocketChannel.connect(Uri.parse(url));
       _sink = _channel!.sink;
       await _channel!.ready;
+      if (_disposed) {
+        return;
+      }
       _connected = true;
       _retryCount = 0;
 
@@ -81,7 +107,8 @@ class UnifiedSocket {
           _reconnect();
         },
         onDone: () {
-          Logger().w("⚠️ [UnifiedSocket] Соединение закрыто — переподключение...");
+          Logger()
+              .w("⚠️ [UnifiedSocket] Соединение закрыто — переподключение...");
           _connected = false;
           _reconnect();
         },
@@ -108,6 +135,7 @@ class UnifiedSocket {
   }
 
   void _reconnect() {
+    if (_disposed) return;
     if (_reconnecting) return;
     if (_retryCount >= _maxRetries) {
       Logger().w("⏳ [UnifiedSocket] Лимит попыток ($_maxRetries) исчерпан");
@@ -115,12 +143,13 @@ class UnifiedSocket {
     }
     _reconnecting = true;
     _retryCount++;
-    Logger().i("🔄 [UnifiedSocket] Попытка #$_retryCount через ${_retryDelay.inSeconds} сек...");
+    Logger().i(
+        "🔄 [UnifiedSocket] Попытка #$_retryCount через ${_retryDelay.inSeconds} сек...");
     Future.delayed(_retryDelay, () async {
       _reconnecting = false;
-      if (!_connected) {
+      if (!_connected && !_disposed) {
         try {
-          await _connect();
+          await _ensureConnected();
         } catch (_) {}
       }
     });
@@ -146,10 +175,13 @@ class UnifiedSocket {
   void dispose() {
     try {
       Logger().w("🛑 [UnifiedSocket] Закрытие...");
+      _disposed = true;
       _sub?.cancel();
       _sink?.close();
       if (!_controller.isClosed) _controller.close();
       _connected = false;
+      _connectFuture = null;
+      _reconnecting = false;
       _instance = null;
       Logger().i("✅ [UnifiedSocket] Закрыт");
     } catch (e) {

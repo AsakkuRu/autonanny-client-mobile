@@ -1,15 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/sos_activate_request.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
-import 'package:nanny_core/api/nanny_users_api.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/services/notification_service.dart';
 import 'package:nanny_core/nanny_core.dart';
@@ -23,17 +19,18 @@ class ActiveTripVM extends ViewModelBase {
   });
 
   final String? initialToken;
+
   /// Вызывается при переходе в статус 14/15 (поездка началась). Закрыть QR/PIN диалог.
   final VoidCallback? onTripStarted;
 
   UnifiedSocket? _socket;
+  StreamSubscription? _assignedSub;
   StreamSubscription? _statusSub;
+  StreamSubscription? _cancelledSub;
   StreamSubscription? _locationSub;
-  StreamSubscription? _driversSub;
   StreamSubscription? _expiredSub;
   StreamSubscription? _routeSub;
   Timer? _statusPollTimer;
-  bool _receivedSocketEvent = false;
 
   String? token;
   int? orderId;
@@ -45,7 +42,7 @@ class ActiveTripVM extends ViewModelBase {
   bool noDriversFound = false;
   bool isBusy = false;
   bool connectionTimedOut = false;
-  String statusText = 'Подключаем поездку...';
+  String statusText = 'Ищем водителя...';
   Map<String, dynamic>? driverLocation;
   List<Map<String, dynamic>> nearbyDrivers = [];
   List<Map<String, dynamic>> addresses = [];
@@ -88,7 +85,7 @@ class ActiveTripVM extends ViewModelBase {
 
     await _connectSocket();
     await _persistSession();
-    if (isArrived) _startStatusPolling();
+    if (isArrived || statusId == 15) _startStatusPolling();
     return true;
   }
 
@@ -105,7 +102,7 @@ class ActiveTripVM extends ViewModelBase {
   }
 
   Future<void> _pollOrderStatus() async {
-    if (statusId == 14 || statusId == 15) {
+    if (statusId == 11 || statusId == 2 || statusId == 3 || statusId == 14) {
       _stopStatusPolling();
       return;
     }
@@ -113,65 +110,67 @@ class ActiveTripVM extends ViewModelBase {
     if (!res.success || res.response == null) return;
     final data = res.response!.data;
     if (data is! Map) return;
-    final orders = data['orders'];
-    if (orders is! List || orders.isEmpty) return;
-    for (final raw in orders) {
-      if (raw is! Map) continue;
-      final sid = _toInt(raw['id_status']);
-      if (sid == null || sid == 3 || sid == 11) continue;
-      if (sid == 14 || sid == 15) {
-        _applyIncomingStatus(sid);
-        _refreshStatusText();
+    final activeOrders = _extractActiveOrders(data['orders']);
+    final activeOrder = _selectActiveOrder(activeOrders);
+
+    if (activeOrder == null) {
+      if (token != null || orderId != null) {
+        final likelyCompleted = statusId == 15;
+        statusId = likelyCompleted ? 11 : 3;
+        statusText = likelyCompleted
+            ? 'Поездка завершена'
+            : 'Поездка больше не активна';
+        token = null;
+        await ActiveTripSessionStore.clear();
         _stopStatusPolling();
         if (context.mounted) update(() {});
       }
-      break;
+      return;
+    }
+
+    _applyOrderSnapshot(activeOrder, updateRoute: false);
+    _refreshStatusText();
+    if (statusId == 14 || statusId == 15) {
+      _stopStatusPolling();
+    }
+    if (context.mounted) {
+      update(() {});
     }
   }
 
   Future<void> _restoreFromCurrentOrder() async {
     final cached = await ActiveTripSessionStore.load();
     if (cached != null) {
-      token = cached.token;
-      orderId = cached.orderId;
-      statusId = cached.statusId;
-      chatId = cached.chatId;
+      token = token ?? cached.token;
+      orderId ??= cached.orderId;
+      statusId ??= cached.statusId;
+      chatId ??= cached.chatId;
     }
 
     final res = await NannyOrdersApi.getCurrentOrder();
     if (!res.success || res.response == null) return;
     final data = res.response!.data;
     if (data is! Map) return;
-    final orders = data['orders'];
-    if (orders is! List || orders.isEmpty) {
+    final activeOrders = _extractActiveOrders(data['orders']);
+    if (activeOrders.isEmpty) {
       token = null;
       await ActiveTripSessionStore.clear();
       return;
     }
 
-    Map? activeOrder;
-    for (final raw in orders) {
-      if (raw is! Map) continue;
-      final sid = _toInt(raw['id_status']);
-      if (sid == null || sid == 3 || sid == 11) continue;
-      activeOrder = raw;
-      break;
-    }
-
+    final activeOrder = _selectActiveOrder(
+      activeOrders,
+      allowFallback: token == null || token!.isEmpty,
+    );
     if (activeOrder == null) {
       token = null;
       await ActiveTripSessionStore.clear();
       return;
     }
 
-    token = (activeOrder['token'] ?? token ?? '').toString();
-    orderId = _toInt(activeOrder['id_order']) ?? orderId;
-    statusId = _toInt(activeOrder['id_status']) ?? statusId;
-    chatId = _toInt(activeOrder['id_chat']) ?? chatId;
-    addresses = _extractAddresses(activeOrder);
-    children = _extractChildren(activeOrder);
+    _applyOrderSnapshot(activeOrder);
     _refreshStatusText();
-    ensureRoutePolyline();
+    await _persistSession();
   }
 
   Future<void> ensureRoutePolyline() async {
@@ -181,7 +180,9 @@ class ActiveTripVM extends ViewModelBase {
     final fromLon = _toDouble(first['from_lon']);
     final toLat = _toDouble(first['to_lat']);
     final toLon = _toDouble(first['to_lon']);
-    if (fromLat == null || fromLon == null || toLat == null || toLon == null) return;
+    if (fromLat == null || fromLon == null || toLat == null || toLon == null) {
+      return;
+    }
     final poly = await RouteManager.calculateRoute(
       origin: LatLng(fromLat, fromLon),
       destination: LatLng(toLat, toLon),
@@ -208,40 +209,60 @@ class ActiveTripVM extends ViewModelBase {
       update(() {});
       return;
     }
-    _receivedSocketEvent = false;
     connectionTimedOut = false;
     _subscribeToEvents();
-
-    Future.delayed(const Duration(seconds: 5), () async {
-      if (_receivedSocketEvent || isFinished || token == null) return;
-      // Источник правды по актуальности поездки — сервер.
-      // Не очищаем локальную сессию по клиентскому таймеру:
-      // UnifiedSocket продолжит переподключения, а сервер сам отменит
-      // заказ при необходимости (например, по timeout поиска водителя).
-      connectionTimedOut = true;
-      statusText = 'Проблемы соединения. Продолжаем переподключение...';
-      update(() {});
-    });
   }
 
   void _subscribeToEvents() {
     if (_socket == null) return;
 
-    // Статус заказа
-    _statusSub = _socket!.on('order.status_changed').listen((msg) {
-      _receivedSocketEvent = true;
+    _assignedSub?.cancel();
+    _statusSub?.cancel();
+    _cancelledSub?.cancel();
+    _locationSub?.cancel();
+    _expiredSub?.cancel();
+    _routeSub?.cancel();
+
+    _assignedSub = _socket!.on('trip.assigned').listen((msg) {
       connectionTimedOut = false;
-      final data = msg['data'] ?? {};
-      final status = _toInt(data['status']);
+      final data = Map<String, dynamic>.from(msg['data'] ?? const {});
+      if (!_matchesTrackedTrip(data)) return;
+      orderId = _toInt(data['order_id']) ?? orderId;
+      driverId = _toInt(data['driver_id']) ?? driverId;
+      chatId = _toInt(data['chat_id']) ?? chatId;
+
+      final incomingToken = data['token'];
+      if (incomingToken is String && incomingToken.isNotEmpty) {
+        token = incomingToken;
+      }
+
+      noDriversFound = false;
+      _applyIncomingStatus(13);
+      _refreshStatusText();
+      _persistSession();
+      if (context.mounted) update(() {});
+    });
+
+    _statusSub = _socket!.on('trip.status_changed').listen((msg) {
+      connectionTimedOut = false;
+      final data = Map<String, dynamic>.from(msg['data'] ?? const {});
+      if (!_matchesTrackedTrip(data)) return;
+      final status = _mapTripStatusToUiStatusId(data['status']?.toString());
       driverId = _toInt(data['driver_id']) ?? driverId;
       orderId = _toInt(data['order_id']) ?? orderId;
+      chatId = _toInt(data['chat_id']) ?? chatId;
+
+      final incomingToken = data['token'];
+      if (incomingToken is String && incomingToken.isNotEmpty) {
+        token = incomingToken;
+      }
 
       if (status != null) {
         _applyIncomingStatus(status);
-        NotificationService().handleEvent('order.status_changed', data);
+        NotificationService().handleEvent('trip.status_changed', data);
       }
 
-      if (status == 11 || status == 3 || status == 2) {
+      if (status == 11) {
         ActiveTripSessionStore.clear();
       } else {
         _persistSession();
@@ -250,10 +271,24 @@ class ActiveTripVM extends ViewModelBase {
       if (context.mounted) update(() {});
     });
 
-    // Позиция водителя
-    _locationSub = _socket!.on('order.driver_location').listen((msg) {
-      _receivedSocketEvent = true;
-      final data = msg['data'] ?? {};
+    _cancelledSub = _socket!.on('trip.cancelled').listen((msg) {
+      connectionTimedOut = false;
+      final data = Map<String, dynamic>.from(msg['data'] ?? const {});
+      if (!_matchesTrackedTrip(data)) return;
+      final cancelledStatus = _mapTripStatusToUiStatusId(
+            data['status']?.toString(),
+          ) ??
+          3;
+      _applyIncomingStatus(cancelledStatus);
+      NotificationService().handleEvent('trip.cancelled', data);
+      ActiveTripSessionStore.clear();
+      _refreshStatusText();
+      if (context.mounted) update(() {});
+    });
+
+    _locationSub = _socket!.on('driver.position_updated').listen((msg) {
+      final data = Map<String, dynamic>.from(msg['data'] ?? const {});
+      if (!_matchesTrackedTrip(data)) return;
       if (data['lat'] != null && data['lon'] != null) {
         driverLocation = {'lat': data['lat'], 'lon': data['lon']};
       }
@@ -263,118 +298,31 @@ class ActiveTripVM extends ViewModelBase {
       if (context.mounted) update(() {});
     });
 
-    // Водители рядом (при поиске)
-    _driversSub = _socket!.on('order.drivers_nearby').listen((msg) {
-      _receivedSocketEvent = true;
-      final drivers = msg['data']?['drivers'];
-      if (drivers is List) {
-        nearbyDrivers = drivers
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
-        if (context.mounted) update(() {});
-      }
-    });
-
-    // Тайм-аут поиска
     _expiredSub = _socket!.on('order.expired').listen((msg) {
-      _receivedSocketEvent = true;
+      final data = Map<String, dynamic>.from(msg['data'] ?? const {});
+      if (!_matchesTrackedTrip(data)) return;
       noDriversFound = true;
       statusId = 3;
       statusText = 'Водитель не найден';
       ActiveTripSessionStore.clear();
-      NotificationService().handleEvent('order.expired', msg['data'] ?? {});
+      NotificationService().handleEvent('order.expired', data);
       if (context.mounted) update(() {});
     });
 
     // Маршрут
     _routeSub = _socket!.on('route.change_result').listen((msg) {
-      final data = msg['data'] ?? {};
-      final accepted = data['accepted'] == true;
+      final data = Map<String, dynamic>.from(msg['data'] ?? const {});
+      if (!_matchesTrackedTrip(data)) return;
+      final accepted = data['accepted'] == true ||
+          data['route_change_status']?.toString() == 'accepted';
       routeChangeStatus = accepted ? 'accepted' : 'rejected';
-      NotificationService().handleEvent('route.change_result', data);
-      if (context.mounted) update(() {});
-    });
-  }
 
-  /// @deprecated Не используется — логика перенесена в _subscribeToEvents().
-  /// Оставлен временно для обратной совместимости. Удалить после проверки.
-  void _handleMessage(dynamic rawEvent) {
-    try {
-      _receivedSocketEvent = true;
-      connectionTimedOut = false;
-      final decoded = rawEvent is String ? jsonDecode(rawEvent) : rawEvent;
-      if (decoded is! Map) return;
-      final Map<String, dynamic> data =
-          decoded.map((k, v) => MapEntry(k.toString(), v));
-
-      orderId = _toInt(data['order_id']) ?? _toInt(data['id_order']) ?? orderId;
-      driverId = _toInt(data['id_driver']) ?? driverId;
-      chatId = _toInt(data['id_chat']) ?? chatId;
-
-      if (data.containsKey('id_status')) {
-        _applyIncomingStatus(_toInt(data['id_status']));
-      } else if (data.containsKey('status')) {
-        _applyIncomingStatus(_toInt(data['status']));
-      }
-
-      if (data.containsKey('lat') && data.containsKey('lon')) {
-        driverLocation = {
-          'lat': data['lat'],
-          'lon': data['lon'],
-        };
-      }
-      if (data['duration'] is num) {
-        etaMinutes = ((data['duration'] as num) / 60).ceil();
-      }
-
-      if (data['order'] is Map) {
-        final order = Map<String, dynamic>.from(data['order'] as Map);
-        orderId = _toInt(order['id_order']) ?? _toInt(order['order_id']) ?? orderId;
-        driverId = _toInt(order['id_driver']) ?? driverId;
-        chatId = _toInt(order['id_chat']) ?? chatId;
-        _applyIncomingStatus(_toInt(order['id_status']) ?? _toInt(order['status']));
-        addresses = _extractAddresses(order);
-        children = _extractChildren(order);
-        ensureRoutePolyline();
-      }
-
-      if (data['type'] == 'no_drivers_found') {
-        noDriversFound = true;
-      }
-
-      if (data['type'] == 'drivers_update' && data['drivers'] is List) {
-        nearbyDrivers = (data['drivers'] as List)
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList(growable: false);
-      }
-
-      // Обработка одиночного водителя (подключился после клиента или обновил позицию)
-      if (data['type'] == 'driver_update' && data['data'] is Map) {
-        final driver = Map<String, dynamic>.from(data['data'] as Map);
-        final id = driver['id_driver'] ?? driver['id'];
-        final idx = nearbyDrivers.indexWhere((d) =>
-            (d['id_driver'] ?? d['id']) == id);
-        if (idx >= 0) {
-          nearbyDrivers = List<Map<String, dynamic>>.from(nearbyDrivers)
-            ..[idx] = driver;
-        } else {
-          nearbyDrivers = [...nearbyDrivers, driver];
-        }
-      }
-
-      if (data['route_change_status'] is String) {
-        routeChangeStatus = data['route_change_status'].toString();
-      }
-
-      if (data['event_type'] == 'route_changed' && data['addresses'] is List) {
+      if (accepted && data['addresses'] is List) {
         final rawAddrs = (data['addresses'] as List)
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
             .toList();
-        // Backend sends raw waypoints [{address, lat, lng}].
-        // ensureRoutePolyline() expects segment format [{from_lat, from_lon, to_lat, to_lon}].
+
         final newAddresses = <Map<String, dynamic>>[];
         for (var i = 0; i < rawAddrs.length - 1; i++) {
           final a = rawAddrs[i];
@@ -388,24 +336,16 @@ class ActiveTripVM extends ViewModelBase {
             'to_lon': b['lng'],
           });
         }
-        if (newAddresses.isNotEmpty) addresses = newAddresses;
-        routeChangeStatus = 'accepted';
-        ensureRoutePolyline();
-      }
-      if (data['event_type'] == 'route_change_rejected') {
-        routeChangeStatus = 'rejected';
+
+        if (newAddresses.isNotEmpty) {
+          addresses = newAddresses;
+          ensureRoutePolyline();
+        }
       }
 
-      if (statusId == 11 || statusId == 3 || statusId == 2) {
-        ActiveTripSessionStore.clear();
-      } else {
-        _persistSession();
-      }
-      _refreshStatusText();
-      update(() {});
-    } catch (e) {
-      Logger().e('ActiveTripVM parse error: $e');
-    }
+      NotificationService().handleEvent('route.change_result', data);
+      if (context.mounted) update(() {});
+    });
   }
 
   List<Map<String, dynamic>> _extractAddresses(Map data) {
@@ -453,7 +393,8 @@ class ActiveTripVM extends ViewModelBase {
         break;
       case 4:
       default:
-        statusText = noDriversFound ? 'Водители не найдены' : 'Ищем водителя...';
+        statusText =
+            noDriversFound ? 'Водители не найдены' : 'Ищем водителя...';
     }
   }
 
@@ -461,13 +402,15 @@ class ActiveTripVM extends ViewModelBase {
     if (nextStatus == null) return;
     if (statusId == null) {
       statusId = nextStatus;
+      noDriversFound = false;
       return;
     }
 
     final current = _statusPriority[statusId!] ?? statusId!;
     final next = _statusPriority[nextStatus] ?? nextStatus;
     // Разрешаем «откат» 14→6/7: если 14 пришёл по ошибке (до верификации), сервер пришлёт 6/7.
-    final allowRollback = statusId == 14 && (nextStatus == 6 || nextStatus == 7);
+    final allowRollback =
+        statusId == 14 && (nextStatus == 6 || nextStatus == 7);
     // Do not roll back from more advanced states (e.g. 13 -> 4).
     if (next >= current ||
         nextStatus == 2 ||
@@ -476,27 +419,56 @@ class ActiveTripVM extends ViewModelBase {
         allowRollback) {
       final wasArrived = statusId == 6 || statusId == 7;
       statusId = nextStatus;
-      if (nextStatus == 14 || nextStatus == 15) {
+      noDriversFound = false;
+      if (nextStatus == 6 || nextStatus == 7 || nextStatus == 15) {
+        _startStatusPolling();
+      }
+      if (nextStatus == 14) {
         _stopStatusPolling();
         // Закрыть окно QR/PIN при переходе из «ожидание» в «поездка началась»
         if (wasArrived) onTripStarted?.call();
       }
+      if (nextStatus == 11 || nextStatus == 2 || nextStatus == 3) {
+        _stopStatusPolling();
+      }
     }
   }
 
-  Future<void> cancelSearchOrTrip() async {
-    if (isBusy) return;
+  Future<bool> cancelSearchOrTrip() async {
+    if (isBusy) return false;
     isBusy = true;
     update(() {});
     try {
-      if (isSearching && _socket != null && orderId != null) {
-        _socket!.send('order.cancel', {'order_id': orderId});
-      } else if (orderId != null) {
-        await NannyOrdersApi.cancelOrder(orderId: orderId!);
+      if (orderId == null) {
+        if (context.mounted) {
+          await NannyDialogs.showMessageBox(
+            context,
+            'Ошибка',
+            'Не удалось определить активную поездку для отмены.',
+          );
+        }
+        return false;
       }
+
+      final result = await NannyOrdersApi.cancelOrder(orderId: orderId!);
+      if (!result.success) {
+        if (context.mounted) {
+          await NannyDialogs.showMessageBox(
+            context,
+            'Ошибка',
+            result.errorMessage.isNotEmpty
+                ? result.errorMessage
+                : 'Не удалось отменить поездку. Попробуйте ещё раз.',
+          );
+        }
+        return false;
+      }
+
       statusId = 3;
       statusText = 'Поездка отменена';
+      token = null;
       await ActiveTripSessionStore.clear();
+      return true;
     } finally {
       isBusy = false;
       update(() {});
@@ -521,9 +493,12 @@ class ActiveTripVM extends ViewModelBase {
     }
   }
 
-  List<Map<String, dynamic>> buildRouteChangePayload(AddressData newDestination) {
-    final first = addresses.isNotEmpty ? addresses.first : const <String, dynamic>{};
-    final fromAddress = (first['from_address'] ?? first['from'] ?? '').toString();
+  List<Map<String, dynamic>> buildRouteChangePayload(
+      AddressData newDestination) {
+    final first =
+        addresses.isNotEmpty ? addresses.first : const <String, dynamic>{};
+    final fromAddress =
+        (first['from_address'] ?? first['from'] ?? '').toString();
     final fromLat = (first['from_lat'] as num?)?.toDouble() ?? 0.0;
     final fromLon = (first['from_lon'] as num?)?.toDouble() ?? 0.0;
 
@@ -631,6 +606,80 @@ class ActiveTripVM extends ViewModelBase {
     );
   }
 
+  List<Map<String, dynamic>> _extractActiveOrders(dynamic rawOrders) {
+    if (rawOrders is! List) return const [];
+    return rawOrders.whereType<Map>().map((raw) {
+      return Map<String, dynamic>.from(raw);
+    }).where((order) {
+      final sid = _toInt(order['id_status']);
+      return sid != null && sid != 2 && sid != 3 && sid != 11;
+    }).toList(growable: false);
+  }
+
+  Map<String, dynamic>? _selectActiveOrder(
+    List<Map<String, dynamic>> activeOrders, {
+    bool allowFallback = false,
+  }) {
+    if (activeOrders.isEmpty) return null;
+
+    if (orderId != null) {
+      for (final order in activeOrders) {
+        if (_toInt(order['id_order']) == orderId) return order;
+      }
+    }
+
+    final preferredToken = token ?? initialToken;
+    if (preferredToken != null && preferredToken.isNotEmpty) {
+      for (final order in activeOrders) {
+        final orderToken = order['token']?.toString();
+        if (orderToken != null &&
+            orderToken.isNotEmpty &&
+            orderToken == preferredToken) {
+          return order;
+        }
+      }
+    }
+
+    return allowFallback ? activeOrders.first : null;
+  }
+
+  void _applyOrderSnapshot(
+    Map<String, dynamic> activeOrder, {
+    bool updateRoute = true,
+  }) {
+    token = (activeOrder['token'] ?? token ?? '').toString();
+    orderId = _toInt(activeOrder['id_order']) ?? orderId;
+    statusId = _toInt(activeOrder['id_status']) ?? statusId;
+    chatId = _toInt(activeOrder['id_chat']) ?? chatId;
+    addresses = _extractAddresses(activeOrder);
+    children = _extractChildren(activeOrder);
+    if (updateRoute) {
+      ensureRoutePolyline();
+    }
+  }
+
+  bool _matchesTrackedTrip(Map<String, dynamic> data) {
+    final incomingOrderId = _toInt(data['order_id']);
+    if (orderId != null && incomingOrderId != null) {
+      return orderId == incomingOrderId;
+    }
+
+    final trackedToken = token ?? initialToken;
+    final incomingToken = data['token']?.toString();
+    if (trackedToken != null &&
+        trackedToken.isNotEmpty &&
+        incomingToken != null &&
+        incomingToken.isNotEmpty) {
+      return trackedToken == incomingToken;
+    }
+
+    if (orderId != null || (trackedToken != null && trackedToken.isNotEmpty)) {
+      return false;
+    }
+
+    return true;
+  }
+
   int? _toInt(dynamic value) {
     if (value is int) return value;
     if (value is num) return value.toInt();
@@ -638,11 +687,37 @@ class ActiveTripVM extends ViewModelBase {
     return null;
   }
 
+  int? _mapTripStatusToUiStatusId(String? status) {
+    switch (status) {
+      case 'assigned':
+        return 13;
+      case 'driver_departed':
+        return 5;
+      case 'driver_arrived':
+        return 6;
+      case 'child_onboard':
+        return 14;
+      case 'arrived_destination':
+        return 15;
+      case 'completed':
+        return 11;
+      case 'cancelled_by_driver':
+        return 2;
+      case 'cancelled_by_client':
+        return 3;
+      case 'searching':
+        return 4;
+      default:
+        return null;
+    }
+  }
+
   void dispose() {
     _stopStatusPolling();
+    _assignedSub?.cancel();
     _statusSub?.cancel();
+    _cancelledSub?.cancel();
     _locationSub?.cancel();
-    _driversSub?.cancel();
     _expiredSub?.cancel();
     _routeSub?.cancel();
     // Не dispose сокет — он общий синглтон

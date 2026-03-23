@@ -1,14 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/search_query_request.dart';
+import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class HomeVM extends ViewModelBase {
   HomeVM({
     required super.context,
     required super.update,
-    this.onChatSocketReady,
+    this.onRealtimeReady,
   }) {
     initialSetup();
   }
@@ -18,9 +20,11 @@ class HomeVM extends ViewModelBase {
   /// Количество непрочитанных сообщений в чатах (для бейджа на иконке «Чаты»).
   int unreadChatsCount = 0;
 
-  /// Вызывается после того, как ChatsSocket подключён.
-  /// Используется в NewHomeView для подписки на trip_started.
-  final VoidCallback? onChatSocketReady;
+  /// Вызывается после инициализации UnifiedSocket.
+  /// Используется в NewHomeView для root-level realtime подписок.
+  final VoidCallback? onRealtimeReady;
+  UnifiedSocket? _socket;
+  final List<StreamSubscription<Map<String, dynamic>>> _rootRealtimeSubs = [];
 
   void indexChanged(int index) {
     update(() => currentIndex = index);
@@ -42,15 +46,48 @@ class HomeVM extends ViewModelBase {
   }
 
   void initialSetup() async {
-    await NannyGlobals.initChatSocket();
-    onChatSocketReady?.call();
+    try {
+      _socket = await UnifiedSocket.connect();
+      onRealtimeReady?.call();
+      _bindRootRealtimeListeners();
+    } catch (e, st) {
+      debugPrint('[HomeVM] UnifiedSocket init error: $e\n$st');
+    }
+
     refreshUnreadChatsCount();
-    NannyGlobals.chatsSocket.stream.listen((_) {
-      refreshUnreadChatsCount();
-    });
 
     if (Platform.isAndroid || Platform.isIOS) {
       FirebaseMessagingHandler.checkInitialMessage();
     }
+  }
+
+  void _bindRootRealtimeListeners() {
+    for (final sub in _rootRealtimeSubs) {
+      sub.cancel();
+    }
+    _rootRealtimeSubs.clear();
+
+    final socket = _socket;
+    if (socket == null) return;
+
+    void refreshOnEvent(Map<String, dynamic> _) {
+      refreshUnreadChatsCount();
+    }
+
+    for (final event in const [
+      'connected',
+      'chat.unread_changed',
+      'chat.message_created',
+      'chat.message_edited',
+    ]) {
+      _rootRealtimeSubs.add(socket.on(event).listen(refreshOnEvent));
+    }
+  }
+
+  void dispose() {
+    for (final sub in _rootRealtimeSubs) {
+      sub.cancel();
+    }
+    _rootRealtimeSubs.clear();
   }
 }

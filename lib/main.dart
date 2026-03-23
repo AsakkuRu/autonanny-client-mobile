@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,9 +21,22 @@ final LocaleNotifier localeNotifier = LocaleNotifier();
 
 DateTime? _lastBackPressAt;
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+Future<void> main() async {
+  await runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    configureAppLogging(appName: 'client');
+    _configureGlobalErrorHandling();
+    await _bootstrapApp();
+  }, (error, stackTrace) {
+    Logger().f(
+      'Unhandled zone error',
+      error: error,
+      stackTrace: stackTrace,
+    );
+  });
+}
 
+Future<void> _bootstrapApp() async {
   // BUG-140326-011: кнопка «Назад» — навигация внутри приложения, на корне — двойное нажатие для выхода
   SystemChannels.navigation.setMethodCallHandler((call) async {
     if (call.method == 'popRoute') {
@@ -99,12 +114,12 @@ void main() async {
   NannyLocalAuth.init();
 
   await NannyStorage.init(isClient: true);
-  
+
   // Firebase Messaging только для мобильных
   if (Platform.isAndroid || Platform.isIOS) {
     FirebaseMessagingHandler.init();
   }
-  
+
   AppLinksHandler.initAppLinkHandler();
 
   Logger().d(
@@ -121,6 +136,26 @@ void main() async {
       ),
     ),
   );
+}
+
+void _configureGlobalErrorHandling() {
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    Logger().f(
+      'Unhandled Flutter framework error',
+      error: details.exception,
+      stackTrace: details.stack,
+    );
+  };
+
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    Logger().f(
+      'Unhandled platform error',
+      error: error,
+      stackTrace: stackTrace,
+    );
+    return true;
+  };
 }
 
 class MainApp extends StatelessWidget {

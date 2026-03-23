@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:nanny_client/analytics/new_main_screen_analytics.dart';
+import 'package:nanny_client/view_models/new_main/active_trip/active_trip_resolver.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart';
 import 'package:nanny_components/dialogs/loading.dart';
@@ -62,16 +63,15 @@ class NewClientMainVM extends ViewModelBase {
   // ─────────────────────────────────────────────────────────────────────────
 
   void _syncMarkersWithAddresses() {
-    final currentPosMarkers = markers.value
-        .where((m) => m.markerId == NannyConsts.curPosId)
-        .toList();
+    final currentPosMarkers =
+        markers.value.where((m) => m.markerId == NannyConsts.curPosId).toList();
     final updated = <Marker>{...currentPosMarkers};
     for (var i = 0; i < addresses.length; i++) {
       final addr = addresses[i];
       final hue = i == 0
-          ? BitmapDescriptor.hueBlue   // ОТКУДА — синий
+          ? BitmapDescriptor.hueBlue // ОТКУДА — синий
           : i == addresses.length - 1
-              ? BitmapDescriptor.hueRed  // КУДА — красный
+              ? BitmapDescriptor.hueRed // КУДА — красный
               : BitmapDescriptor.hueViolet; // промежуточные
       updated.add(Marker(
         markerId: MarkerId('addr_$i'),
@@ -111,12 +111,11 @@ class NewClientMainVM extends ViewModelBase {
     if (!geocodeData.success || geocodeData.response == null) return;
     final formatted = NannyMapUtils.filterGeocodeData(geocodeData.response!);
     final newAddr = AddressData(
-      address: NannyMapUtils.simplifyAddress(
-          formatted.address.formattedAddress),
+      address:
+          NannyMapUtils.simplifyAddress(formatted.address.formattedAddress),
       location: latLng,
     );
-    if (selectedAddressIndex >= 0 &&
-        selectedAddressIndex < addresses.length) {
+    if (selectedAddressIndex >= 0 && selectedAddressIndex < addresses.length) {
       // Заполняем активное поле
       onChange(addresses[selectedAddressIndex], newAddr);
       // Не сбрасываем selectedAddressIndex — пользователь может продолжать корректировать
@@ -172,8 +171,7 @@ class NewClientMainVM extends ViewModelBase {
   DriveTariff? selectedTariff;
 
   void selectTariff(DriveTariff tariff) {
-    NewMainScreenAnalytics.tariffSelected(
-        tariff.id ?? 0, tariff.title ?? '');
+    NewMainScreenAnalytics.tariffSelected(tariff.id ?? 0, tariff.title ?? '');
     update(() => selectedTariff = tariff);
   }
 
@@ -212,15 +210,11 @@ class NewClientMainVM extends ViewModelBase {
       distance /= 1000;
       duration /= 60;
       if (distance > 0 && duration > 0) {
-        final res = await DioRequest.handle(
-            context,
-            NannyOrdersApi.getOnetimePrices(
-                duration.ceil(), distance.ceil()));
+        final res = await DioRequest.handle(context,
+            NannyOrdersApi.getOnetimePrices(duration.ceil(), distance.ceil()));
         if (res.success && res.data != null) {
           for (final tar in tariffs) {
-            final p = res.data!
-                .where((e) => e.id == tar.id)
-                .firstOrNull;
+            final p = res.data!.where((e) => e.id == tar.id).firstOrNull;
             if (p != null) tar.amount = p.amount ?? tar.amount;
           }
         }
@@ -244,7 +238,8 @@ class NewClientMainVM extends ViewModelBase {
   bool isChildSelected(ChildShort child) =>
       _selectedChildIds.contains(child.id);
 
-  void toggleChild(ChildShort child, {required void Function(String) showToast}) {
+  void toggleChild(ChildShort child,
+      {required void Function(String) showToast}) {
     if (_selectedChildIds.contains(child.id)) {
       _selectedChildIds.remove(child.id);
       NewMainScreenAnalytics.childDeselected(child.id);
@@ -274,10 +269,11 @@ class NewClientMainVM extends ViewModelBase {
 
   // ─── Валидация и отправка ─────────────────────────────────────────────────
 
-  bool get canOrder =>
-      addresses.length >= 2 && _selectedChildIds.isNotEmpty;
+  bool get canOrder => addresses.length >= 2 && _selectedChildIds.isNotEmpty;
 
   Future<void> searchForDrivers() async {
+    if (await _redirectToActiveTripIfNeeded()) return;
+
     NewMainScreenAnalytics.ctaTapped(
       selectedChildrenCount: _selectedChildIds.length,
       tariffId: selectedTariff?.id,
@@ -303,8 +299,8 @@ class NewClientMainVM extends ViewModelBase {
 
     final driveAddresses = <DriveAddress>[];
     for (int i = 0; i < addresses.length - 1; i++) {
-      driveAddresses.add(DriveAddress(
-          fromAddress: addresses[i], toAddress: addresses[i + 1]));
+      driveAddresses.add(
+          DriveAddress(fromAddress: addresses[i], toAddress: addresses[i + 1]));
     }
 
     try {
@@ -325,6 +321,9 @@ class NewClientMainVM extends ViewModelBase {
       );
 
       if (!res.success || res.data == null) {
+        if (res.errorMessage == 'У вас уже есть активная поездка') {
+          await _redirectToActiveTripIfNeeded();
+        }
         NewMainScreenAnalytics.orderFailed(res.toString());
         return;
       }
@@ -351,6 +350,42 @@ class NewClientMainVM extends ViewModelBase {
         _showError('Не удалось создать заказ: $e');
       }
     }
+  }
+
+  Future<bool> _redirectToActiveTripIfNeeded() async {
+    final activeTrip = await ActiveTripResolver.resolveCurrentActiveTrip();
+    if (activeTrip == null || !context.mounted) return false;
+
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Активная поездка'),
+        content: const Text(
+          'У вас уже есть активная поездка. Перейти к ней вместо создания новой?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('К поездке'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldOpen == true && context.mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ActiveTripScreen(token: activeTrip.token),
+        ),
+      );
+    }
+
+    return true;
   }
 
   void _showError(String msg) {

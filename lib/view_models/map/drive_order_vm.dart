@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
+import 'package:nanny_client/view_models/new_main/active_trip/active_trip_resolver.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart';
 import 'package:nanny_components/dialogs/loading.dart';
@@ -90,7 +91,7 @@ class DriveOrderVM extends ViewModelBase {
           return;
         }
       }
-      
+
       if (permission == LocationPermission.deniedForever) {
         return;
       }
@@ -100,7 +101,7 @@ class DriveOrderVM extends ViewModelBase {
       );
       LocationService.curLoc = v;
       print('current location $v');
-      
+
       update(() {
         addresses = [
           AddressData(
@@ -135,7 +136,8 @@ class DriveOrderVM extends ViewModelBase {
 
     var formatted = NannyMapUtils.filterGeocodeData(geocodeData.response!);
     final newAddress = AddressData(
-      address: NannyMapUtils.simplifyAddress(formatted.address.formattedAddress),
+      address:
+          NannyMapUtils.simplifyAddress(formatted.address.formattedAddress),
       location: latLng,
     );
 
@@ -143,7 +145,9 @@ class DriveOrderVM extends ViewModelBase {
     if (selectedAddressIndex >= 0 && selectedAddressIndex < addresses.length) {
       final oldAddress = addresses[selectedAddressIndex];
       onChange(oldAddress, newAddress);
-      update(() { selectedAddressIndex = -1; });
+      update(() {
+        selectedAddressIndex = -1;
+      });
     } else if (addresses.length < 2) {
       // Автоматически добавляем второй адрес (конечную точку)
       onAdd(newAddress);
@@ -257,8 +261,11 @@ class DriveOrderVM extends ViewModelBase {
   }
 
   void searchForDrivers() async {
+    if (await _redirectToActiveTripIfNeeded()) return;
+
     if (addresses.length < 2) {
-      NannyDialogs.showMessageBox(context, 'Ошибка', 'Укажите минимум 2 адреса');
+      NannyDialogs.showMessageBox(
+          context, 'Ошибка', 'Укажите минимум 2 адреса');
       return;
     }
     if (selectedTariff == null) {
@@ -266,7 +273,8 @@ class DriveOrderVM extends ViewModelBase {
       return;
     }
     if (LocationService.curLoc == null) {
-      NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось определить ваше местоположение');
+      NannyDialogs.showMessageBox(
+          context, 'Ошибка', 'Не удалось определить ваше местоположение');
       return;
     }
 
@@ -290,7 +298,12 @@ class DriveOrderVM extends ViewModelBase {
               idTariff: selectedTariff!.id,
               otherParametrs: [])));
 
-      if (!res.success || res.data == null) return;
+      if (!res.success || res.data == null) {
+        if (res.errorMessage == 'У вас уже есть активная поездка') {
+          await _redirectToActiveTripIfNeeded();
+        }
+        return;
+      }
 
       if (!context.mounted) return;
       await ActiveTripSessionStore.save(
@@ -306,9 +319,46 @@ class DriveOrderVM extends ViewModelBase {
     } catch (e) {
       Logger().e('searchForDrivers error: $e');
       if (context.mounted) {
-        NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось создать заказ: $e');
+        NannyDialogs.showMessageBox(
+            context, 'Ошибка', 'Не удалось создать заказ: $e');
       }
     }
+  }
+
+  Future<bool> _redirectToActiveTripIfNeeded() async {
+    final activeTrip = await ActiveTripResolver.resolveCurrentActiveTrip();
+    if (activeTrip == null || !context.mounted) return false;
+
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Активная поездка'),
+        content: const Text(
+          'У вас уже есть активная поездка. Перейти к ней вместо создания новой?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('К поездке'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldOpen == true && context.mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ActiveTripScreen(token: activeTrip.token),
+        ),
+      );
+    }
+
+    return true;
   }
 
   void selectTariff(DriveTariff tariff) {

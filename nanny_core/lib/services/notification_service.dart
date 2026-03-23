@@ -24,6 +24,7 @@ class NotificationConfig {
 }
 
 enum NotificationPriority { max, high, defaultPriority, low }
+
 enum InAppStyle { banner, toast, dialog, none }
 
 /// Единый сервис уведомлений.
@@ -35,7 +36,7 @@ enum InAppStyle { banner, toast, dialog, none }
 /// Использование:
 /// ```dart
 /// NotificationService().init(navigatorKey);
-/// NotificationService().handleEvent('order.status_changed', {'order_id': 42, 'status': 13});
+/// NotificationService().handleEvent('trip.status_changed', {'order_id': 42, 'status': 'assigned'});
 /// ```
 class NotificationService {
   static final NotificationService _instance = NotificationService._();
@@ -48,13 +49,15 @@ class NotificationService {
   int _notificationId = 0;
 
   // Колбэк для in-app уведомлений (устанавливается UI-слоем)
-  void Function(String title, String body, InAppStyle style)? onInAppNotification;
+  void Function(String title, String body, InAppStyle style)?
+      onInAppNotification;
 
   /// Инициализация.
   Future<void> init([GlobalKey<NavigatorState>? navigatorKey]) async {
     _navigatorKey = navigatorKey;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -120,8 +123,11 @@ class NotificationService {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-            if (body.isNotEmpty) Text(body, style: const TextStyle(color: Colors.white70)),
+            Text(title,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: Colors.white)),
+            if (body.isNotEmpty)
+              Text(body, style: const TextStyle(color: Colors.white70)),
           ],
         ),
         behavior: SnackBarBehavior.floating,
@@ -160,7 +166,9 @@ class NotificationService {
   // ── Local Notification ────────────────────────────────────────
 
   Future<void> _showLocalNotification(
-    String title, String body, NotificationConfig config,
+    String title,
+    String body,
+    NotificationConfig config,
   ) async {
     final importance = _mapImportance(config.priority);
     final priority = _mapPriority(config.priority);
@@ -192,9 +200,10 @@ class NotificationService {
     // События без уведомлений
     if (_silentEvents.contains(event)) return null;
 
-    // Специальная обработка для order.status_changed (зависит от статуса)
-    if (event == 'order.status_changed') {
-      final status = data['status'];
+    // Специальная обработка для trip.status_changed (зависит от канонического статуса)
+    if (event == 'trip.status_changed') {
+      final status = data['status']?.toString();
+      if (status == null || status.isEmpty) return null;
       return _statusConfigs[status];
     }
 
@@ -202,12 +211,17 @@ class NotificationService {
   }
 
   static const _silentEvents = {
-    'connected', 'pong', 'order.driver_location', 'order.drivers_nearby', 'order.taken',
+    'connected',
+    'pong',
+    'subscriptions.updated',
+    'driver.position_updated',
+    'chat.unread_changed',
+    'trip.assigned',
   };
 
-  /// Конфигурации по статусу заказа
-  static final Map<int, NotificationConfig> _statusConfigs = {
-    13: const NotificationConfig(
+  /// Конфигурации по каноническому trip status
+  static final Map<String, NotificationConfig> _statusConfigs = {
+    'assigned': const NotificationConfig(
       titleTemplate: 'Водитель найден!',
       bodyTemplate: 'Водитель принял ваш заказ',
       priority: NotificationPriority.high,
@@ -215,14 +229,14 @@ class NotificationService {
       inAppStyle: InAppStyle.banner,
       channelId: 'trip_status_channel',
     ),
-    5: const NotificationConfig(
+    'driver_departed': const NotificationConfig(
       titleTemplate: 'Водитель в пути',
       bodyTemplate: 'Водитель едет к точке посадки',
       priority: NotificationPriority.high,
       inAppStyle: InAppStyle.banner,
       channelId: 'trip_status_channel',
     ),
-    6: const NotificationConfig(
+    'driver_arrived': const NotificationConfig(
       titleTemplate: 'Водитель прибыл!',
       bodyTemplate: 'Водитель ожидает на месте',
       priority: NotificationPriority.max,
@@ -230,15 +244,7 @@ class NotificationService {
       inAppStyle: InAppStyle.banner,
       channelId: 'trip_status_channel',
     ),
-    7: const NotificationConfig(
-      titleTemplate: 'Водитель прибыл!',
-      bodyTemplate: 'Водитель ожидает на месте',
-      priority: NotificationPriority.max,
-      playSound: true,
-      inAppStyle: InAppStyle.banner,
-      channelId: 'trip_status_channel',
-    ),
-    14: const NotificationConfig(
+    'child_onboard': const NotificationConfig(
       titleTemplate: 'Ребёнок в машине',
       bodyTemplate: 'Поездка началась',
       priority: NotificationPriority.max,
@@ -246,21 +252,21 @@ class NotificationService {
       inAppStyle: InAppStyle.banner,
       channelId: 'trip_status_channel',
     ),
-    15: const NotificationConfig(
+    'arrived_destination': const NotificationConfig(
       titleTemplate: 'Почти приехали',
       bodyTemplate: 'Водитель приближается к месту назначения',
       priority: NotificationPriority.high,
       inAppStyle: InAppStyle.banner,
       channelId: 'trip_status_channel',
     ),
-    11: const NotificationConfig(
+    'completed': const NotificationConfig(
       titleTemplate: 'Поездка завершена',
       bodyTemplate: 'Ваша поездка успешно завершена',
       priority: NotificationPriority.high,
       inAppStyle: InAppStyle.dialog,
       channelId: 'trip_status_channel',
     ),
-    2: const NotificationConfig(
+    'cancelled_by_driver': const NotificationConfig(
       titleTemplate: 'Водитель отменил поездку',
       bodyTemplate: 'Поиск нового водителя...',
       priority: NotificationPriority.max,
@@ -268,7 +274,7 @@ class NotificationService {
       inAppStyle: InAppStyle.dialog,
       channelId: 'trip_status_channel',
     ),
-    3: const NotificationConfig(
+    'cancelled_by_client': const NotificationConfig(
       titleTemplate: 'Поездка отменена',
       bodyTemplate: 'Заказ был отменён',
       priority: NotificationPriority.high,
@@ -286,23 +292,15 @@ class NotificationService {
       inAppStyle: InAppStyle.dialog,
       channelId: 'trip_status_channel',
     ),
-    'order.cancelled': const NotificationConfig(
-      titleTemplate: 'Заказ отменён',
-      bodyTemplate: 'Клиент отменил заказ',
+    'trip.cancelled': const NotificationConfig(
+      titleTemplate: 'Поездка отменена',
+      bodyTemplate: 'Поездка была отменена',
       priority: NotificationPriority.high,
       playSound: true,
       inAppStyle: InAppStyle.banner,
       channelId: 'trip_status_channel',
     ),
-    'order.new_available': const NotificationConfig(
-      titleTemplate: 'Новый заказ рядом!',
-      bodyTemplate: 'Откройте приложение для просмотра',
-      priority: NotificationPriority.max,
-      playSound: true,
-      inAppStyle: InAppStyle.banner,
-      channelId: 'order_channel',
-    ),
-    'chat.message': const NotificationConfig(
+    'chat.message_created': const NotificationConfig(
       titleTemplate: 'Новое сообщение',
       bodyTemplate: '{text}',
       priority: NotificationPriority.defaultPriority,
@@ -337,19 +335,27 @@ class NotificationService {
 
   Importance _mapImportance(NotificationPriority p) {
     switch (p) {
-      case NotificationPriority.max: return Importance.max;
-      case NotificationPriority.high: return Importance.high;
-      case NotificationPriority.defaultPriority: return Importance.defaultImportance;
-      case NotificationPriority.low: return Importance.low;
+      case NotificationPriority.max:
+        return Importance.max;
+      case NotificationPriority.high:
+        return Importance.high;
+      case NotificationPriority.defaultPriority:
+        return Importance.defaultImportance;
+      case NotificationPriority.low:
+        return Importance.low;
     }
   }
 
   Priority _mapPriority(NotificationPriority p) {
     switch (p) {
-      case NotificationPriority.max: return Priority.max;
-      case NotificationPriority.high: return Priority.high;
-      case NotificationPriority.defaultPriority: return Priority.defaultPriority;
-      case NotificationPriority.low: return Priority.low;
+      case NotificationPriority.max:
+        return Priority.max;
+      case NotificationPriority.high:
+        return Priority.high;
+      case NotificationPriority.defaultPriority:
+        return Priority.defaultPriority;
+      case NotificationPriority.low:
+        return Priority.low;
     }
   }
 }

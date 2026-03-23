@@ -10,8 +10,6 @@ export 'api/nanny_static_data_api.dart';
 export 'api/nanny_admin_api.dart';
 export 'api/nanny_driver_api.dart';
 
-export 'api/web_sockets/chats_socket.dart';
-
 export 'api/api_models/base_models/api_response.dart';
 export 'api/api_models/base_models/base_request.dart';
 
@@ -24,6 +22,7 @@ export 'nanny_globals.dart';
 export 'nanny_user.dart';
 export 'nanny_utils.dart';
 export 'nanny_search_delegate.dart';
+export 'logging/dev_logging.dart';
 export 'map_services/nanny_map_globals.dart';
 export 'card_checker.dart';
 export 'constants.dart';
