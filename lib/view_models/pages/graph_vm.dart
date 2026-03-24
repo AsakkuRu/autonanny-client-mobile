@@ -36,6 +36,7 @@ class GraphVM extends ViewModelBase {
   bool _selectNewestOnNextLoad = false;
 
   StreamSubscription<dynamic>? _scheduleUpdatesSub;
+  StreamSubscription<dynamic>? _connectedSub;
   DateTime? _lastResponsesLoadAt;
   static const _responsesDebounceMs = 500;
 
@@ -65,23 +66,43 @@ class GraphVM extends ViewModelBase {
   /// Подписка на уведомления о новых откликах водителей по UnifiedSocket.
   void startScheduleUpdatesListener() {
     _scheduleUpdatesSub?.cancel();
+    _connectedSub?.cancel();
     unawaited(_bindScheduleUpdatesListener());
   }
 
   Future<void> _bindScheduleUpdatesListener() async {
     try {
       final socket = UnifiedSocket.instance ?? await UnifiedSocket.connect();
+      _setContractResponsesSubscription(socket, true);
       _scheduleUpdatesSub = socket.on('contract.responses.updated').listen((_) {
         reloadPage(); // FIX-005: перезагрузить полностью, чтобы подтянуть is_paused
+      });
+      _connectedSub = socket.on('connected').listen((_) {
+        _setContractResponsesSubscription(socket, true);
       });
     } catch (e, st) {
       Logger().e('GraphVM unified schedule listener error: $e\n$st');
     }
   }
 
+  void _setContractResponsesSubscription(
+    UnifiedSocket socket,
+    bool enabled,
+  ) {
+    socket.send('subscriptions.update', {
+      'subscriptions': {'contract.responses': enabled}
+    });
+  }
+
   void stopScheduleUpdatesListener() {
     _scheduleUpdatesSub?.cancel();
+    _connectedSub?.cancel();
+    final socket = UnifiedSocket.instance;
+    if (socket != null && socket.connected) {
+      _setContractResponsesSubscription(socket, false);
+    }
     _scheduleUpdatesSub = null;
+    _connectedSub = null;
   }
 
   List<NannyWeekday> selectedWeekday = [

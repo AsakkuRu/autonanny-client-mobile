@@ -13,6 +13,7 @@ import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/app_link_handler.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/nanny_local_auth.dart';
+import 'package:nanny_core/services/notification_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'firebase_options.dart';
 
@@ -96,6 +97,7 @@ Future<void> _bootstrapApp() async {
 
   DioRequest.init();
   DioRequest.initDebugLogs();
+  await NotificationService().init(NannyGlobals.navKey);
 
   NannyConsts.setLoginPaths([
     LoginPath(

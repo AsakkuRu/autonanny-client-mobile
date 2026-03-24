@@ -132,7 +132,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
   Future<void> _showMeetingCodeQR() async {
     if (vm.isBusy) return;
-    final data = await vm.fetchMeetingCodeForOrder();
+    final data = await vm.fetchMeetingCodeForTrip();
     if (!mounted) return;
     if (data == null) {
       NannyDialogs.showMessageBox(
@@ -144,7 +144,9 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     }
     final meetingCode = data['meeting_code'] as String?;
     final orderId = data['order_id'] as int?;
-    if (meetingCode == null || meetingCode.isEmpty || orderId == null) {
+    final scheduleRoadId = data['schedule_road_id'] as int?;
+    final verificationScope = data['verification_scope'] as String? ?? 'order';
+    if (meetingCode == null || meetingCode.isEmpty) {
       NannyDialogs.showMessageBox(
         context,
         'Код недоступен',
@@ -152,7 +154,19 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       );
       return;
     }
-    final qrData = 'order:$orderId:$meetingCode';
+    final String qrData;
+    if (verificationScope == 'schedule' && scheduleRoadId != null) {
+      qrData = 'schedule:$scheduleRoadId:$meetingCode';
+    } else if (orderId != null) {
+      qrData = 'order:$orderId:$meetingCode';
+    } else {
+      NannyDialogs.showMessageBox(
+        context,
+        'Код недоступен',
+        'Не удалось определить тип поездки для верификации.',
+      );
+      return;
+    }
     _isQrDialogOpen = true;
     await DriverQRDialog.show(
       context,
@@ -424,32 +438,27 @@ class _LiveTripMapState extends State<_LiveTripMap> {
       );
     }
 
-    if (widget.vm.addresses.isNotEmpty) {
-      final first = widget.vm.addresses.first;
-      final from = _addressLatLng(first, isFrom: true);
-      final to = _addressLatLng(first, isFrom: false);
-      if (from != null) {
-        result.add(
-          Marker(
-            markerId: const MarkerId('route_from'),
-            position: from,
-            icon:
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-            infoWindow: const InfoWindow(title: 'Откуда'),
-          ),
-        );
-      }
-      if (to != null) {
-        result.add(
-          Marker(
-            markerId: const MarkerId('route_to'),
-            position: to,
-            icon:
-                BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-            infoWindow: const InfoWindow(title: 'Куда'),
-          ),
-        );
-      }
+    final routePoints = _routePoints();
+    for (var i = 0; i < routePoints.length; i++) {
+      final point = routePoints[i];
+      final markerHue = i == 0
+          ? BitmapDescriptor.hueBlue
+          : i == routePoints.length - 1
+              ? BitmapDescriptor.hueRed
+              : BitmapDescriptor.hueOrange;
+      final markerTitle = i == 0
+          ? 'Откуда'
+          : i == routePoints.length - 1
+              ? 'Куда'
+              : 'Промежуточная точка $i';
+      result.add(
+        Marker(
+          markerId: MarkerId('route_point_$i'),
+          position: point.position,
+          icon: BitmapDescriptor.defaultMarkerWithHue(markerHue),
+          infoWindow: InfoWindow(title: markerTitle, snippet: point.label),
+        ),
+      );
     }
     return result;
   }
@@ -457,26 +466,19 @@ class _LiveTripMapState extends State<_LiveTripMap> {
   LatLng _resolveCenter() {
     final driver = _driverLatLng();
     if (driver != null) return driver;
-    if (widget.vm.addresses.isNotEmpty) {
-      final first = widget.vm.addresses.first;
-      final from = _addressLatLng(first, isFrom: true);
-      if (from != null) return from;
-      final to = _addressLatLng(first, isFrom: false);
-      if (to != null) return to;
+    final routePoints = _routePoints();
+    if (routePoints.isNotEmpty) {
+      return routePoints.first.position;
     }
     return const LatLng(55.751244, 37.618423);
   }
 
+  List<_RouteDisplayPoint> _routePoints() =>
+      _buildRouteDisplayPoints(widget.vm.addresses);
+
   LatLng? _driverLatLng() {
     final lat = _toDouble(widget.vm.driverLocation?['lat']);
     final lon = _toDouble(widget.vm.driverLocation?['lon']);
-    if (lat == null || lon == null) return null;
-    return LatLng(lat, lon);
-  }
-
-  LatLng? _addressLatLng(Map<String, dynamic> data, {required bool isFrom}) {
-    final lat = _toDouble(data[isFrom ? 'from_lat' : 'to_lat']);
-    final lon = _toDouble(data[isFrom ? 'from_lon' : 'to_lon']);
     if (lat == null || lon == null) return null;
     return LatLng(lat, lon);
   }
@@ -722,15 +724,65 @@ class _TripSheet extends StatelessWidget {
   }
 
   String _routeLabel(List<Map<String, dynamic>> addresses) {
-    if (addresses.isEmpty) return 'Маршрут уточняется';
-    final first = addresses.first;
-    final from = (first['from_address'] ?? first['from'] ?? '').toString();
-    final to = (first['to_address'] ?? first['to'] ?? '').toString();
-    if (from.isEmpty && to.isEmpty) return 'Маршрут уточняется';
-    if (from.isEmpty) return to;
-    if (to.isEmpty) return from;
-    return '$from → $to';
+    final labels = _buildRouteDisplayPoints(addresses)
+        .map((point) => point.label)
+        .where((label) => label.isNotEmpty)
+        .toList(growable: false);
+    if (labels.isEmpty) return 'Маршрут уточняется';
+    return labels.join(' → ');
   }
+}
+
+class _RouteDisplayPoint {
+  const _RouteDisplayPoint({
+    required this.label,
+    required this.position,
+  });
+
+  final String label;
+  final LatLng position;
+}
+
+List<_RouteDisplayPoint> _buildRouteDisplayPoints(
+  List<Map<String, dynamic>> addresses,
+) {
+  if (addresses.isEmpty) return const [];
+
+  final points = <_RouteDisplayPoint>[];
+  final first = addresses.first;
+  final firstLabel = (first['from_address'] ?? first['from'] ?? '').toString();
+  final firstLat = _routeValueToDouble(first['from_lat']);
+  final firstLon = _routeValueToDouble(first['from_lon']);
+  if (firstLabel.isNotEmpty && firstLat != null && firstLon != null) {
+    points.add(
+      _RouteDisplayPoint(
+        label: firstLabel,
+        position: LatLng(firstLat, firstLon),
+      ),
+    );
+  }
+
+  for (final segment in addresses) {
+    final label = (segment['to_address'] ?? segment['to'] ?? '').toString();
+    final lat = _routeValueToDouble(segment['to_lat']);
+    final lon = _routeValueToDouble(segment['to_lon']);
+    if (label.isEmpty || lat == null || lon == null) continue;
+    points.add(
+      _RouteDisplayPoint(
+        label: label,
+        position: LatLng(lat, lon),
+      ),
+    );
+  }
+
+  return points;
+}
+
+double? _routeValueToDouble(dynamic value) {
+  if (value is double) return value;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value);
+  return null;
 }
 
 class _SosButton extends StatelessWidget {

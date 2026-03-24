@@ -21,7 +21,14 @@ class MeetingCodeForSchedule {
 class MeetingCodeForOrder {
   final String? meetingCode;
   final int? idOrder;
-  MeetingCodeForOrder({this.meetingCode, this.idOrder});
+  final int? idScheduleRoad;
+  final String? verificationScope;
+  MeetingCodeForOrder({
+    this.meetingCode,
+    this.idOrder,
+    this.idScheduleRoad,
+    this.verificationScope,
+  });
 }
 
 class NannyOrdersApi {
@@ -75,6 +82,8 @@ class NannyOrdersApi {
       onSuccess: (response) => MeetingCodeForOrder(
         meetingCode: response.data["meeting_code"] as String?,
         idOrder: response.data["id_order"] as int?,
+        idScheduleRoad: response.data["id_schedule_road"] as int?,
+        verificationScope: response.data["verification_scope"] as String?,
       ),
       errorCodeMsgs: {403: "Нет доступа к этому заказу"},
     );

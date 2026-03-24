@@ -309,7 +309,7 @@ class NotificationService {
     ),
     'route.change_result': const NotificationConfig(
       titleTemplate: 'Маршрут',
-      bodyTemplate: 'Изменение маршрута обработано',
+      bodyTemplate: '{message}',
       priority: NotificationPriority.defaultPriority,
       inAppStyle: InAppStyle.toast,
     ),

@@ -24,6 +24,7 @@ class ActiveTripVM extends ViewModelBase {
   final VoidCallback? onTripStarted;
 
   UnifiedSocket? _socket;
+  StreamSubscription? _connectedSub;
   StreamSubscription? _assignedSub;
   StreamSubscription? _statusSub;
   StreamSubscription? _cancelledSub;
@@ -31,9 +32,11 @@ class ActiveTripVM extends ViewModelBase {
   StreamSubscription? _expiredSub;
   StreamSubscription? _routeSub;
   Timer? _statusPollTimer;
+  Duration? _statusPollInterval;
 
   String? token;
   int? orderId;
+  int? scheduleRoadId;
   int? chatId;
   int? driverId;
   int? statusId;
@@ -85,24 +88,60 @@ class ActiveTripVM extends ViewModelBase {
 
     await _connectSocket();
     await _persistSession();
-    if (isArrived || statusId == 15) _startStatusPolling();
+    _startStatusPolling(immediate: true);
     return true;
   }
 
-  void _startStatusPolling() {
-    _statusPollTimer?.cancel();
-    _statusPollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+  Duration? _resolveStatusPollInterval() {
+    final currentStatus = statusId;
+    if (currentStatus == null ||
+        currentStatus == 4 ||
+        currentStatus == 11 ||
+        currentStatus == 2 ||
+        currentStatus == 3) {
+      return null;
+    }
+
+    if (currentStatus == 6 ||
+        currentStatus == 7 ||
+        currentStatus == 14 ||
+        currentStatus == 15) {
+      return const Duration(seconds: 3);
+    }
+
+    return const Duration(seconds: 5);
+  }
+
+  void _startStatusPolling({bool immediate = false}) {
+    final nextInterval = _resolveStatusPollInterval();
+    if (nextInterval == null) {
+      _stopStatusPolling();
+      return;
+    }
+
+    final shouldRestart =
+        _statusPollTimer == null || _statusPollInterval != nextInterval;
+    if (shouldRestart) {
+      _statusPollTimer?.cancel();
+      _statusPollInterval = nextInterval;
+      _statusPollTimer = Timer.periodic(nextInterval, (_) {
+        _pollOrderStatus();
+      });
+    }
+
+    if (immediate) {
       _pollOrderStatus();
-    });
+    }
   }
 
   void _stopStatusPolling() {
     _statusPollTimer?.cancel();
     _statusPollTimer = null;
+    _statusPollInterval = null;
   }
 
   Future<void> _pollOrderStatus() async {
-    if (statusId == 11 || statusId == 2 || statusId == 3 || statusId == 14) {
+    if (_resolveStatusPollInterval() == null) {
       _stopStatusPolling();
       return;
     }
@@ -115,11 +154,10 @@ class ActiveTripVM extends ViewModelBase {
 
     if (activeOrder == null) {
       if (token != null || orderId != null) {
-        final likelyCompleted = statusId == 15;
+        final likelyCompleted = statusId == 14 || statusId == 15;
         statusId = likelyCompleted ? 11 : 3;
-        statusText = likelyCompleted
-            ? 'Поездка завершена'
-            : 'Поездка больше не активна';
+        statusText =
+            likelyCompleted ? 'Поездка завершена' : 'Поездка больше не активна';
         token = null;
         await ActiveTripSessionStore.clear();
         _stopStatusPolling();
@@ -130,9 +168,7 @@ class ActiveTripVM extends ViewModelBase {
 
     _applyOrderSnapshot(activeOrder, updateRoute: false);
     _refreshStatusText();
-    if (statusId == 14 || statusId == 15) {
-      _stopStatusPolling();
-    }
+    _startStatusPolling();
     if (context.mounted) {
       update(() {});
     }
@@ -175,21 +211,33 @@ class ActiveTripVM extends ViewModelBase {
 
   Future<void> ensureRoutePolyline() async {
     if (addresses.isEmpty) return;
-    final first = addresses.first;
-    final fromLat = _toDouble(first['from_lat']);
-    final fromLon = _toDouble(first['from_lon']);
-    final toLat = _toDouble(first['to_lat']);
-    final toLon = _toDouble(first['to_lon']);
-    if (fromLat == null || fromLon == null || toLat == null || toLon == null) {
-      return;
+    final polylines = <Polyline>{};
+
+    for (var i = 0; i < addresses.length; i++) {
+      final segment = addresses[i];
+      final fromLat = _toDouble(segment['from_lat']);
+      final fromLon = _toDouble(segment['from_lon']);
+      final toLat = _toDouble(segment['to_lat']);
+      final toLon = _toDouble(segment['to_lon']);
+      if (fromLat == null ||
+          fromLon == null ||
+          toLat == null ||
+          toLon == null) {
+        continue;
+      }
+
+      final poly = await RouteManager.calculateRoute(
+        origin: LatLng(fromLat, fromLon),
+        destination: LatLng(toLat, toLon),
+        id: 'active_trip_route_$i',
+      );
+      if (poly != null) {
+        polylines.add(poly);
+      }
     }
-    final poly = await RouteManager.calculateRoute(
-      origin: LatLng(fromLat, fromLon),
-      destination: LatLng(toLat, toLon),
-      id: 'active_trip_route',
-    );
-    if (poly != null && context.mounted) {
-      routePolylines = {poly};
+
+    if (polylines.isNotEmpty && context.mounted) {
+      routePolylines = polylines;
       update(() {});
     }
   }
@@ -216,12 +264,19 @@ class ActiveTripVM extends ViewModelBase {
   void _subscribeToEvents() {
     if (_socket == null) return;
 
+    _connectedSub?.cancel();
     _assignedSub?.cancel();
     _statusSub?.cancel();
     _cancelledSub?.cancel();
     _locationSub?.cancel();
     _expiredSub?.cancel();
     _routeSub?.cancel();
+
+    _connectedSub = _socket!.on('connected').listen((_) {
+      connectionTimedOut = false;
+      _startStatusPolling(immediate: true);
+      if (context.mounted) update(() {});
+    });
 
     _assignedSub = _socket!.on('trip.assigned').listen((msg) {
       connectionTimedOut = false;
@@ -240,6 +295,7 @@ class ActiveTripVM extends ViewModelBase {
       _applyIncomingStatus(13);
       _refreshStatusText();
       _persistSession();
+      _startStatusPolling();
       if (context.mounted) update(() {});
     });
 
@@ -268,6 +324,7 @@ class ActiveTripVM extends ViewModelBase {
         _persistSession();
       }
       _refreshStatusText();
+      _startStatusPolling();
       if (context.mounted) update(() {});
     });
 
@@ -283,6 +340,7 @@ class ActiveTripVM extends ViewModelBase {
       NotificationService().handleEvent('trip.cancelled', data);
       ActiveTripSessionStore.clear();
       _refreshStatusText();
+      _stopStatusPolling();
       if (context.mounted) update(() {});
     });
 
@@ -315,7 +373,11 @@ class ActiveTripVM extends ViewModelBase {
       if (!_matchesTrackedTrip(data)) return;
       final accepted = data['accepted'] == true ||
           data['route_change_status']?.toString() == 'accepted';
-      routeChangeStatus = accepted ? 'accepted' : 'rejected';
+      final routeChangeMessage = accepted
+          ? 'Водитель принял изменение маршрута'
+          : 'Водитель отклонил изменение маршрута';
+      routeChangeStatus = routeChangeMessage;
+      data['message'] = routeChangeMessage;
 
       if (accepted && data['addresses'] is List) {
         final rawAddrs = (data['addresses'] as List)
@@ -412,7 +474,7 @@ class ActiveTripVM extends ViewModelBase {
     final allowRollback =
         statusId == 14 && (nextStatus == 6 || nextStatus == 7);
     // Do not roll back from more advanced states (e.g. 13 -> 4).
-    if (next >= current ||
+      if (next >= current ||
         nextStatus == 2 ||
         nextStatus == 3 ||
         nextStatus == 11 ||
@@ -420,17 +482,11 @@ class ActiveTripVM extends ViewModelBase {
       final wasArrived = statusId == 6 || statusId == 7;
       statusId = nextStatus;
       noDriversFound = false;
-      if (nextStatus == 6 || nextStatus == 7 || nextStatus == 15) {
-        _startStatusPolling();
-      }
       if (nextStatus == 14) {
-        _stopStatusPolling();
         // Закрыть окно QR/PIN при переходе из «ожидание» в «поездка началась»
         if (wasArrived) onTripStarted?.call();
       }
-      if (nextStatus == 11 || nextStatus == 2 || nextStatus == 3) {
-        _stopStatusPolling();
-      }
+      _startStatusPolling();
     }
   }
 
@@ -485,7 +541,7 @@ class ActiveTripVM extends ViewModelBase {
         addresses: nextRoute,
       );
       if (!res.success) return false;
-      routeChangeStatus = 'requested';
+      routeChangeStatus = 'Запрос на изменение маршрута отправлен';
       return true;
     } finally {
       isBusy = false;
@@ -516,7 +572,7 @@ class ActiveTripVM extends ViewModelBase {
     ];
   }
 
-  Future<Map<String, dynamic>?> fetchMeetingCodeForOrder() async {
+  Future<Map<String, dynamic>?> fetchMeetingCodeForTrip() async {
     if (orderId == null || isBusy) return null;
     isBusy = true;
     update(() {});
@@ -525,7 +581,16 @@ class ActiveTripVM extends ViewModelBase {
       if (!res.success || res.response == null) return null;
       final mc = res.response!;
       if (mc.meetingCode == null || mc.meetingCode!.isEmpty) return null;
-      return {'meeting_code': mc.meetingCode!, 'order_id': orderId};
+      final verificationScope = mc.verificationScope ??
+          ((mc.idScheduleRoad ?? scheduleRoadId) != null
+              ? 'schedule'
+              : 'order');
+      return {
+        'meeting_code': mc.meetingCode!,
+        'order_id': mc.idOrder ?? orderId,
+        'schedule_road_id': mc.idScheduleRoad ?? scheduleRoadId,
+        'verification_scope': verificationScope,
+      };
     } finally {
       isBusy = false;
       update(() {});
@@ -649,6 +714,7 @@ class ActiveTripVM extends ViewModelBase {
   }) {
     token = (activeOrder['token'] ?? token ?? '').toString();
     orderId = _toInt(activeOrder['id_order']) ?? orderId;
+    scheduleRoadId = _toInt(activeOrder['id_schedule_road']) ?? scheduleRoadId;
     statusId = _toInt(activeOrder['id_status']) ?? statusId;
     chatId = _toInt(activeOrder['id_chat']) ?? chatId;
     addresses = _extractAddresses(activeOrder);
@@ -714,6 +780,7 @@ class ActiveTripVM extends ViewModelBase {
 
   void dispose() {
     _stopStatusPolling();
+    _connectedSub?.cancel();
     _assignedSub?.cancel();
     _statusSub?.cancel();
     _cancelledSub?.cancel();
