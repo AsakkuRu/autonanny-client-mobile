@@ -491,7 +491,7 @@ class _LiveTripMapState extends State<_LiveTripMap> {
   }
 }
 
-class _TripSheet extends StatelessWidget {
+class _TripSheet extends StatefulWidget {
   const _TripSheet({
     required this.vm,
     required this.onCancelPressed,
@@ -507,110 +507,126 @@ class _TripSheet extends StatelessWidget {
   final VoidCallback onShowQRPressed;
 
   @override
+  State<_TripSheet> createState() => _TripSheetState();
+}
+
+class _TripSheetState extends State<_TripSheet> {
+  bool _routeExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final vm = widget.vm;
     final route = _routeLabel(vm.addresses);
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      padding: EdgeInsets.fromLTRB(
-        20,
-        12,
-        20,
-        MediaQuery.of(context).padding.bottom + 16,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: NDT.neutral200,
-                  borderRadius: BorderRadius.circular(999),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.62,
+        ),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            MediaQuery.of(context).padding.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: NDT.neutral200,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Text(vm.statusText, style: NDT.h3),
-            const SizedBox(height: 6),
-            Text(
-              route,
-              style: NDT.bodyS.copyWith(color: NDT.neutral500),
-            ),
-            const SizedBox(height: 12),
-            _statusBlocks(),
-            if (vm.noDriversFound) ...[
+              const SizedBox(height: 14),
+              Text(vm.statusText, style: NDT.h3),
+              const SizedBox(height: 6),
               Text(
-                'В вашем районе сейчас нет доступных водителей.',
-                style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                route,
+                style: NDT.bodyS.copyWith(color: NDT.neutral500),
               ),
               const SizedBox(height: 12),
-            ],
-            if (vm.connectionTimedOut) ...[
-              Text(
-                'Проблемы соединения. Сессия сохраняется, идет переподключение.',
-                style: NDT.bodyM.copyWith(color: NDT.neutral500),
-              ),
-              const SizedBox(height: 12),
-            ],
-            // FIX-008: при статусе 2 (водитель отменил) — показываем сообщение и кнопку «Закрыть»
-            if (vm.statusId == 2) ...[
-              Text(
-                'Водитель отменил поездку. Вы можете заказать нового водителя.',
-                style: NDT.bodyM.copyWith(color: NDT.neutral500),
-              ),
-              const SizedBox(height: 12),
-              NdPrimaryButton(label: 'Закрыть', onTap: onDonePressed),
-            ] else if (vm.isFinished) ...[
-              Text(
-                'Поездка завершена. Оцените поездку в истории.',
-                style: NDT.bodyM.copyWith(color: NDT.neutral500),
-              ),
-              const SizedBox(height: 12),
-              NdPrimaryButton(label: 'Готово', onTap: onDonePressed),
-            ] else ...[
-              if (vm.isArrived) const SizedBox(height: 24),
-              Row(
-                children: [
-                  if (!vm.isInProgress) ...[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: vm.isBusy ? null : onCancelPressed,
-                        child: const Text('Отменить'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  // FIX-011: скрываем «Изменить маршрут» когда водитель прибыл (statusId 15)
-                  if (vm.statusId != 15)
-                    Expanded(
-                      child: NdPrimaryButton(
-                        label: 'Изменить маршрут',
-                        onTap: vm.isBusy ? null : onChangeRoutePressed,
-                      ),
-                    ),
-                ],
-              ),
-              if (vm.routeChangeStatus.isNotEmpty) ...[
-                const SizedBox(height: 10),
+              _statusBlocks(),
+              if (vm.addresses.isNotEmpty) ...[
+                _routeCard(),
+                const SizedBox(height: 16),
+              ],
+              if (vm.noDriversFound) ...[
                 Text(
-                  'Статус изменения: ${vm.routeChangeStatus}',
-                  style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                  'В вашем районе сейчас нет доступных водителей.',
+                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
                 ),
+                const SizedBox(height: 12),
+              ],
+              if (vm.connectionTimedOut) ...[
+                Text(
+                  'Проблемы соединения. Сессия сохраняется, идет переподключение.',
+                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (vm.statusId == 2) ...[
+                Text(
+                  'Водитель отменил поездку. Вы можете заказать нового водителя.',
+                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                ),
+                const SizedBox(height: 12),
+                NdPrimaryButton(label: 'Закрыть', onTap: widget.onDonePressed),
+              ] else if (vm.isFinished) ...[
+                Text(
+                  'Детали поездки сохранены в истории. Оценить поездку можно в разделе истории.',
+                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                ),
+                const SizedBox(height: 12),
+                NdPrimaryButton(label: 'Закрыть', onTap: widget.onDonePressed),
+              ] else ...[
+                if (vm.isArrived) const SizedBox(height: 24),
+                Row(
+                  children: [
+                    if (!vm.isInProgress) ...[
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: vm.isBusy ? null : widget.onCancelPressed,
+                          child: const Text('Отменить'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (vm.statusId != 15)
+                      Expanded(
+                        child: NdPrimaryButton(
+                          label: 'Изменить маршрут',
+                          onTap: vm.isBusy ? null : widget.onChangeRoutePressed,
+                        ),
+                      ),
+                  ],
+                ),
+                if (vm.routeChangeStatus.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    'Статус изменения: ${vm.routeChangeStatus}',
+                    style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                  ),
+                ],
               ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _statusBlocks() {
+    final vm = widget.vm;
     if (vm.isSearching) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 12),
@@ -676,7 +692,7 @@ class _TripSheet extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4, bottom: 4),
               child: NdPrimaryButton(
                 label: 'Показать QR-код',
-                onTap: vm.isBusy ? null : onShowQRPressed,
+                onTap: vm.isBusy ? null : widget.onShowQRPressed,
               ),
             ),
           ],
@@ -723,6 +739,108 @@ class _TripSheet extends StatelessWidget {
     );
   }
 
+  Widget _routeCard() {
+    final vm = widget.vm;
+    final points = _buildTripRouteTimelinePoints(vm.addresses);
+    if (points.isEmpty) return const SizedBox.shrink();
+    final intermediateCount = points.length > 2 ? points.length - 2 : 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: NDT.neutral50,
+        borderRadius: NDT.brXl,
+        border: Border.all(color: NDT.neutral200),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: NDT.primary100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.route_rounded,
+                  size: 18,
+                  color: NDT.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Маршрут поездки', style: NDT.h3),
+                    Text(
+                      'Ключевые точки маршрута',
+                      style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _routeExpanded = !_routeExpanded;
+                  });
+                },
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: NDT.primary,
+                ),
+                icon: Icon(
+                  _routeExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                ),
+                label: Text(
+                  _routeExpanded ? 'Свернуть' : 'Весь маршрут',
+                  style: NDT.caption.copyWith(
+                    color: NDT.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _ClientRouteSummaryCard(
+            start: points.first,
+            end: points.last,
+            intermediateCount: intermediateCount,
+          ),
+          if (_routeExpanded) ...[
+            const SizedBox(height: 12),
+            Divider(height: 1, color: NDT.neutral200),
+            const SizedBox(height: 12),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: points.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                return _ClientRouteTimelineRow(
+                  point: points[index],
+                  isLast: index == points.length - 1,
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   String _routeLabel(List<Map<String, dynamic>> addresses) {
     final labels = _buildRouteDisplayPoints(addresses)
         .map((point) => point.label)
@@ -730,6 +848,90 @@ class _TripSheet extends StatelessWidget {
         .toList(growable: false);
     if (labels.isEmpty) return 'Маршрут уточняется';
     return labels.join(' → ');
+  }
+}
+
+class _ClientRouteSummaryCard extends StatelessWidget {
+  const _ClientRouteSummaryCard({
+    required this.start,
+    required this.end,
+    required this.intermediateCount,
+  });
+
+  final _ClientRouteTimelinePoint start;
+  final _ClientRouteTimelinePoint end;
+  final int intermediateCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: NDT.primary100,
+        borderRadius: NDT.brMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ClientRouteSummaryRow(
+            icon: Icons.trip_origin_rounded,
+            label: 'Старт',
+            value: start.address,
+            color: NDT.primary,
+          ),
+          const SizedBox(height: 10),
+          _ClientRouteSummaryRow(
+            icon: Icons.place_rounded,
+            label: 'Финиш',
+            value: end.address,
+            color: NDT.danger,
+          ),
+          if (intermediateCount > 0) ...[
+            const SizedBox(height: 10),
+            Text(
+              '+ ${_intermediatePointsLabel(intermediateCount)}',
+              style: NDT.bodyS.copyWith(color: NDT.neutral500),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ClientRouteSummaryRow extends StatelessWidget {
+  const _ClientRouteSummaryRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: NDT.caption.copyWith(color: color)),
+              const SizedBox(height: 2),
+              Text(value, style: NDT.bodyS.copyWith(color: NDT.neutral900)),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -741,6 +943,63 @@ class _RouteDisplayPoint {
 
   final String label;
   final LatLng position;
+}
+
+enum _ClientRoutePointAccent {
+  start,
+  intermediate,
+  finalStop,
+}
+
+class _ClientRouteTimelinePoint {
+  const _ClientRouteTimelinePoint({
+    required this.role,
+    required this.address,
+    required this.accent,
+  });
+
+  final String role;
+  final String address;
+  final _ClientRoutePointAccent accent;
+}
+
+List<_ClientRouteTimelinePoint> _buildTripRouteTimelinePoints(
+  List<Map<String, dynamic>> addresses,
+) {
+  final points = _buildRouteDisplayPoints(addresses);
+  if (points.isEmpty) return const [];
+
+  final result = <_ClientRouteTimelinePoint>[
+    _ClientRouteTimelinePoint(
+      role: 'Точка старта',
+      address: points.first.label,
+      accent: _ClientRoutePointAccent.start,
+    ),
+  ];
+
+  if (points.length > 2) {
+    for (var i = 1; i < points.length - 1; i++) {
+      result.add(
+        _ClientRouteTimelinePoint(
+          role: 'Промежуточная точка $i',
+          address: points[i].label,
+          accent: _ClientRoutePointAccent.intermediate,
+        ),
+      );
+    }
+  }
+
+  if (points.length > 1) {
+    result.add(
+      _ClientRouteTimelinePoint(
+        role: 'Финальная точка',
+        address: points.last.label,
+        accent: _ClientRoutePointAccent.finalStop,
+      ),
+    );
+  }
+
+  return result;
 }
 
 List<_RouteDisplayPoint> _buildRouteDisplayPoints(
@@ -783,6 +1042,131 @@ double? _routeValueToDouble(dynamic value) {
   if (value is num) return value.toDouble();
   if (value is String) return double.tryParse(value);
   return null;
+}
+
+String _intermediatePointsLabel(int count) {
+  if (count % 10 == 1 && count % 100 != 11) {
+    return '$count промежуточная точка';
+  }
+  if ([2, 3, 4].contains(count % 10) && ![12, 13, 14].contains(count % 100)) {
+    return '$count промежуточные точки';
+  }
+  return '$count промежуточных точек';
+}
+
+class _ClientRouteTimelineRow extends StatelessWidget {
+  const _ClientRouteTimelineRow({
+    required this.point,
+    required this.isLast,
+  });
+
+  final _ClientRouteTimelinePoint point;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _colors(point.accent);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 22,
+          child: Column(
+            children: [
+              _ClientRouteMarker(accent: point.accent),
+              if (!isLast)
+                Container(
+                  width: 2,
+                  height: 28,
+                  margin: const EdgeInsets.symmetric(vertical: 3),
+                  decoration: BoxDecoration(
+                    color: NDT.neutral300,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: NDT.brMd,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(point.role, style: NDT.caption.copyWith(color: colors.$2)),
+                const SizedBox(height: 4),
+                Text(point.address,
+                    style: NDT.bodyM.copyWith(color: NDT.neutral900)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  (Color, Color) _colors(_ClientRoutePointAccent accent) {
+    switch (accent) {
+      case _ClientRoutePointAccent.start:
+        return (NDT.primary100, NDT.primary);
+      case _ClientRoutePointAccent.intermediate:
+        return (NDT.neutral100, NDT.neutral500);
+      case _ClientRoutePointAccent.finalStop:
+        return (const Color(0xFFFFF1F2), NDT.danger);
+    }
+  }
+}
+
+class _ClientRouteMarker extends StatelessWidget {
+  const _ClientRouteMarker({required this.accent});
+
+  final _ClientRoutePointAccent accent;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (accent) {
+      case _ClientRoutePointAccent.start:
+        return Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: NDT.primary,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x335B4FCF),
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+        );
+      case _ClientRoutePointAccent.intermediate:
+        return Container(
+          width: 10,
+          height: 10,
+          decoration: const BoxDecoration(
+            color: NDT.neutral400,
+            shape: BoxShape.circle,
+          ),
+        );
+      case _ClientRoutePointAccent.finalStop:
+        return Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: NDT.danger,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        );
+    }
+  }
 }
 
 class _SosButton extends StatelessWidget {

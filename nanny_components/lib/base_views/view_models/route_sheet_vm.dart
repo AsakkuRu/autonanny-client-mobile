@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_components/models/address_view_data.dart';
 import 'package:nanny_components/nanny_components.dart';
@@ -40,6 +41,8 @@ class RouteSheetVM extends ViewModelBase {
             TimeOfDay(hour: road!.endTime.hour, minute: road!.endTime.minute),
       );
     }
+
+    isRoundTrip = road?.typeDrive.contains(DriveType.roundTrip) ?? false;
 
     // Заполняем адреса, если они есть в schedule
     if (road?.addresses != null && road!.addresses.isNotEmpty) {
@@ -153,64 +156,9 @@ class RouteSheetVM extends ViewModelBase {
   }
 
   List<Map<String, dynamic>>? _buildAddressesJson() {
-    if (addressFrom == null ||
-        addressTo == null ||
-        addressFrom!.geometry?.location == null ||
-        addressTo!.geometry?.location == null) return null;
-    if (addresses.any((e) => e.address == null)) return null;
-
-    final list = <Map<String, dynamic>>[];
-    if (addresses.isEmpty) {
-      list.add(DriveAddress(
-        fromAddress: AddressData(
-          address: NannyMapUtils.simplifyAddress(addressFrom!.formattedAddress),
-          location: addressFrom!.geometry!.location!,
-        ),
-        toAddress: AddressData(
-          address: NannyMapUtils.simplifyAddress(addressTo!.formattedAddress),
-          location: addressTo!.geometry!.location!,
-        ),
-      ).toJson());
-    } else {
-      list.add(DriveAddress(
-        fromAddress: AddressData(
-          address: NannyMapUtils.simplifyAddress(addressFrom!.formattedAddress),
-          location: addressFrom!.geometry!.location!,
-        ),
-        toAddress: AddressData(
-          address: NannyMapUtils.simplifyAddress(
-              addresses.first.address!.formattedAddress),
-          location: addresses.first.address!.geometry!.location!,
-        ),
-      ).toJson());
-      for (int i = 0; i < addresses.length - 1; i += 2) {
-        if (i + 1 >= addresses.length) break;
-        list.add(DriveAddress(
-          fromAddress: AddressData(
-            address: NannyMapUtils.simplifyAddress(
-                addresses[i].address!.formattedAddress),
-            location: addresses[i].address!.geometry!.location!,
-          ),
-          toAddress: AddressData(
-            address: NannyMapUtils.simplifyAddress(
-                addresses[i + 1].address!.formattedAddress),
-            location: addresses[i + 1].address!.geometry!.location!,
-          ),
-        ).toJson());
-      }
-      list.add(DriveAddress(
-        fromAddress: AddressData(
-          address: NannyMapUtils.simplifyAddress(
-              addresses.last.address!.formattedAddress),
-          location: addresses.last.address!.geometry!.location!,
-        ),
-        toAddress: AddressData(
-          address: NannyMapUtils.simplifyAddress(addressTo!.formattedAddress),
-          location: addressTo!.geometry!.location!,
-        ),
-      ).toJson());
-    }
-    return list;
+    final driveAddresses = _buildDriveAddresses();
+    if (driveAddresses == null) return null;
+    return driveAddresses.map((e) => e.toJson()).toList(growable: false);
   }
 
   void _scheduleEstimate() {
@@ -245,61 +193,140 @@ class RouteSheetVM extends ViewModelBase {
   }
 
   void chooseTime() async {
-    // var time = await showTimePicker(
-    //   context: context,
-    //   cancelText: "Отмена",
-    //   confirmText: "Подтвердить",
-    //   hourLabelText: "Часы",
-    //   minuteLabelText: "Минуты",
-    //   errorInvalidText: "Ошибка",
-    //   helpText: "Выберите время",
-
-    //   initialTime: TimeOfDay.now(),
-    // );
-
-    TimeRange? time = await showTimeRangePicker(
+    final initial = timeRange ?? _defaultTimeRange();
+    TimeRange? time = await showModalBottomSheet<TimeRange>(
       context: context,
-      disabledTime: TimeRange(
-          startTime: const TimeOfDay(hour: 20, minute: 0),
-          endTime: const TimeOfDay(hour: 5, minute: 0)),
-      minDuration: const Duration(hours: 1),
-      interval: const Duration(minutes: 15),
-      barrierDismissible: false,
-      snap: true,
-      ticks: 24,
-      labels: [
-        ClockLabel(angle: 0, text: "18"),
-        ClockLabel(angle: 0.525, text: "20"),
-        ClockLabel(angle: 1.05, text: "22"),
-        ClockLabel(angle: 1.575, text: "0"),
-        ClockLabel(angle: 2.1, text: "2"),
-        ClockLabel(angle: 2.625, text: "4"),
-        ClockLabel(angle: 3.15, text: "6"),
-        ClockLabel(angle: 3.675, text: "8"),
-        ClockLabel(angle: 4.2, text: "10"),
-        ClockLabel(angle: 4.725, text: "12"),
-        ClockLabel(angle: 5.25, text: "14"),
-        ClockLabel(angle: 5.775, text: "16"),
-      ],
-      fromText: "От",
-      toText: "До",
-      strokeColor: NannyTheme.primary,
-      handlerColor: NannyTheme.primary,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        var start = _timeOfDayToDateTime(initial.startTime);
+        var end = _timeOfDayToDateTime(initial.endTime);
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final isValid = _isEndAfterStart(start, end);
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                MediaQuery.of(context).padding.bottom + 20,
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: NDT.neutral200,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Время поездки', style: NDT.h2),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Укажите интервал, в который должна начаться поездка. Начало и конец выбираются отдельно.',
+                      style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                    ),
+                    const SizedBox(height: 20),
+                    _TimeWheelCard(
+                      label: 'От',
+                      value: _formatDateTime(start),
+                      child: CupertinoDatePicker(
+                        mode: CupertinoDatePickerMode.time,
+                        minuteInterval: 15,
+                        use24hFormat: true,
+                        initialDateTime: start,
+                        onDateTimeChanged: (value) {
+                          setModalState(() => start = value);
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _TimeWheelCard(
+                      label: 'До',
+                      value: _formatDateTime(end),
+                      child: CupertinoDatePicker(
+                        mode: CupertinoDatePickerMode.time,
+                        minuteInterval: 15,
+                        use24hFormat: true,
+                        initialDateTime: end,
+                        onDateTimeChanged: (value) {
+                          setModalState(() => end = value);
+                        },
+                      ),
+                    ),
+                    if (!isValid) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7ED),
+                          borderRadius: NDT.brMd,
+                        ),
+                        child: Text(
+                          'Время "До" должно быть позже времени "От".',
+                          style: NDT.bodyS.copyWith(color: NDT.warning),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                            child: const Text('Отмена'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: NdPrimaryButton(
+                            label: 'Готово',
+                            onTap: isValid
+                                ? () => Navigator.of(sheetContext).pop(
+                                      TimeRange(
+                                        startTime: TimeOfDay(
+                                          hour: start.hour,
+                                          minute: start.minute,
+                                        ),
+                                        endTime: TimeOfDay(
+                                          hour: end.hour,
+                                          minute: end.minute,
+                                        ),
+                                      ),
+                                    )
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
 
     if (time == null) return;
     if (!context.mounted) return;
 
     timeRange = time;
-
-    // if(isFrom) {
-    //   start = time;
-    //   timeFromController.text = time.format(context);
-    // }
-    // else {
-    //   end = time;
-    //   timeToController.text = time.format(context);
-    // }
     update(() {});
   }
 
@@ -334,50 +361,11 @@ class RouteSheetVM extends ViewModelBase {
     //   return;
     // }
 
-    List<DriveAddress> driveAddresses = [];
-
-    if (addresses.isEmpty) {
-      driveAddresses.add(DriveAddress(
-        fromAddress: AddressData(
-            address:
-                NannyMapUtils.simplifyAddress(addressFrom!.formattedAddress),
-            location: addressFrom!.geometry!.location!),
-        toAddress: AddressData(
-            address: NannyMapUtils.simplifyAddress(addressTo!.formattedAddress),
-            location: addressTo!.geometry!.location!),
-      ));
-    } else {
-      driveAddresses.add(DriveAddress(
-          fromAddress: AddressData(
-              address:
-                  NannyMapUtils.simplifyAddress(addressFrom!.formattedAddress),
-              location: addressFrom!.geometry!.location!),
-          toAddress: AddressData(
-              address: NannyMapUtils.simplifyAddress(
-                  addresses.first.address!.formattedAddress),
-              location: addresses.first.address!.geometry!.location!)));
-
-      for (int i = 0; i < addresses.length - 1; i += 2) {
-        driveAddresses.add(DriveAddress(
-            fromAddress: AddressData(
-                address: NannyMapUtils.simplifyAddress(
-                    addresses[i].address!.formattedAddress),
-                location: addresses[i].address!.geometry!.location!),
-            toAddress: AddressData(
-                address: NannyMapUtils.simplifyAddress(
-                    addresses[i + 1].address!.formattedAddress),
-                location: addresses[i + 1].address!.geometry!.location!)));
-      }
-
-      driveAddresses.add(DriveAddress(
-        fromAddress: AddressData(
-            address: NannyMapUtils.simplifyAddress(
-                addresses.last.address!.formattedAddress),
-            location: addresses.last.address!.geometry!.location!),
-        toAddress: AddressData(
-            address: NannyMapUtils.simplifyAddress(addressTo!.formattedAddress),
-            location: addressTo!.geometry!.location!),
-      ));
+    final driveAddresses = _buildDriveAddresses();
+    if (driveAddresses == null || driveAddresses.isEmpty) {
+      NannyDialogs.showMessageBox(
+          context, "Ошибка", "Проверьте адреса маршрута");
+      return;
     }
 
     final resultRoad = Road(
@@ -413,5 +401,128 @@ extension TimeRangeAdditions on TimeRange {
     String to = endTime.formatTime();
 
     return "$from - $to";
+  }
+}
+
+class _TimeWheelCard extends StatelessWidget {
+  const _TimeWheelCard({
+    required this.label,
+    required this.value,
+    required this.child,
+  });
+
+  final String label;
+  final String value;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: NDT.neutral50,
+        borderRadius: NDT.brXl,
+        border: Border.all(color: NDT.neutral200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(label, style: NDT.bodyM.copyWith(color: NDT.neutral700)),
+                Text(value, style: NDT.h3.copyWith(color: NDT.primary)),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 160,
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+extension on RouteSheetVM {
+  List<DriveAddress>? _buildDriveAddresses() {
+    if (addressFrom == null ||
+        addressTo == null ||
+        addressFrom!.geometry?.location == null ||
+        addressTo!.geometry?.location == null) {
+      return null;
+    }
+    if (addresses.any(
+        (e) => e.address == null || e.address!.geometry?.location == null)) {
+      return null;
+    }
+
+    final orderedStops = <GeocodeResult>[
+      addressFrom!,
+      ...addresses.map((e) => e.address!),
+      addressTo!,
+    ];
+
+    if (orderedStops.length < 2) return null;
+
+    final driveAddresses = <DriveAddress>[];
+    for (var i = 0; i < orderedStops.length - 1; i++) {
+      driveAddresses.add(
+        DriveAddress(
+          fromAddress: _toAddressData(orderedStops[i]),
+          toAddress: _toAddressData(orderedStops[i + 1]),
+        ),
+      );
+    }
+    return driveAddresses;
+  }
+
+  AddressData _toAddressData(GeocodeResult result) {
+    return AddressData(
+      address: NannyMapUtils.simplifyAddress(result.formattedAddress),
+      location: result.geometry!.location!,
+    );
+  }
+
+  TimeRange _defaultTimeRange() {
+    final roundedStart = _roundQuarterHour(TimeOfDay.now());
+    return TimeRange(
+      startTime: roundedStart,
+      endTime: _plusMinutes(roundedStart, 60),
+    );
+  }
+
+  DateTime _timeOfDayToDateTime(TimeOfDay time) {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, time.hour, time.minute);
+  }
+
+  bool _isEndAfterStart(DateTime start, DateTime end) {
+    return end.isAfter(start);
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    return TimeOfDay(hour: dateTime.hour, minute: dateTime.minute).formatTime();
+  }
+
+  TimeOfDay _roundQuarterHour(TimeOfDay time) {
+    final totalMinutes = time.hour * 60 + time.minute;
+    final rounded = ((totalMinutes + 14) ~/ 15) * 15;
+    final normalized = rounded % (24 * 60);
+    return TimeOfDay(
+      hour: normalized ~/ 60,
+      minute: normalized % 60,
+    );
+  }
+
+  TimeOfDay _plusMinutes(TimeOfDay time, int minutes) {
+    final totalMinutes = time.hour * 60 + time.minute + minutes;
+    final normalized = totalMinutes % (24 * 60);
+    return TimeOfDay(
+      hour: normalized ~/ 60,
+      minute: normalized % 60,
+    );
   }
 }

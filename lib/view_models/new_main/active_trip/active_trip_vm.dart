@@ -33,6 +33,7 @@ class ActiveTripVM extends ViewModelBase {
   StreamSubscription? _routeSub;
   Timer? _statusPollTimer;
   Duration? _statusPollInterval;
+  bool _isReconcilingTerminalState = false;
 
   String? token;
   int? orderId;
@@ -302,10 +303,19 @@ class ActiveTripVM extends ViewModelBase {
     _statusSub = _socket!.on('trip.status_changed').listen((msg) {
       connectionTimedOut = false;
       final data = Map<String, dynamic>.from(msg['data'] ?? const {});
-      if (!_matchesTrackedTrip(data)) return;
       final status = _mapTripStatusToUiStatusId(data['status']?.toString());
+      if (!_matchesTrackedTrip(data)) {
+        if (status != null && (status == 11 || status == 2 || status == 3)) {
+          _reconcileTerminalStateFromServer(fallbackStatus: status);
+        }
+        return;
+      }
       driverId = _toInt(data['driver_id']) ?? driverId;
       orderId = _toInt(data['order_id']) ?? orderId;
+      scheduleRoadId =
+          _toInt(data['schedule_road_id']) ??
+          _toInt(data['id_schedule_road']) ??
+          scheduleRoadId;
       chatId = _toInt(data['chat_id']) ?? chatId;
 
       final incomingToken = data['token'];
@@ -315,11 +325,18 @@ class ActiveTripVM extends ViewModelBase {
 
       if (status != null) {
         _applyIncomingStatus(status);
-        NotificationService().handleEvent('trip.status_changed', data);
+        try {
+          NotificationService().handleEvent('trip.status_changed', data);
+        } catch (e, st) {
+          debugPrint(
+            '[ActiveTrip] notification handling failed for trip.status_changed: $e\n$st',
+          );
+        }
       }
 
       if (status == 11) {
         ActiveTripSessionStore.clear();
+        _stopStatusPolling();
       } else {
         _persistSession();
       }
@@ -331,7 +348,10 @@ class ActiveTripVM extends ViewModelBase {
     _cancelledSub = _socket!.on('trip.cancelled').listen((msg) {
       connectionTimedOut = false;
       final data = Map<String, dynamic>.from(msg['data'] ?? const {});
-      if (!_matchesTrackedTrip(data)) return;
+      if (!_matchesTrackedTrip(data)) {
+        _reconcileTerminalStateFromServer(fallbackStatus: 2);
+        return;
+      }
       final cancelledStatus = _mapTripStatusToUiStatusId(
             data['status']?.toString(),
           ) ??
@@ -730,6 +750,12 @@ class ActiveTripVM extends ViewModelBase {
       return orderId == incomingOrderId;
     }
 
+    final incomingScheduleRoadId =
+        _toInt(data['schedule_road_id']) ?? _toInt(data['id_schedule_road']);
+    if (scheduleRoadId != null && incomingScheduleRoadId != null) {
+      return scheduleRoadId == incomingScheduleRoadId;
+    }
+
     final trackedToken = token ?? initialToken;
     final incomingToken = data['token']?.toString();
     if (trackedToken != null &&
@@ -744,6 +770,61 @@ class ActiveTripVM extends ViewModelBase {
     }
 
     return true;
+  }
+
+  Future<void> _reconcileTerminalStateFromServer({
+    required int fallbackStatus,
+  }) async {
+    if (_isReconcilingTerminalState) return;
+    if (orderId == null &&
+        scheduleRoadId == null &&
+        (token == null || token!.isEmpty) &&
+        (initialToken == null || initialToken!.isEmpty)) {
+      return;
+    }
+
+    _isReconcilingTerminalState = true;
+    try {
+      final res = await NannyOrdersApi.getCurrentOrder();
+      if (!res.success || res.response == null) return;
+      final data = res.response!.data;
+      if (data is! Map) return;
+
+      final activeOrders = _extractActiveOrders(data['orders']);
+      final activeOrder = _selectActiveOrder(activeOrders);
+      if (activeOrder != null) {
+        _applyOrderSnapshot(activeOrder, updateRoute: false);
+        _refreshStatusText();
+        _startStatusPolling();
+        if (context.mounted) update(() {});
+        return;
+      }
+
+      statusId = fallbackStatus;
+      switch (fallbackStatus) {
+        case 11:
+          statusText = 'Поездка завершена';
+          break;
+        case 2:
+          statusText = 'Водитель отменил поездку';
+          break;
+        case 3:
+          statusText = 'Поездка отменена';
+          break;
+        default:
+          _refreshStatusText();
+      }
+      token = null;
+      await ActiveTripSessionStore.clear();
+      _stopStatusPolling();
+      if (context.mounted) update(() {});
+    } catch (e, st) {
+      debugPrint(
+        '[ActiveTrip] terminal state reconciliation failed: $e\n$st',
+      );
+    } finally {
+      _isReconcilingTerminalState = false;
+    }
   }
 
   int? _toInt(dynamic value) {

@@ -15,7 +15,7 @@ class WelcomeVM extends ViewModelBase {
     // TODO: сделать вывод реальной версии из pubspec (package_info_plus или аналог)
     Future.delayed(const Duration(seconds: 1), () {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text("Версия сборки: 0.2.161"),
+        content: Text("Версия сборки: 0.2.170"),
       ));
     });
   }

@@ -47,6 +47,8 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
   GlobalKey<NavigatorState>? _navigatorKey;
   int _notificationId = 0;
+  OverlayEntry? _inAppOverlayEntry;
+  Timer? _inAppOverlayTimer;
 
   // Колбэк для in-app уведомлений (устанавливается UI-слоем)
   void Function(String title, String body, InAppStyle style)?
@@ -117,34 +119,113 @@ class NotificationService {
   }
 
   void _showBanner(BuildContext context, String title, String body) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: Colors.white)),
-            if (body.isNotEmpty)
-              Text(body, style: const TextStyle(color: Colors.white70)),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        margin: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 16),
-      ),
+    _showTopOverlay(
+      context,
+      title: title,
+      body: body,
+      duration: const Duration(seconds: 4),
     );
   }
 
   void _showToast(BuildContext context, String body) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(body),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
+    _showTopOverlay(
+      context,
+      title: '',
+      body: body,
+      duration: const Duration(seconds: 2),
+      compact: true,
     );
+  }
+
+  void _showTopOverlay(
+    BuildContext context, {
+    required String title,
+    required String body,
+    required Duration duration,
+    bool compact = false,
+  }) {
+    final overlay = Overlay.of(context, rootOverlay: true);
+    _hideInAppOverlay();
+
+    _inAppOverlayEntry = OverlayEntry(
+      builder: (overlayContext) {
+        final topInset = MediaQuery.of(overlayContext).padding.top;
+        return Positioned(
+          top: topInset + 12,
+          left: 16,
+          right: 16,
+          child: Material(
+            color: Colors.transparent,
+            child: SafeArea(
+              bottom: false,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: GestureDetector(
+                  onTap: _hideInAppOverlay,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF343443),
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: compact ? 14 : 16,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (title.isNotEmpty) ...[
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                fontSize: 15,
+                              ),
+                            ),
+                            if (body.isNotEmpty) const SizedBox(height: 4),
+                          ],
+                          if (body.isNotEmpty)
+                            Text(
+                              body,
+                              style: TextStyle(
+                                color: compact
+                                    ? Colors.white
+                                    : Colors.white.withValues(alpha: 0.82),
+                                fontSize: 14,
+                                height: 1.25,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    overlay.insert(_inAppOverlayEntry!);
+    _inAppOverlayTimer = Timer(duration, _hideInAppOverlay);
+  }
+
+  void _hideInAppOverlay() {
+    _inAppOverlayTimer?.cancel();
+    _inAppOverlayTimer = null;
+    _inAppOverlayEntry?.remove();
+    _inAppOverlayEntry = null;
   }
 
   void _showDialog(BuildContext context, String title, String body) {
@@ -261,9 +342,9 @@ class NotificationService {
     ),
     'completed': const NotificationConfig(
       titleTemplate: 'Поездка завершена',
-      bodyTemplate: 'Ваша поездка успешно завершена',
+      bodyTemplate: 'Детали сохранены в истории поездок',
       priority: NotificationPriority.high,
-      inAppStyle: InAppStyle.dialog,
+      inAppStyle: InAppStyle.banner,
       channelId: 'trip_status_channel',
     ),
     'cancelled_by_driver': const NotificationConfig(
