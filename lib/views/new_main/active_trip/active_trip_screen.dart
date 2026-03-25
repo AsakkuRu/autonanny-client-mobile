@@ -417,6 +417,7 @@ class _LiveTripMapState extends State<_LiveTripMap> {
           Marker(
             markerId: MarkerId('nearby_driver_$id'),
             position: LatLng(lat, lon),
+            zIndexInt: 10,
             icon: BitmapDescriptor.defaultMarkerWithHue(
                 BitmapDescriptor.hueViolet),
             infoWindow: const InfoWindow(title: 'Доступный водитель'),
@@ -431,6 +432,7 @@ class _LiveTripMapState extends State<_LiveTripMap> {
         Marker(
           markerId: const MarkerId('driver_marker'),
           position: driver,
+          zIndexInt: 1000,
           icon:
               BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
           infoWindow: const InfoWindow(title: 'Водитель'),
@@ -455,6 +457,7 @@ class _LiveTripMapState extends State<_LiveTripMap> {
         Marker(
           markerId: MarkerId('route_point_$i'),
           position: point.position,
+          zIndexInt: i == routePoints.length - 1 ? 110 : 100,
           icon: BitmapDescriptor.defaultMarkerWithHue(markerHue),
           infoWindow: InfoWindow(title: markerTitle, snippet: point.label),
         ),

@@ -10,6 +10,7 @@ class DioRequest {
   static String _authToken = "";
   static String get authToken => _authToken;
   static late Timer tokenReloader;
+  static Future<String?>? _tokenRecoveryFuture;
   static void init({bool useOldUrl = false}) {
     dio = Dio(BaseOptions(
       baseUrl: useOldUrl ? NannyConsts.baseUrlOld : NannyConsts.baseUrl,
@@ -35,16 +36,6 @@ class DioRequest {
         handler.next(response);
       },
       onError: (e, handler) async {
-        if (e.response?.statusCode == 401) {
-          deleteToken();
-          NannyAuthApi.reloadAccess().then((v) async {
-            if (v.success && v.response != null) {
-              var token = v.response!;
-              updateToken(token);
-              handler.resolve(await dio.fetch(e.requestOptions));
-            }
-          });
-        }
         Logger().e("Got error on path ${e.requestOptions.path} "
             "with error code ${e.response?.statusCode ?? "NO ERROR CODE"} "
             "and message ${e.message != null ? "\"${e.message}\"" : "NO MESSAGE"} "
@@ -64,36 +55,99 @@ class DioRequest {
 
   static void setupTokenReloader() {
     tokenReloader = Timer.periodic(const Duration(minutes: 14), (_) async {
-      String token;
-
-      var reload = await NannyAuthApi.reloadAccess();
-      if (reload.response != null) {
-        token = reload.response!;
-      } else {
-        deleteToken();
-        var loginData = await NannyStorage.getLoginData();
-        if (loginData == null)
-          throw Exception(
-              "Unhandled token reload error! How did you got here?");
-
-        var login = await NannyAuthApi.login(
-          LoginRequest(
-              login: loginData.login,
-              password: loginData.password,
-              fbid: "Пятисотый"),
-        );
-        token = login.response!;
+      final token = await recoverAccessToken();
+      if (token == null || token.isEmpty) {
+        throw Exception("Unhandled token reload error! How did you got here?");
       }
-
-      updateToken(token);
       Logger().w("Reloaded token");
     });
     Logger().w("Token reloader inited!");
   }
 
   static void stopTokenReloader() => tokenReloader.cancel();
-  static void deleteToken() =>
-      dio.options.headers.removeWhere((key, value) => key == "Authorization");
+
+  static void deleteToken() {
+    dio.options.headers.removeWhere((key, value) => key == "Authorization");
+    _authToken = "";
+  }
+
+  static Future<String?> recoverAccessToken() async {
+    final ongoing = _tokenRecoveryFuture;
+    if (ongoing != null) return ongoing;
+
+    final future = _recoverAccessTokenInternal();
+    _tokenRecoveryFuture = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_tokenRecoveryFuture, future)) {
+        _tokenRecoveryFuture = null;
+      }
+    }
+  }
+
+  static Future<String?> _recoverAccessTokenInternal() async {
+    final reloadedToken = await _tryReloadAccessToken();
+    if (reloadedToken != null && reloadedToken.isNotEmpty) {
+      updateToken(reloadedToken);
+      Logger().w("Recovered access token via /auth/reload_access");
+      return reloadedToken;
+    }
+
+    final loginData = await NannyStorage.getLoginData();
+    if (loginData == null) {
+      Logger().e("Token recovery failed: no saved login data");
+      deleteToken();
+      return null;
+    }
+
+    try {
+      final response = await dio.post(
+        "/auth/login",
+        data: LoginRequest(
+          login: loginData.login,
+          password: loginData.password,
+          fbid: "Пятисотый",
+        ).toJson(),
+        options: Options(extra: {'skipAuthRefresh': true}),
+      );
+
+      final token = response.data is Map ? response.data['token'] : null;
+      if (response.statusCode == 200 && token is String && token.isNotEmpty) {
+        updateToken(token);
+        Logger().w("Recovered access token via fallback login");
+        return token;
+      }
+    } catch (e) {
+      Logger().e("Fallback login during token recovery failed: $e");
+    }
+
+    deleteToken();
+    return null;
+  }
+
+  static Future<String?> _tryReloadAccessToken() async {
+    if (_authToken.isEmpty) return null;
+
+    try {
+      final response = await dio.post(
+        "/auth/reload_access",
+        options: Options(
+          headers: {"Authorization": "Bearer $_authToken"},
+          extra: {'skipAuthRefresh': true},
+        ),
+      );
+
+      final token = response.data is Map ? response.data['token'] : null;
+      if (response.statusCode == 200 && token is String && token.isNotEmpty) {
+        return token;
+      }
+    } catch (e) {
+      Logger().e("reload_access failed during token recovery: $e");
+    }
+
+    return null;
+  }
 
   static Future<bool> handleRequest(
       BuildContext context, Future<ApiResponse> request) async {
@@ -154,5 +208,35 @@ class ErrorInterceptor extends Interceptor {
       );
     }
     super.onResponse(response, handler);
+  }
+
+  @override
+  Future<void> onError(
+      DioException err, ErrorInterceptorHandler handler) async {
+    final statusCode = err.response?.statusCode;
+    final skipAuthRefresh = err.requestOptions.extra['skipAuthRefresh'] == true;
+    final alreadyRetried = err.requestOptions.extra['authRetried'] == true;
+
+    if (statusCode == 401 && !skipAuthRefresh && !alreadyRetried) {
+      final token = await DioRequest.recoverAccessToken();
+      if (token != null && token.isNotEmpty) {
+        final requestOptions = err.requestOptions;
+        requestOptions.headers = Map<String, dynamic>.from(requestOptions.headers)
+          ..['Authorization'] = 'Bearer $token';
+        requestOptions.extra = Map<String, dynamic>.from(requestOptions.extra)
+          ..['authRetried'] = true;
+
+        try {
+          final response = await DioRequest.dio.fetch<dynamic>(requestOptions);
+          handler.resolve(response);
+          return;
+        } on DioException catch (retryError) {
+          handler.next(retryError);
+          return;
+        }
+      }
+    }
+
+    handler.next(err);
   }
 }

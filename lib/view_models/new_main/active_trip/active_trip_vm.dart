@@ -34,6 +34,7 @@ class ActiveTripVM extends ViewModelBase {
   Timer? _statusPollTimer;
   Duration? _statusPollInterval;
   bool _isReconcilingTerminalState = false;
+  bool _isReconcilingStatusState = false;
 
   String? token;
   int? orderId;
@@ -96,11 +97,14 @@ class ActiveTripVM extends ViewModelBase {
   Duration? _resolveStatusPollInterval() {
     final currentStatus = statusId;
     if (currentStatus == null ||
-        currentStatus == 4 ||
         currentStatus == 11 ||
         currentStatus == 2 ||
         currentStatus == 3) {
       return null;
+    }
+
+    if (currentStatus == 4) {
+      return const Duration(seconds: 3);
     }
 
     if (currentStatus == 6 ||
@@ -305,6 +309,9 @@ class ActiveTripVM extends ViewModelBase {
       final data = Map<String, dynamic>.from(msg['data'] ?? const {});
       final status = _mapTripStatusToUiStatusId(data['status']?.toString());
       if (!_matchesTrackedTrip(data)) {
+        if (status != null) {
+          _reconcileStatusStateFromServer();
+        }
         if (status != null && (status == 11 || status == 2 || status == 3)) {
           _reconcileTerminalStateFromServer(fallbackStatus: status);
         }
@@ -824,6 +831,23 @@ class ActiveTripVM extends ViewModelBase {
       );
     } finally {
       _isReconcilingTerminalState = false;
+    }
+  }
+
+  Future<void> _reconcileStatusStateFromServer() async {
+    if (_isReconcilingStatusState) return;
+    if (orderId == null &&
+        scheduleRoadId == null &&
+        (token == null || token!.isEmpty) &&
+        (initialToken == null || initialToken!.isEmpty)) {
+      return;
+    }
+
+    _isReconcilingStatusState = true;
+    try {
+      await _pollOrderStatus();
+    } finally {
+      _isReconcilingStatusState = false;
     }
   }
 

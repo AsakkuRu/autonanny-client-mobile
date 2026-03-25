@@ -1,7 +1,7 @@
 name: nanny_client
 description: A new Flutter project.
 publish_to: 'none'
-version: 0.2.170
+version: 0.2.180
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
