@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 
 class DriverRatingVM {
@@ -101,5 +101,9 @@ class DriverRatingVM {
         result.errorMessage,
       );
     }
+  }
+
+  void dispose() {
+    reviewController.dispose();
   }
 }

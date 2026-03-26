@@ -107,7 +107,7 @@ class DioRequest {
         data: LoginRequest(
           login: loginData.login,
           password: loginData.password,
-          fbid: "Пятисотый",
+          fbid: await PushTokenSync.getTokenOrEmpty(),
         ).toJson(),
         options: Options(extra: {'skipAuthRefresh': true}),
       );
@@ -221,8 +221,9 @@ class ErrorInterceptor extends Interceptor {
       final token = await DioRequest.recoverAccessToken();
       if (token != null && token.isNotEmpty) {
         final requestOptions = err.requestOptions;
-        requestOptions.headers = Map<String, dynamic>.from(requestOptions.headers)
-          ..['Authorization'] = 'Bearer $token';
+        requestOptions.headers =
+            Map<String, dynamic>.from(requestOptions.headers)
+              ..['Authorization'] = 'Bearer $token';
         requestOptions.extra = Map<String, dynamic>.from(requestOptions.extra)
           ..['authRetried'] = true;
 

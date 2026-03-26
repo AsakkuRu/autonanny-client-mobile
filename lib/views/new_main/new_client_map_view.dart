@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_resolver.dart';
 import 'package:nanny_client/view_models/pages/map_vm.dart';
 import 'package:nanny_client/views/new_main/new_client_main_panel.dart';
 import 'package:nanny_client/views/new_main/new_client_main_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/widgets/map_viewer.dart';
 import 'package:nanny_core/api/google_map_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 import 'package:nanny_core/nanny_core.dart';
@@ -44,11 +46,28 @@ class _NewClientMapViewState extends State<NewClientMapView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: FutureLoader(
+      body: FutureBuilder<LatLng>(
         future: _mapVm.initLoad,
-        completeView: (context, initialPos) =>
-            _MapBody(mapVm: _mapVm, initialPos: initialPos),
-        errorView: (context, error) => ErrorView(errorText: error.toString()),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const AutonannyLoadingState(
+              label: 'Подготавливаем карту...',
+            );
+          }
+
+          if (snapshot.hasError || snapshot.data == null) {
+            return AutonannyErrorState(
+              title: 'Не удалось открыть карту',
+              description: snapshot.error?.toString() ??
+                  'Попробуйте перезапустить экран или проверить подключение.',
+            );
+          }
+
+          return _MapBody(
+            mapVm: _mapVm,
+            initialPos: snapshot.data!,
+          );
+        },
       ),
     );
   }
@@ -148,17 +167,18 @@ class _MapBodyState extends State<_MapBody> {
       future: _geocodeFuture,
       builder: (ctx, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(NDT.sp24),
-              child: CircularProgressIndicator(),
+          return const Padding(
+            padding: EdgeInsets.all(AutonannySpacing.xxl),
+            child: AutonannyLoadingState(
+              label: 'Определяем текущий адрес...',
             ),
           );
         }
         if (snap.data == null) {
-          return const ErrorView(
-            errorText:
-                'Не удалось определить адрес.\nПроверьте подключение к интернету и настройки геолокации.',
+          return const AutonannyErrorState(
+            title: 'Не удалось определить адрес',
+            description:
+                'Проверьте подключение к интернету и настройки геолокации.',
           );
         }
         _mainVm = NewClientMainVM(

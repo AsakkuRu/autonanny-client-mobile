@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/driver_rating.dart';
 

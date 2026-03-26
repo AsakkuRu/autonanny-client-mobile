@@ -1,7 +1,7 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/view_models/support/support_chat_vm.dart';
 import 'package:nanny_client/views/support/support_rating_view.dart';
-import 'package:nanny_components/nanny_components.dart';
 
 class SupportChatView extends StatefulWidget {
   const SupportChatView({super.key});
@@ -28,241 +28,258 @@ class _SupportChatViewState extends State<SupportChatView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NannyTheme.background,
-      appBar: const NannyAppBar.light(
-        title: 'Поддержка',
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: vm.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : vm.messages.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        controller: vm.scrollController,
-                        padding: const EdgeInsets.all(16),
-                        reverse: true,
-                        itemCount: vm.messages.length,
-                        itemBuilder: (context, index) {
-                          final message = vm.messages[index];
-                          final isMe = message.isFromMe;
-                          return _buildMessageBubble(message, isMe);
-                        },
-                      ),
-          ),
-          if (vm.showRatingBanner) _buildRatingBanner(),
-          _buildInputArea(),
-        ],
-      ),
-    );
-  }
+    final colors = context.autonannyColors;
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
+    return AutonannyAppScaffold(
+      appBar: AutonannyAppBar(
+        title: 'Поддержка',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+          tooltip: 'Назад',
+        ),
+      ),
+      body: SafeArea(
+        top: false,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.chat_bubble_outline,
-              size: 64,
-              color: NannyTheme.neutral300,
+            Expanded(
+              child: vm.isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: colors.actionPrimary,
+                      ),
+                    )
+                  : vm.messages.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(AutonannySpacing.xl),
+                          child: Center(
+                            child: AutonannyEmptyState(
+                              title: 'Напишите нам',
+                              description:
+                                  'Мы готовы помочь с любыми вопросами о сервисе АвтоНяня.',
+                              icon: const AutonannyIcon(AutonannyIcons.chat),
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: vm.scrollController,
+                          padding: const EdgeInsets.fromLTRB(
+                            AutonannySpacing.lg,
+                            AutonannySpacing.sm,
+                            AutonannySpacing.lg,
+                            AutonannySpacing.lg,
+                          ),
+                          reverse: true,
+                          itemCount: vm.messages.length,
+                          itemBuilder: (context, index) {
+                            final message = vm.messages[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AutonannySpacing.sm,
+                              ),
+                              child: _MessageBubble(message: message),
+                            );
+                          },
+                        ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Напишите нам',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Мы готовы помочь вам с любыми вопросами о сервисе АвтоНяня',
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: NannyTheme.neutral500),
-            ),
+            if (vm.showRatingBanner)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AutonannySpacing.lg,
+                  0,
+                  AutonannySpacing.lg,
+                  AutonannySpacing.sm,
+                ),
+                child: _RatingBanner(
+                  onRateTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SupportRatingView(
+                          ticketId: vm.chatId ?? 0,
+                          onSubmitted: vm.onRatingSubmitted,
+                        ),
+                      ),
+                    );
+                  },
+                  onDismiss: vm.dismissRatingBanner,
+                ),
+              ),
+            _ChatComposer(vm: vm),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildMessageBubble(SupportMessage message, bool isMe) {
+class _MessageBubble extends StatelessWidget {
+  const _MessageBubble({required this.message});
+
+  final SupportMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final components = context.autonannyComponents;
+    final isMe = message.isFromMe;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+      child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isMe ? NannyTheme.primary : Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMe ? 16 : 4),
-            bottomRight: Radius.circular(isMe ? 4 : 16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.lg,
+            vertical: AutonannySpacing.md,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 5,
-              offset: const Offset(0, 2),
+          decoration: BoxDecoration(
+            color: isMe ? null : colors.surfaceElevated,
+            gradient: isMe ? components.primaryActionGradient : null,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(24),
+              topRight: const Radius.circular(24),
+              bottomLeft: Radius.circular(isMe ? 24 : 8),
+              bottomRight: Radius.circular(isMe ? 8 : 24),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              message.text,
-              style: TextStyle(
-                color: isMe ? Colors.white : Colors.black87,
-                fontSize: 15,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  message.timeString,
-                  style: TextStyle(
-                    color:
-                        isMe ? Colors.white70 : NannyTheme.neutral400,
-                    fontSize: 11,
-                  ),
+            boxShadow: AutonannyShadows.card,
+            border: isMe ? null : Border.all(color: colors.borderSubtle),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                message.text,
+                style: AutonannyTypography.bodyM(
+                  color: isMe ? colors.textInverse : colors.textPrimary,
                 ),
-                if (isMe) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    message.isRead ? Icons.done_all : Icons.done,
-                    size: 14,
-                    color: message.isRead ? Colors.white : Colors.white70,
+              ),
+              const SizedBox(height: AutonannySpacing.xs),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    message.timeString,
+                    style: AutonannyTypography.caption(
+                      color: isMe
+                          ? colors.textInverse.withValues(alpha: 0.76)
+                          : colors.textTertiary,
+                    ),
                   ),
+                  if (isMe) ...[
+                    const SizedBox(width: AutonannySpacing.xs),
+                    AutonannyIcon(
+                      message.isRead
+                          ? AutonannyIcons.checkCircle
+                          : AutonannyIcons.check,
+                      size: 14,
+                      color: colors.textInverse.withValues(alpha: 0.84),
+                    ),
+                  ],
                 ],
-              ],
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildRatingBanner() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: NannyTheme.primary.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: NannyTheme.primary.withOpacity(0.3)),
-      ),
-      child: Row(
+class _RatingBanner extends StatelessWidget {
+  const _RatingBanner({
+    required this.onRateTap,
+    required this.onDismiss,
+  });
+
+  final VoidCallback onRateTap;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return AutonannyInlineBanner(
+      title: 'Оцените качество поддержки',
+      message: 'Ваш отзыв помогает нам быстрее улучшать работу операторов.',
+      tone: AutonannyBannerTone.info,
+      leading: const AutonannyIcon(AutonannyIcons.star),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.star_outline, color: NannyTheme.primary, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Оцените качество поддержки',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[800],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
           TextButton(
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              minimumSize: Size.zero,
-            ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SupportRatingView(
-                    ticketId: vm.chatId ?? 0,
-                    onSubmitted: vm.onRatingSubmitted,
-                  ),
-                ),
-              );
-            },
-            child: const Text(
+            onPressed: onRateTap,
+            child: Text(
               'Оценить',
-              style: TextStyle(
-                color: NannyTheme.primary,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
+              style: AutonannyTypography.labelM(
+                color: context.autonannyColors.statusInfo,
               ),
             ),
           ),
+          const SizedBox(width: AutonannySpacing.xs),
           GestureDetector(
-            onTap: vm.dismissRatingBanner,
-            child: Icon(Icons.close, size: 16, color: Colors.grey[500]),
+            onTap: onDismiss,
+            child: AutonannyIcon(
+              AutonannyIcons.close,
+              size: 16,
+              color: context.autonannyColors.statusInfo,
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildInputArea() {
+class _ChatComposer extends StatelessWidget {
+  const _ChatComposer({required this.vm});
+
+  final SupportChatVM vm;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
     return Container(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 8,
-        top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 8,
+      padding: EdgeInsets.fromLTRB(
+        AutonannySpacing.md,
+        AutonannySpacing.sm,
+        AutonannySpacing.md,
+        MediaQuery.of(context).padding.bottom + AutonannySpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        color: colors.surfaceElevated,
+        boxShadow: AutonannyShadows.card,
+        border: Border(top: BorderSide(color: colors.borderSubtle)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          IconButton(
-            icon: const Icon(Icons.attach_file),
-            color: Colors.grey,
-            onPressed: vm.attachFile,
-          ),
-          Expanded(
-            child: TextField(
-              controller: vm.messageController,
-              maxLines: 4,
-              minLines: 1,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                hintText: 'Сообщение...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: NannyTheme.neutral50,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-              ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: AutonannyIconButton(
+              icon: const AutonannyIcon(AutonannyIcons.add),
+              onPressed: vm.attachFile,
+              tooltip: 'Прикрепить файл',
             ),
           ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            backgroundColor: NannyTheme.primary,
-            child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white, size: 20),
+          const SizedBox(width: AutonannySpacing.sm),
+          Expanded(
+            child: AutonannyTextField(
+              controller: vm.messageController,
+              hintText: 'Сообщение...',
+              maxLines: 4,
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.sm),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: AutonannyIconButton(
+              icon: const AutonannyIcon(AutonannyIcons.arrowRight),
               onPressed: vm.sendMessage,
+              variant: AutonannyIconButtonVariant.primary,
+              tooltip: 'Отправить',
             ),
           ),
         ],

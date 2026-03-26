@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/home_vm.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart';
@@ -11,7 +11,8 @@ import 'package:nanny_client/views/new_main/profile/client_profile_v2_view.dart'
 import 'package:nanny_client/views/pages/balance.dart';
 import 'package:nanny_client/views/pages/graph.dart';
 import 'package:nanny_client/views/reg.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/base_views/views/pages/chats.dart';
+import 'package:nanny_components/base_views/views/welcome.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/nanny_core.dart';
@@ -267,23 +268,24 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
     ));
 
     return PopScope(
       // На вкладке "Главная" (0) разрешаем стандартный pop (выход из приложения).
       // На любой другой вкладке перехватываем "Назад" и идём на вкладку 0.
       canPop: vm.currentIndex == 0,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
           _onTabTap(context, 0);
         }
       },
       child: Scaffold(
-        backgroundColor: NDT.screenBg,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Stack(
           children: [
             IndexedStack(
@@ -324,158 +326,47 @@ class _NewBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          decoration: BoxDecoration(
-            color: NDT.sheetBg.withOpacity(0.97),
-            border: Border(
-              top: BorderSide(color: NDT.neutral200, width: 0.5),
-            ),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            NDT.sp8,
-            NDT.sp8,
-            NDT.sp8,
-            MediaQuery.of(context).padding.bottom + NDT.sp8,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _NavItem(
-                label: 'Главная',
-                icon: Icons.directions_car_filled_rounded,
-                index: 0,
-                currentIndex: currentIndex,
-                onTap: onTap,
-              ),
-              _NavItem(
-                label: 'Расписание',
-                icon: Icons.calendar_month_rounded,
-                index: 1,
-                currentIndex: currentIndex,
-                onTap: onTap,
-              ),
-              _NavItem(
-                label: 'Баланс',
-                icon: Icons.wallet_rounded,
-                index: 2,
-                currentIndex: currentIndex,
-                onTap: onTap,
-              ),
-              _NavItem(
-                label: 'Чаты',
-                icon: Icons.chat_rounded,
-                index: 3,
-                currentIndex: currentIndex,
-                onTap: onTap,
-                badgeCount: unreadChatsCount,
-              ),
-              _NavItem(
-                label: 'Профиль',
-                icon: Icons.account_circle_rounded,
-                index: 4,
-                currentIndex: currentIndex,
-                onTap: onTap,
-              ),
-            ],
-          ),
+    return AutonannyBottomNav(
+      currentIndex: currentIndex,
+      onTap: onTap,
+      items: const [
+        AutonannyBottomNavItem(
+          label: 'Главная',
+          icon: AutonannyIcon(AutonannyIcons.home),
+          activeIcon: AutonannyIcon(AutonannyIcons.home),
         ),
-      ),
+        AutonannyBottomNavItem(
+          label: 'Расписание',
+          icon: AutonannyIcon(AutonannyIcons.calendar),
+          activeIcon: AutonannyIcon(AutonannyIcons.calendar),
+        ),
+        AutonannyBottomNavItem(
+          label: 'Баланс',
+          icon: AutonannyIcon(AutonannyIcons.wallet),
+          activeIcon: AutonannyIcon(AutonannyIcons.wallet),
+        ),
+        AutonannyBottomNavItem(
+          label: 'Чаты',
+          icon: AutonannyIcon(AutonannyIcons.chat),
+          activeIcon: AutonannyIcon(AutonannyIcons.chat),
+        ),
+        AutonannyBottomNavItem(
+          label: 'Профиль',
+          icon: AutonannyIcon(AutonannyIcons.profile),
+          activeIcon: AutonannyIcon(AutonannyIcons.profile),
+        ),
+      ].map((item) {
+        if (item.label != 'Чаты') return item;
+        return AutonannyBottomNavItem(
+          label: item.label,
+          icon: item.icon,
+          activeIcon: item.activeIcon,
+          badgeCount: unreadChatsCount,
+        );
+      }).toList(growable: false),
     );
   }
 }
-
-class _NavItem extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final int index;
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-  final int badgeCount;
-
-  const _NavItem({
-    required this.label,
-    required this.icon,
-    required this.index,
-    required this.currentIndex,
-    required this.onTap,
-    this.badgeCount = 0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = currentIndex == index;
-    return GestureDetector(
-      onTap: () => onTap(index),
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 58,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: isActive ? NDT.primary100 : Colors.transparent,
-                    borderRadius: NDT.brMd,
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: isActive ? NDT.primary : NDT.neutral400,
-                  ),
-                ),
-                if (badgeCount > 0)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 3,
-                        vertical: 1,
-                      ),
-                      decoration: const BoxDecoration(
-                        color: NDT.danger,
-                        borderRadius: NDT.brFull,
-                      ),
-                      child: Text(
-                        badgeCount > 99 ? '99+' : '$badgeCount',
-                        style: NDT.caption.copyWith(
-                          color: NDT.neutral0,
-                          fontSize: 8,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                label,
-                maxLines: 1,
-                style: NDT.caption.copyWith(
-                  color: isActive ? NDT.primary : NDT.neutral400,
-                  fontSize: 10,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Баннер активной поездки ─────────────────────────────────────────────────
 
 class _ActiveTripBanner extends StatelessWidget {
   final VoidCallback onTap;
@@ -484,39 +375,12 @@ class _ActiveTripBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: NDT.ctaGradient,
-          borderRadius: NDT.brFull,
-          boxShadow: NDT.cardShadow,
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.directions_car_rounded,
-              size: 16,
-              color: Colors.white,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Поездка в процессе',
-                style: NDT.labelM.copyWith(color: Colors.white),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 4),
-            const Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 12,
-              color: Colors.white70,
-            ),
-          ],
-        ),
+    return ActiveTripBanner(
+      data: const ActiveTripBannerData(
+        title: 'Поездка в процессе',
+        subtitle: 'Открыть экран активной поездки',
       ),
+      onTap: onTap,
     );
   }
 }

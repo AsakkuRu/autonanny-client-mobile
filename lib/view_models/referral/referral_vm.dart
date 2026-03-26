@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_core/api/dio_request.dart';
 import 'package:nanny_core/api/request_builder.dart';
 import 'package:nanny_core/models/from_api/referral/client_referral_stats.dart';
 import 'package:nanny_core/nanny_core.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 
 export 'package:nanny_core/models/from_api/referral/client_referral_stats.dart';
 
@@ -103,7 +102,8 @@ class ReferralVM {
 
     try {
       final result = await RequestBuilder<bool>().create(
-        dioRequest: DioRequest.dio.post('/users/apply_promo', data: {'code': code}),
+        dioRequest:
+            DioRequest.dio.post('/users/apply_promo', data: {'code': code}),
         onSuccess: (response) => true,
       );
 
@@ -119,13 +119,16 @@ class ReferralVM {
           NannyDialogs.showMessageBox(
             context,
             'Ошибка',
-            result.errorMessage.isNotEmpty ? result.errorMessage : 'Недействительный промокод',
+            result.errorMessage.isNotEmpty
+                ? result.errorMessage
+                : 'Недействительный промокод',
           );
         }
       }
     } catch (_) {
       if (context.mounted) {
-        NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось применить промокод');
+        NannyDialogs.showMessageBox(
+            context, 'Ошибка', 'Не удалось применить промокод');
       }
     }
 

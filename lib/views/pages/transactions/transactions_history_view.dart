@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_client/view_models/pages/transactions/transactions_history_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_core/models/from_api/transaction.dart';
 import 'package:intl/intl.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
+import 'package:nanny_client/view_models/pages/transactions/transactions_history_vm.dart';
+import 'package:nanny_core/models/from_api/transaction.dart';
 
 /// FE-MVP-023: Экран истории финансовых операций
 class TransactionsHistoryView extends StatefulWidget {
   const TransactionsHistoryView({super.key});
 
   @override
-  State<TransactionsHistoryView> createState() => _TransactionsHistoryViewState();
+  State<TransactionsHistoryView> createState() =>
+      _TransactionsHistoryViewState();
 }
 
 class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
-  late TransactionsHistoryVM vm;
+  late final TransactionsHistoryVM vm;
 
   @override
   void initState() {
@@ -29,28 +30,48 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFf7f7f7),
-      appBar: NannyAppBar(
+    return AutonannyListScreenShell(
+      appBar: AutonannyAppBar(
         title: 'История операций',
-        color: const Color(0xFFf7f7f7),
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
+          AutonannyIconButton(
+            icon: const AutonannyIcon(AutonannyIcons.settings),
             onPressed: vm.showFilterDialog,
+            tooltip: 'Фильтры',
+            variant: AutonannyIconButtonVariant.ghost,
+            size: 40,
           ),
-          IconButton(
-            icon: const Icon(Icons.file_download),
+          const SizedBox(width: AutonannySpacing.xs),
+          AutonannyIconButton(
+            icon: const AutonannyIcon(AutonannyIcons.document),
             onPressed: vm.exportTransactions,
+            tooltip: 'Экспорт',
+            variant: AutonannyIconButtonVariant.ghost,
+            size: 40,
           ),
         ],
       ),
-      body: FutureLoader(
+      header: _buildHeader(),
+      body: FutureBuilder<bool>(
         future: vm.loadRequest,
-        completeView: (context, data) {
-          if (!data) {
-            return const ErrorView(
-              errorText: 'Не удалось загрузить историю операций',
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const AutonannyLoadingState(
+              label: 'Загружаем историю финансовых операций.',
+            );
+          }
+
+          if (snapshot.hasError || snapshot.data != true) {
+            return AutonannyErrorState(
+              title: 'Не удалось загрузить историю операций',
+              description: snapshot.error?.toString() ??
+                  'Попробуйте обновить экран немного позже.',
+              actionLabel: 'Повторить',
+              onAction: () => vm.reloadPage(),
             );
           }
 
@@ -60,16 +81,16 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
 
           return Column(
             children: [
-              // Поиск
               _buildSearchBar(),
-              
-              // Список транзакций
+              const SizedBox(height: AutonannySpacing.lg),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: vm.refresh,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                  child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: vm.filteredTransactions.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: AutonannySpacing.md),
                     itemBuilder: (context, index) {
                       final transaction = vm.filteredTransactions[index];
                       return _buildTransactionCard(transaction);
@@ -80,163 +101,170 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
             ],
           );
         },
-        errorView: (context, error) => ErrorView(errorText: error.toString()),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final colors = context.autonannyColors;
+
+    return Container(
+      padding: const EdgeInsets.all(AutonannySpacing.xl),
+      decoration: const BoxDecoration(
+        gradient: AutonannyGradients.hero,
+        borderRadius: AutonannyRadii.brLg,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Финансовая история',
+                  style: AutonannyTypography.h2(color: colors.textInverse),
+                ),
+                const SizedBox(height: AutonannySpacing.xs),
+                Text(
+                  'Все пополнения, оплаты и возвраты в одном месте.',
+                  style: AutonannyTypography.bodyS(
+                    color: colors.textInverse.withValues(alpha: 0.82),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.lg),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: colors.textInverse.withValues(alpha: 0.16),
+              borderRadius: AutonannyRadii.brMd,
+            ),
+            alignment: Alignment.center,
+            child: const AutonannyIcon(
+              AutonannyIcons.wallet,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: Colors.white,
-      child: TextField(
-        controller: vm.searchController,
-        decoration: InputDecoration(
-          hintText: 'Поиск по описанию...',
-          prefixIcon: const Icon(Icons.search),
-          suffixIcon: vm.searchController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: vm.clearSearch,
-                )
-              : null,
-          filled: true,
-          fillColor: const Color(0xFFF5F5F5),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
+    return AutonannySearchField(
+      controller: vm.searchController,
+      hintText: 'Поиск по описанию или типу операции',
+      leading: Padding(
+        padding: const EdgeInsets.only(left: AutonannySpacing.md),
+        child: AutonannyIcon(
+          AutonannyIcons.search,
+          color: context.autonannyColors.textTertiary,
         ),
-        onChanged: vm.onSearchChanged,
       ),
+      trailing: vm.searchController.text.isNotEmpty
+          ? IconButton(
+              icon: const AutonannyIcon(AutonannyIcons.close),
+              onPressed: vm.clearSearch,
+            )
+          : null,
+      onChanged: vm.onSearchChanged,
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.receipt_long_outlined,
-            size: 80,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            vm.hasActiveFilters
-                ? 'Нет операций по фильтру'
-                : 'История операций пуста',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey[600],
-            ),
-          ),
-          if (vm.hasActiveFilters) ...[
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: vm.clearFilters,
-              child: const Text('Сбросить фильтры'),
-            ),
-          ],
-        ],
+    return AutonannyEmptyState(
+      title: vm.hasActiveFilters
+          ? 'Нет операций по текущему фильтру'
+          : 'История операций пока пуста',
+      description: vm.hasActiveFilters
+          ? 'Сбросьте фильтры или измените параметры поиска.'
+          : 'Как только появятся пополнения, оплаты или возвраты, они отобразятся здесь.',
+      actionLabel: vm.hasActiveFilters ? 'Сбросить фильтры' : null,
+      onAction: vm.hasActiveFilters ? vm.clearFilters : null,
+      icon: AutonannyIcon(
+        AutonannyIcons.document,
+        size: 44,
+        color: context.autonannyColors.textTertiary,
       ),
     );
   }
 
   Widget _buildTransactionCard(Transaction transaction) {
+    final colors = context.autonannyColors;
     final isIncome = transaction.isIncome;
-    final color = isIncome ? const Color(0xFF4CAF50) : const Color(0xFFF44336);
+    final amountColor = isIncome ? colors.statusSuccess : colors.statusDanger;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return AutonannyCard(
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Иконка
           Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: isIncome
+                  ? colors.statusSuccessSurface
+                  : colors.statusDangerSurface,
+              borderRadius: AutonannyRadii.brMd,
             ),
-            child: Icon(
-              isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-              color: color,
-              size: 24,
+            alignment: Alignment.center,
+            child: AutonannyIcon(
+              isIncome ? AutonannyIcons.wallet : AutonannyIcons.card,
+              color: amountColor,
             ),
           ),
-          const SizedBox(width: 16),
-          
-          // Информация
+          const SizedBox(width: AutonannySpacing.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   transaction.typeText,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2B2B2B),
+                  style: AutonannyTypography.labelL(
+                    color: colors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AutonannySpacing.xs),
                 Text(
                   transaction.description,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF757575),
+                  style: AutonannyTypography.bodyS(
+                    color: colors.textSecondary,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AutonannySpacing.xs),
                 Text(
                   DateFormat('dd.MM.yyyy HH:mm').format(transaction.createdAt),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF9E9E9E),
+                  style: AutonannyTypography.caption(
+                    color: colors.textTertiary,
                   ),
                 ),
-                if (transaction.status != null && transaction.status != 'completed') ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    transaction.statusText,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: transaction.status == 'failed'
-                          ? const Color(0xFFF44336)
-                          : const Color(0xFFFF9800),
+                if (transaction.status != null &&
+                    transaction.status != 'completed') ...[
+                  const SizedBox(height: AutonannySpacing.sm),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: AutonannyStatusChip(
+                      label: transaction.statusText,
+                      variant: switch (transaction.status) {
+                        'failed' => AutonannyStatusVariant.danger,
+                        'pending' => AutonannyStatusVariant.warning,
+                        _ => AutonannyStatusVariant.neutral,
+                      },
                     ),
                   ),
                 ],
               ],
             ),
           ),
-          
-          // Сумма
+          const SizedBox(width: AutonannySpacing.md),
           Text(
             '${isIncome ? '+' : ''}${NumberFormat('#,##0.00', 'ru_RU').format(transaction.amount)} ₽',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
+            style: AutonannyTypography.h3(color: amountColor),
           ),
         ],
       ),

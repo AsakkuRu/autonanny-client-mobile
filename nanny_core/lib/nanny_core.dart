@@ -49,6 +49,7 @@ export 'models/login_path.dart';
 export 'models/dropdown_menu_data.dart';
 
 export 'messaging/firebase_messaging_handler.dart';
+export 'messaging/push_token_sync.dart';
 export 'messaging/trip_status_notifications.dart'; // FE-MVP-019
 
 // Packages

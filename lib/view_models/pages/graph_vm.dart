@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/views/pages/graph_create.dart';
+import 'package:nanny_components/base_views/views/direct.dart';
 import 'package:nanny_components/base_views/views/driver_info.dart';
-import 'package:nanny_components/dialogs/loading.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/dialogs/driver_qr_dialog.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';

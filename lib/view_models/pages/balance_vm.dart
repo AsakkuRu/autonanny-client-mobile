@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/views/pages/transactions/transactions_history_view.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/base_views/views/pages/wallet.dart';
 import 'package:nanny_core/nanny_core.dart';
-import 'package:intl/intl.dart';
 
 class BalanceStats {
   final double totalSpent;
@@ -42,10 +43,8 @@ class BalanceVM extends ViewModelBase {
                 subtitle: "Выберите способ пополнения",
               )));
 
-  void navigateToHistory() => Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (context) => const TransactionsHistoryView()));
+  void navigateToHistory() => Navigator.push(context,
+      MaterialPageRoute(builder: (context) => const TransactionsHistoryView()));
 
   void showAutofillDialog() => NannyDialogs.showMessageBox(
         context,

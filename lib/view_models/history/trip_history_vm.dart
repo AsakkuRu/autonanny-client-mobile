@@ -1,7 +1,8 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_client/views/support/complaint_view.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
 
@@ -81,7 +82,6 @@ class TripHistoryVM extends ViewModelBase {
       builder: (ctx) => _TripDetailsSheet(trip: trip),
     );
   }
-
 }
 
 class _FilterSheet extends StatefulWidget {
@@ -141,7 +141,6 @@ class _FilterSheetState extends State<_FilterSheet> {
             ],
           ),
           const SizedBox(height: 20),
-
           const Text('Период', style: TextStyle(fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
           Row(
@@ -170,7 +169,6 @@ class _FilterSheetState extends State<_FilterSheet> {
             ],
           ),
           const SizedBox(height: 20),
-
           const Text('Статус', style: TextStyle(fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
           Wrap(
@@ -182,7 +180,6 @@ class _FilterSheetState extends State<_FilterSheet> {
             ],
           ),
           const SizedBox(height: 24),
-
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -194,7 +191,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                 });
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: NannyTheme.primary,
+                backgroundColor: context.autonannyColors.actionPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -202,7 +199,8 @@ class _FilterSheetState extends State<_FilterSheet> {
               ),
               child: const Text(
                 'Применить',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
               ),
             ),
           ),
@@ -217,8 +215,10 @@ class _FilterSheetState extends State<_FilterSheet> {
       label: Text(label),
       selected: isSelected,
       onSelected: (_) => setState(() => status = value),
-      selectedColor: NannyTheme.primary.withOpacity(0.2),
-      checkmarkColor: NannyTheme.primary,
+      selectedColor: context.autonannyColors.actionPrimary.withValues(
+        alpha: 0.16,
+      ),
+      checkmarkColor: context.autonannyColors.actionPrimary,
     );
   }
 
@@ -268,77 +268,82 @@ class _TripDetailsSheet extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-
-          _detailRow('Дата', '${trip.date.day}.${trip.date.month}.${trip.date.year} ${trip.date.hour}:${trip.date.minute.toString().padLeft(2, '0')}'),
+          _detailRow('Дата',
+              '${trip.date.day}.${trip.date.month}.${trip.date.year} ${trip.date.hour}:${trip.date.minute.toString().padLeft(2, '0')}'),
           _detailRow('Откуда', trip.addressFrom),
           _detailRow('Куда', trip.addressTo),
           if (trip.driverName != null) _detailRow('Водитель', trip.driverName!),
-          if (trip.price != null) _detailRow('Стоимость', '${trip.price!.toStringAsFixed(0)} ₽'),
-          if (trip.durationMinutes != null) _detailRow('Время в пути', '${trip.durationMinutes} мин'),
-          if (trip.distanceKm != null) _detailRow('Расстояние', '${trip.distanceKm!.toStringAsFixed(1)} км'),
+          if (trip.price != null)
+            _detailRow('Стоимость', '${trip.price!.toStringAsFixed(0)} ₽'),
+          if (trip.durationMinutes != null)
+            _detailRow('Время в пути', '${trip.durationMinutes} мин'),
+          if (trip.distanceKm != null)
+            _detailRow(
+                'Расстояние', '${trip.distanceKm!.toStringAsFixed(1)} км'),
           _detailRow('Статус', trip.statusText),
-          if (trip.rating != null) _detailRow('Ваша оценка', '⭐ ${trip.rating}'),
-
+          if (trip.rating != null)
+            _detailRow('Ваша оценка', '⭐ ${trip.rating}'),
           const SizedBox(height: 16),
-          if (trip.driverId != null && trip.isCompleted) ...
-            [
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DriverRatingDetailsView(
-                          driverId: trip.driverId!,
-                          driverName: trip.driverName ?? 'Водитель',
-                        ),
+          if (trip.driverId != null && trip.isCompleted) ...[
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DriverRatingDetailsView(
+                        driverId: trip.driverId!,
+                        driverName: trip.driverName ?? 'Водитель',
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.star_outline),
-                  label: const Text('Рейтинг водителя'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
                     ),
-                    side: const BorderSide(color: NannyTheme.primary),
-                    foregroundColor: NannyTheme.primary,
+                  );
+                },
+                icon: const Icon(Icons.star_outline),
+                label: const Text('Рейтинг водителя'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
+                  side: BorderSide(
+                    color: context.autonannyColors.actionPrimary,
+                  ),
+                  foregroundColor: context.autonannyColors.actionPrimary,
                 ),
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ComplaintView(
-                          orderId: trip.id,
-                          driverId: trip.driverId,
-                          driverName: trip.driverName,
-                        ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ComplaintView(
+                        orderId: trip.id,
+                        driverId: trip.driverId,
+                        driverName: trip.driverName,
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.report_problem_outlined),
-                  label: const Text('Подать жалобу'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
                     ),
-                    side: const BorderSide(color: Colors.orange),
-                    foregroundColor: Colors.orange,
+                  );
+                },
+                icon: const Icon(Icons.report_problem_outlined),
+                label: const Text('Подать жалобу'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
                   ),
+                  side: const BorderSide(color: Colors.orange),
+                  foregroundColor: Colors.orange,
                 ),
               ),
-            ],
+            ),
+          ],
           const SizedBox(height: 20),
         ],
       ),

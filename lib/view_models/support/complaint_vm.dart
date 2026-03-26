@@ -1,9 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/nanny_chats_api.dart';
+import 'package:nanny_core/nanny_core.dart'
+    show ImagePicker, ImageSource, XFile;
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 
 class ComplaintVM {
   ComplaintVM({

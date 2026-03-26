@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/dialogs/loading.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
@@ -26,7 +27,7 @@ class GraphCreateVM extends ViewModelBase {
   TextEditingController nameController = TextEditingController();
   TextEditingController childController = TextEditingController();
   List<NannyWeekday> selectedWeekday = [NannyWeekday.monday];
-  
+
   // FE-MVP-015: Список детей и выбранные дети
   List<Child> children = [];
   List<int> selectedChildrenIds = [];
@@ -69,7 +70,8 @@ class GraphCreateVM extends ViewModelBase {
       );
 
       // NEW-005: при редактировании восстанавливаем выбранных детей из маршрутов
-      if (schedule!.roads.isNotEmpty && schedule!.roads.first.children != null) {
+      if (schedule!.roads.isNotEmpty &&
+          schedule!.roads.first.children != null) {
         selectedChildrenIds = List<int>.from(schedule!.roads.first.children!);
       }
       editor.childCount = selectedChildrenIds.isNotEmpty
@@ -102,14 +104,14 @@ class GraphCreateVM extends ViewModelBase {
 
   void addOrEditRoute({Road? updatingRoad}) async {
     if (updatingRoad == null && selectedWeekday.isEmpty) {
-      NannyDialogs.showMessageBox(context, "Ошибка", "Выберите хотя бы один день");
+      NannyDialogs.showMessageBox(
+          context, "Ошибка", "Выберите хотя бы один день");
       return;
     }
-    final NannyWeekday baseWeekday =
-        updatingRoad?.weekDay ??
-            (selectedWeekday.isNotEmpty
-                ? selectedWeekday.first
-                : NannyWeekday.monday);
+    final NannyWeekday baseWeekday = updatingRoad?.weekDay ??
+        (selectedWeekday.isNotEmpty
+            ? selectedWeekday.first
+            : NannyWeekday.monday);
 
     final result = await NannyDialogs.showRouteCreateOrEditSheet(
       context,
@@ -141,8 +143,7 @@ class GraphCreateVM extends ViewModelBase {
     for (var weekday in targetDays) {
       final updatedRoad = road.copyWith(
         weekDay: weekday,
-        children:
-            selectedChildrenIds.isNotEmpty ? selectedChildrenIds : null,
+        children: selectedChildrenIds.isNotEmpty ? selectedChildrenIds : null,
       );
       editor.addRoad(updatedRoad);
     }
@@ -358,13 +359,12 @@ class GraphCreateVM extends ViewModelBase {
         requiredDays.where((d) => !usedDays.contains(d)).toList();
 
     if (missingDays.isNotEmpty) {
-      final missingNames =
-          missingDays.map((d) => d.shortName).join(", ");
+      final missingNames = missingDays.map((d) => d.shortName).join(", ");
       NannyDialogs.showMessageBox(
         context,
         "Ошибка",
         "Для всех выбранных дней графика должны быть заданы маршруты.\n"
-        "Сейчас нет маршрутов для: $missingNames.",
+            "Сейчас нет маршрутов для: $missingNames.",
       );
       return;
     }
@@ -413,25 +413,8 @@ class GraphCreateVM extends ViewModelBase {
     await NannyDialogs.showMessageBox(context, "Успех",
         "График успешно ${schedule == null ? "создан" : "обновлен"}!");
     // При создании возвращаем id нового графика (или -1 как fallback "выбрать самый новый")
-    final resultToPop = schedule == null
-        ? (createdId ?? -1)
-        : null;
+    final resultToPop = schedule == null ? (createdId ?? -1) : null;
+    if (!context.mounted) return;
     Navigator.of(context).pop(resultToPop);
-  }
-
-  // FE-MVP-008: Подсчёт количества поездок в месяц
-  int _calculateTripsPerMonth() {
-    // Каждый маршрут = 1 поездка в неделю, среднее кол-во недель в месяце = 4
-    return editor.roads.length * 4;
-  }
-
-  String _getTripsWord(int count) {
-    if (count % 10 == 1 && count % 100 != 11) {
-      return 'поездка';
-    } else if ([2, 3, 4].contains(count % 10) && ![12, 13, 14].contains(count % 100)) {
-      return 'поездки';
-    } else {
-      return 'поездок';
-    }
   }
 }

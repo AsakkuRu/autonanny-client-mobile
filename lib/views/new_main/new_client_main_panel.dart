@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/widgets/map/full_screen_map_address_picker.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/views/new_main/new_client_main_vm.dart';
 import 'package:nanny_client/views/pages/child_edit.dart';
-import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_components/new_design/new_design.dart';
+import 'package:nanny_components/new_design/nd_primary_button.dart';
 import 'package:nanny_components/styles/new_design_app.dart';
+import 'package:nanny_components/widgets/map/full_screen_map_address_picker.dart';
 import 'package:nanny_core/api/google_map_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
-import 'package:nanny_core/models/from_api/child_short.dart';
-import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class NewClientMainPanel extends StatelessWidget {
@@ -21,13 +19,18 @@ class NewClientMainPanel extends StatelessWidget {
   });
 
   void _showToast(BuildContext context, String msg) {
+    final colors = context.autonannyColors;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg, style: NDT.bodyM.copyWith(color: NDT.neutral0)),
-        backgroundColor: NDT.neutral900,
+        content: Text(
+          msg,
+          style: AutonannyTypography.bodyM(color: colors.textInverse),
+        ),
+        backgroundColor: colors.surfaceInverse,
         behavior: SnackBarBehavior.floating,
-        shape: const RoundedRectangleBorder(borderRadius: NDT.brMd),
-        margin: const EdgeInsets.all(NDT.sp16),
+        shape: const RoundedRectangleBorder(borderRadius: AutonannyRadii.brLg),
+        margin: const EdgeInsets.all(AutonannySpacing.lg),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -35,19 +38,31 @@ class NewClientMainPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureLoader(
+    return FutureBuilder<bool>(
       future: vm.loadRequest,
-      completeView: (_, ok) {
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const AutonannyLoadingState(
+              label: 'Подготавливаем поездку...');
+        }
+
+        if (snapshot.hasError) {
+          return _ErrorPanel(
+            message: snapshot.error.toString(),
+            onRetry: vm.reloadPage,
+          );
+        }
+
+        final ok = snapshot.data;
         if (ok != true) {
           return _ErrorPanel(onRetry: vm.reloadPage);
         }
+
         return _PanelContent(
           vm: vm,
           showToast: (msg) => _showToast(context, msg),
         );
       },
-      errorView: (_, e) =>
-          _ErrorPanel(message: e.toString(), onRetry: vm.reloadPage),
     );
   }
 }
@@ -62,21 +77,50 @@ class _ErrorPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(NDT.sp24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            message ?? 'Не удалось загрузить данные',
-            style: NDT.bodyM,
-            textAlign: TextAlign.center,
-          ),
-          if (onRetry != null) ...[
-            const SizedBox(height: NDT.sp16),
-            NdPrimaryButton(label: 'Повторить', onTap: onRetry),
+    return AutonannyErrorState(
+      title: 'Не удалось загрузить данные',
+      description: message ?? 'Попробуйте обновить экран ещё раз.',
+      actionLabel: onRetry == null ? null : 'Повторить',
+      onAction: onRetry,
+    );
+  }
+}
+
+// ─── Общая action sheet для выбора адреса ───────────────────────────────────
+
+class _AddressPickChoiceSheet extends StatelessWidget {
+  const _AddressPickChoiceSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(AutonannySpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            NdPrimaryButton(
+              label: 'Поиск по адресу',
+              onTap: () => Navigator.of(context).pop('search'),
+            ),
+            const SizedBox(height: AutonannySpacing.md),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop('map'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: NDT.primary,
+                  side: const BorderSide(color: NDT.primary),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: NDT.brXl,
+                  ),
+                ),
+                child: const Text('Указать на карте'),
+              ),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -97,26 +141,28 @@ class _PanelContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        NDT.sp16,
-        NDT.sp4,
-        NDT.sp16,
-        MediaQuery.of(context).padding.bottom + NDT.sp16,
+        AutonannySpacing.lg,
+        AutonannySpacing.xs,
+        AutonannySpacing.lg,
+        MediaQuery.of(context).padding.bottom + AutonannySpacing.lg,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           _AddressCard(vm: vm),
-          const SizedBox(height: NDT.sp20),
+          const SizedBox(height: AutonannySpacing.xl),
           _TariffBlock(vm: vm),
-          const SizedBox(height: NDT.sp20),
+          const SizedBox(height: AutonannySpacing.xl),
           _ChildrenBlock(vm: vm, showToast: showToast),
-          const SizedBox(height: NDT.sp24),
-          NdPrimaryButton(
+          const SizedBox(height: AutonannySpacing.xxl),
+          AutonannyButton(
             label: 'Найти автоняню',
-            trailingIcon: Icons.arrow_forward_rounded,
-            isEnabled: vm.canOrder,
-            onTap: () => vm.searchForDrivers(),
+            trailing: const AutonannyIcon(
+              AutonannyIcons.arrowRight,
+              color: Colors.white,
+            ),
+            onPressed: vm.canOrder ? vm.searchForDrivers : null,
           ),
         ],
       ),
@@ -132,8 +178,8 @@ class _AddressCard extends StatelessWidget {
   const _AddressCard({required this.vm});
 
   static const Color _fromDot = Color(0xFF5B4FCF);
-  static const Color _toDot   = Color(0xFFEF4444);
-  static const Color _viaDot  = Color(0xFFF59E0B);
+  static const Color _toDot = Color(0xFFEF4444);
+  static const Color _viaDot = Color(0xFFF59E0B);
 
   @override
   Widget build(BuildContext context) {
@@ -165,9 +211,9 @@ class _AddressCard extends StatelessWidget {
     if (addrs.length > 2) {
       for (var i = 1; i < addrs.length - 1; i++) {
         final idx = i;
-        rows.add(Divider(height: 1, thickness: 1, color: NDT.neutral100));
+        rows.add(const Divider(height: 1, thickness: 1, color: NDT.neutral100));
         rows.add(_AddressRow(
-          label: 'ЧЕРЕЗ ${idx}',
+          label: 'ЧЕРЕЗ $idx',
           text: NannyMapUtils.simplifyAddress(addrs[idx].address),
           dotColor: _viaDot,
           isActive: vm.selectedAddressIndex == idx,
@@ -192,7 +238,7 @@ class _AddressCard extends StatelessWidget {
     }
 
     // КУДА
-    rows.add(Divider(height: 1, thickness: 1, color: NDT.neutral100));
+    rows.add(const Divider(height: 1, thickness: 1, color: NDT.neutral100));
     final toIndex = addrs.length > 1 ? addrs.length - 1 : -1;
     final toAddr = toIndex >= 0 ? addrs[toIndex] : null;
     rows.add(_AddressRow(
@@ -228,36 +274,7 @@ class _AddressCard extends StatelessWidget {
     // BUG-140326-001: диалог с выбором «Поиск» или «Указать на карте»
     final choice = await showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(NDT.sp16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              NdPrimaryButton(
-                label: 'Поиск по адресу',
-                onTap: () => Navigator.of(ctx).pop('search'),
-              ),
-              const SizedBox(height: NDT.sp12),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(ctx).pop('map'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: NDT.primary,
-                    side: const BorderSide(color: NDT.primary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: NDT.brXl,
-                    ),
-                  ),
-                  child: const Text('Указать на карте'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      builder: (_) => const _AddressPickChoiceSheet(),
     );
     if (choice == null || !context.mounted) return;
     if (choice == 'map') {
@@ -303,36 +320,7 @@ class _AddressCard extends StatelessWidget {
   Future<void> _pickWaypoint(BuildContext context) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(NDT.sp16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              NdPrimaryButton(
-                label: 'Поиск по адресу',
-                onTap: () => Navigator.of(ctx).pop('search'),
-              ),
-              const SizedBox(height: NDT.sp12),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.of(ctx).pop('map'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: NDT.primary,
-                    side: const BorderSide(color: NDT.primary),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: NDT.brXl,
-                    ),
-                  ),
-                  child: const Text('Указать на карте'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      builder: (_) => const _AddressPickChoiceSheet(),
     );
     if (choice == null || !context.mounted) return;
     if (choice == 'map') {
@@ -529,136 +517,17 @@ class _TariffBlock extends StatelessWidget {
           ],
         ),
         const SizedBox(height: NDT.sp10),
-        SizedBox(
-          height: 112,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: NDT.sp2),
-            itemCount: vm.tariffs.length,
-            separatorBuilder: (_, __) => const SizedBox(width: NDT.sp10),
-            itemBuilder: (_, i) => _TariffCard(
-              tariff: vm.tariffs[i],
-              isSelected: vm.selectedTariff == vm.tariffs[i],
-              routeCalculated: vm.distance > 0 && vm.duration > 0,
-              onTap: () => vm.selectTariff(vm.tariffs[i]),
-            ),
-          ),
+        TariffCarousel(
+          options: vm.tariffOptions,
+          onOptionTap: (id) {
+            final tariff =
+                vm.tariffs.where((item) => '${item.id}' == id).firstOrNull;
+            if (tariff != null) {
+              vm.selectTariff(tariff);
+            }
+          },
         ),
       ],
-    );
-  }
-}
-
-class _TariffCard extends StatelessWidget {
-  final DriveTariff tariff;
-  final bool isSelected;
-  final bool routeCalculated;
-  final VoidCallback onTap;
-
-  const _TariffCard({
-    required this.tariff,
-    required this.isSelected,
-    required this.routeCalculated,
-    required this.onTap,
-  });
-
-  IconData get _icon {
-    switch (tariff.id) {
-      case 2:
-        return Icons.directions_car_filled_rounded;
-      case 3:
-        return Icons.airport_shuttle_rounded;
-      case 4:
-        return Icons.local_taxi_rounded;
-      default:
-        return Icons.directions_car_rounded;
-    }
-  }
-
-  String get _subtitle {
-    final t = (tariff.title ?? '').toLowerCase();
-    if (t.contains('комфорт+') || t.contains('комфорт +')) return 'бизнес класс';
-    switch (tariff.id) {
-      case 1:
-        return 'до 4 детей';
-      case 2:
-        return 'авто 2020+';
-      case 3:
-        return 'бизнес класс';
-      default:
-        return 'Фиксированная цена';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = isSelected ? NDT.neutral0 : NDT.neutral900;
-    final subColor = isSelected
-        ? NDT.neutral0.withOpacity(0.75)
-        : NDT.neutral500;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: 160,
-        padding: const EdgeInsets.all(NDT.sp12),
-        decoration: isSelected
-            ? BoxDecoration(
-                gradient: NDT.ctaGradient,
-                borderRadius: NDT.brLg,
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color.fromRGBO(91, 79, 207, 0.30),
-                    offset: Offset(0, 8),
-                    blurRadius: 20,
-                  ),
-                ],
-              )
-            : BoxDecoration(
-                color: NDT.neutral0,
-                borderRadius: NDT.brLg,
-                border: Border.all(color: NDT.neutral200),
-              ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  tariff.displayTitle,
-                  style: NDT.bodyM.copyWith(
-                    color: textColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Icon(_icon,
-                    size: 18,
-                    color: isSelected
-                        ? NDT.neutral0.withOpacity(0.9)
-                        : NDT.neutral400),
-              ],
-            ),
-            const SizedBox(height: NDT.sp8),
-            Text(
-              routeCalculated
-                  ? '${(tariff.amount ?? 0).toStringAsFixed(0)} ₽'
-                  : '${(tariff.amount ?? 0).toStringAsFixed(0)} ₽/км',
-              style: NDT.h3.copyWith(color: textColor),
-            ),
-            const SizedBox(height: NDT.sp2),
-            Text(
-              _subtitle,
-              style: NDT.labelM.copyWith(color: subColor),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -671,25 +540,6 @@ class _ChildrenBlock extends StatelessWidget {
 
   const _ChildrenBlock({required this.vm, required this.showToast});
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('КТО ЕДЕТ', style: NDT.sectionCaption),
-        const SizedBox(height: NDT.sp10),
-        _ChildrenRow(vm: vm, showToast: showToast),
-      ],
-    );
-  }
-}
-
-class _ChildrenRow extends StatelessWidget {
-  final NewClientMainVM vm;
-  final void Function(String) showToast;
-
-  const _ChildrenRow({required this.vm, required this.showToast});
-
   Future<void> _openAddChild(BuildContext context) async {
     await Navigator.push(
       context,
@@ -700,39 +550,60 @@ class _ChildrenRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final children = vm.children;
-
-    if (children.isEmpty) {
-      return Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Добавьте детей для поездки',
-              style: NDT.bodyS,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text('КТО ЕДЕТ', style: NDT.sectionCaption),
+            const Spacer(),
+            AutonannyIconButton(
+              icon: const AutonannyIcon(AutonannyIcons.add),
+              onPressed: () => _openAddChild(context),
+              size: 36,
             ),
+          ],
+        ),
+        const SizedBox(height: NDT.sp10),
+        if (vm.children.isEmpty)
+          AutonannyInlineBanner(
+            title: 'Добавьте детей для поездки',
+            message: 'После добавления можно будет выбрать участников поездки.',
+            leading: const AutonannyIcon(AutonannyIcons.child),
+            trailing: AutonannyButton(
+              label: 'Добавить',
+              size: AutonannyButtonSize.medium,
+              expand: false,
+              onPressed: () => _openAddChild(context),
+            ),
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ChildSelector(
+                data: vm.childSelectorData,
+                onChildTap: (id) {
+                  final child = vm.children
+                      .where((item) => '${item.id}' == id)
+                      .firstOrNull;
+                  if (child != null) {
+                    vm.toggleChild(child, showToast: showToast);
+                  }
+                },
+              ),
+              const SizedBox(height: NDT.sp12),
+              AutonannyButton(
+                label: 'Добавить ребёнка',
+                size: AutonannyButtonSize.medium,
+                variant: AutonannyButtonVariant.secondary,
+                leading: const AutonannyIcon(AutonannyIcons.add),
+                expand: false,
+                onPressed: () => _openAddChild(context),
+              ),
+            ],
           ),
-          const SizedBox(width: NDT.sp8),
-          NdAddChildButton(onTap: () => _openAddChild(context)),
-        ],
-      );
-    }
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          ...children.map((child) => Padding(
-                padding: const EdgeInsets.only(right: NDT.sp8),
-                child: NdChildChip(
-                  name: child.displayName,
-                  photoUrl: NannyConsts.buildFileUrl(child.photoPath),
-                  isSelected: vm.isChildSelected(child),
-                  onTap: () => vm.toggleChild(child, showToast: showToast),
-                ),
-              )),
-          NdAddChildButton(onTap: () => _openAddChild(context)),
-        ],
-      ),
+      ],
     );
   }
 }

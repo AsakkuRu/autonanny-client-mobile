@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/balance_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_components/styles/new_design_app.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class BalanceView extends StatefulWidget {
@@ -44,10 +44,14 @@ class _BalanceViewState extends State<BalanceView>
         actions: [
           TextButton.icon(
             onPressed: vm.navigateToHistory,
-            icon: const Icon(Icons.history_rounded, color: Colors.white, size: 18),
+            icon: const Icon(Icons.history_rounded,
+                color: Colors.white, size: 18),
             label: const Text(
               "История",
-              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600),
             ),
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -67,7 +71,7 @@ class _BalanceViewState extends State<BalanceView>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildBalanceCard(context, money.balance),
+                  _buildWalletSection(context, money),
                   const SizedBox(height: NDT.sp16),
                   _buildStatsRow(context, stats),
                   const SizedBox(height: NDT.sp16),
@@ -87,90 +91,29 @@ class _BalanceViewState extends State<BalanceView>
 
   // ─── Balance card ──────────────────────────────────────────────────────────
 
-  Widget _buildBalanceCard(BuildContext context, double balance) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(NDT.sp16, NDT.sp16, NDT.sp16, 0),
-      padding: const EdgeInsets.all(NDT.sp20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [NDT.primaryLight, NDT.primaryDark],
-        ),
-        borderRadius: NDT.brXl,
-        boxShadow: NDT.ctaShadow,
-      ),
+  Widget _buildWalletSection(BuildContext context, UserMoney money) {
+    final colors = context.autonannyColors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(NDT.sp16, NDT.sp16, NDT.sp16, 0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Текущий баланс",
-            style: NDT.bodyS.copyWith(color: Colors.white.withOpacity(0.8)),
+          WalletSummary(
+            data: vm.walletSummaryData(money),
+            onAction: vm.navigateToWallet,
           ),
-          const SizedBox(height: NDT.sp4),
-          Text(
-            vm.formatCurrency(balance),
-            style: NDT.h1.copyWith(
-              fontSize: 30,
-              color: Colors.white,
-              letterSpacing: -1,
+          const SizedBox(height: NDT.sp12),
+          AutonannyButton(
+            label: 'Автопополнение',
+            variant: AutonannyButtonVariant.secondary,
+            leading: AutonannyIcon(
+              AutonannyIcons.timer,
+              size: 18,
+              color: colors.actionPrimary,
             ),
-          ),
-          const SizedBox(height: NDT.sp16),
-          Row(
-            children: [
-              Expanded(
-                child: _actionButton(
-                  icon: Icons.add_rounded,
-                  label: "Пополнить",
-                  onTap: vm.navigateToWallet,
-                  filled: true,
-                ),
-              ),
-              const SizedBox(width: NDT.sp10),
-              Expanded(
-                child: _actionButton(
-                  icon: Icons.autorenew_rounded,
-                  label: "Автопополн.",
-                  onTap: vm.showAutofillDialog,
-                  filled: false,
-                ),
-              ),
-            ],
+            onPressed: vm.showAutofillDialog,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _actionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required bool filled,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: filled ? Colors.white : Colors.white.withOpacity(0.15),
-          borderRadius: NDT.brLg,
-          border: filled ? null : Border.all(color: Colors.white.withOpacity(0.4)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: filled ? NDT.primary : Colors.white),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: NDT.labelL.copyWith(
-                color: filled ? NDT.primary : Colors.white,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -178,7 +121,20 @@ class _BalanceViewState extends State<BalanceView>
   // ─── Stats row ─────────────────────────────────────────────────────────────
 
   Widget _buildStatsRow(BuildContext context, BalanceStats stats) {
-    final months = ['ЯНВ', 'ФЕВ', 'МАР', 'АПР', 'МАЙ', 'ИЮН', 'ИЮЛ', 'АВГ', 'СЕН', 'ОКТ', 'НОЯ', 'ДЕК'];
+    final months = [
+      'ЯНВ',
+      'ФЕВ',
+      'МАР',
+      'АПР',
+      'МАЙ',
+      'ИЮН',
+      'ИЮЛ',
+      'АВГ',
+      'СЕН',
+      'ОКТ',
+      'НОЯ',
+      'ДЕК'
+    ];
     final monthName = months[DateTime.now().month - 1];
 
     return Padding(
@@ -237,7 +193,8 @@ class _BalanceViewState extends State<BalanceView>
 
   String _compact(double v) {
     if (v == 0) return "0";
-    if (v >= 1000) return "${(v / 1000).toStringAsFixed(1).replaceAll('.0', '')}к";
+    if (v >= 1000)
+      return "${(v / 1000).toStringAsFixed(1).replaceAll('.0', '')}к";
     return v.toStringAsFixed(0);
   }
 
@@ -280,66 +237,31 @@ class _BalanceViewState extends State<BalanceView>
   }
 
   Widget _emptyPaymentTile() {
-    return GestureDetector(
+    return AutonannyCard(
       onTap: vm.navigateToWallet,
-      child: Container(
-        padding: const EdgeInsets.all(NDT.sp16),
-        decoration: NDT.cardDecoration,
-        child: Row(
-          children: [
-            Icon(Icons.credit_card_rounded, color: NDT.neutral400),
-            const SizedBox(width: NDT.sp12),
-            Text("Добавьте карту для оплаты", style: NDT.bodyS),
-            const Spacer(),
-            Icon(Icons.chevron_right_rounded, color: NDT.neutral400),
-          ],
-        ),
+      child: Row(
+        children: [
+          AutonannyIcon(AutonannyIcons.card,
+              color: context.autonannyColors.textTertiary),
+          const SizedBox(width: NDT.sp12),
+          Expanded(
+            child: Text("Добавьте карту для оплаты", style: NDT.bodyS),
+          ),
+          AutonannyIcon(
+            AutonannyIcons.chevronRight,
+            color: context.autonannyColors.textTertiary,
+          ),
+        ],
       ),
     );
   }
 
   Widget _cardTile(UserCardData card) {
-    return GestureDetector(
+    return PaymentMethodCard(
+      data: card.paymentMethodCardData,
       onTap: vm.navigateToWallet,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: NDT.sp16, vertical: NDT.sp14),
-        decoration: NDT.cardDecoration,
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 26,
-              decoration: BoxDecoration(
-                gradient: _cardGradient(card.bank),
-                borderRadius: NDT.brXs,
-              ),
-            ),
-            const SizedBox(width: NDT.sp12),
-            Text(
-              "${_bankName(card.bank)} · ${card.cardNumber}",
-              style: NDT.bodyM,
-            ),
-            const Spacer(),
-            Icon(Icons.chevron_right_rounded, color: NDT.neutral400),
-          ],
-        ),
-      ),
     );
   }
-
-  LinearGradient _cardGradient(String bank) => switch (bank.toLowerCase()) {
-        "visa" => const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)]),
-        "mir" => const LinearGradient(colors: [Color(0xFF22C55E), Color(0xFF15803D)]),
-        "mastercard" => const LinearGradient(colors: [Colors.red, Colors.orange]),
-        _ => const LinearGradient(colors: [NDT.primary, NDT.primaryDark]),
-      };
-
-  String _bankName(String bank) => switch (bank.toLowerCase()) {
-        "visa" => "Visa",
-        "mir" => "Мир",
-        "mastercard" => "Mastercard",
-        _ => bank,
-      };
 
   // ─── Recent operations ─────────────────────────────────────────────────────
 
@@ -405,9 +327,8 @@ class _BalanceViewState extends State<BalanceView>
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: isDebit
-                        ? NDT.primary100
-                        : NDT.success.withOpacity(0.1),
+                    color:
+                        isDebit ? NDT.primary100 : NDT.success.withOpacity(0.1),
                     borderRadius: NDT.brSm,
                   ),
                   child: Icon(
@@ -503,7 +424,8 @@ class _BalanceViewState extends State<BalanceView>
     );
   }
 
-  Widget _detailRow(IconData icon, String label, String value, {Color? valueColor}) {
+  Widget _detailRow(IconData icon, String label, String value,
+      {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: NDT.sp6),
       child: Row(

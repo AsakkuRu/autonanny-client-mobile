@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
 
@@ -28,7 +28,8 @@ class TripExportVM {
   Future<void> selectStartDate() async {
     final date = await showDatePicker(
       context: context,
-      initialDate: startDate ?? DateTime.now().subtract(const Duration(days: 30)),
+      initialDate:
+          startDate ?? DateTime.now().subtract(const Duration(days: 30)),
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
@@ -69,7 +70,8 @@ class TripExportVM {
 
   Future<void> exportPdf() async {
     if (trips.isEmpty) {
-      NannyDialogs.showMessageBox(context, 'Нет данных', 'Нет поездок за выбранный период.');
+      NannyDialogs.showMessageBox(
+          context, 'Нет данных', 'Нет поездок за выбранный период.');
       return;
     }
 
@@ -102,7 +104,8 @@ class TripExportVM {
               pw.SizedBox(height: 4),
               pw.Text(
                 'Период: $periodText',
-                style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
+                style:
+                    const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
               ),
               pw.Divider(),
             ],
@@ -132,9 +135,11 @@ class TripExportVM {
             ),
             pw.SizedBox(height: 16),
             pw.TableHelper.fromTextArray(
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+              headerStyle:
+                  pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
               cellStyle: const pw.TextStyle(fontSize: 9),
-              headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+              headerDecoration:
+                  const pw.BoxDecoration(color: PdfColors.grey200),
               cellHeight: 28,
               columnWidths: {
                 0: const pw.FixedColumnWidth(70),
@@ -144,13 +149,17 @@ class TripExportVM {
                 4: const pw.FixedColumnWidth(70),
               },
               headers: ['Дата', 'Откуда', 'Куда', 'Цена', 'Статус'],
-              data: trips.map((t) => [
-                _dateFormat.format(t.date),
-                t.addressFrom,
-                t.addressTo,
-                t.price != null ? '${t.price!.toStringAsFixed(0)} р.' : '—',
-                t.statusText,
-              ]).toList(),
+              data: trips
+                  .map((t) => [
+                        _dateFormat.format(t.date),
+                        t.addressFrom,
+                        t.addressTo,
+                        t.price != null
+                            ? '${t.price!.toStringAsFixed(0)} р.'
+                            : '—',
+                        t.statusText,
+                      ])
+                  .toList(),
             ),
           ],
         ),
@@ -158,11 +167,13 @@ class TripExportVM {
 
       await Printing.sharePdf(
         bytes: await pdf.save(),
-        filename: 'trips_${_dateFormat.format(startDate ?? DateTime.now())}_${_dateFormat.format(endDate ?? DateTime.now())}.pdf',
+        filename:
+            'trips_${_dateFormat.format(startDate ?? DateTime.now())}_${_dateFormat.format(endDate ?? DateTime.now())}.pdf',
       );
     } catch (e) {
       if (context.mounted) {
-        NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось создать PDF: $e');
+        NannyDialogs.showMessageBox(
+            context, 'Ошибка', 'Не удалось создать PDF: $e');
       }
     }
 
@@ -172,9 +183,11 @@ class TripExportVM {
   pw.Widget _pdfStat(String label, String value) {
     return pw.Column(
       children: [
-        pw.Text(label, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+        pw.Text(label,
+            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
         pw.SizedBox(height: 2),
-        pw.Text(value, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+        pw.Text(value,
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
       ],
     );
   }
@@ -191,9 +204,36 @@ class TripExportVM {
   List<TripHistory> _generateMockData() {
     final now = DateTime.now();
     return [
-      TripHistory(id: 1, date: now.subtract(const Duration(days: 1)), addressFrom: 'ул. Ленина, 15', addressTo: 'Школа №42', driverName: 'Иван Петров', price: 450, status: 'completed', rating: 5, durationMinutes: 25, distanceKm: 8.5),
-      TripHistory(id: 2, date: now.subtract(const Duration(days: 3)), addressFrom: 'Школа №42', addressTo: 'ул. Ленина, 15', driverName: 'Иван Петров', price: 420, status: 'completed', rating: 5, durationMinutes: 22, distanceKm: 8.2),
-      TripHistory(id: 3, date: now.subtract(const Duration(days: 5)), addressFrom: 'ул. Ленина, 15', addressTo: 'Бассейн "Дельфин"', driverName: 'Алексей Козлов', price: 0, status: 'cancelled_by_driver'),
+      TripHistory(
+          id: 1,
+          date: now.subtract(const Duration(days: 1)),
+          addressFrom: 'ул. Ленина, 15',
+          addressTo: 'Школа №42',
+          driverName: 'Иван Петров',
+          price: 450,
+          status: 'completed',
+          rating: 5,
+          durationMinutes: 25,
+          distanceKm: 8.5),
+      TripHistory(
+          id: 2,
+          date: now.subtract(const Duration(days: 3)),
+          addressFrom: 'Школа №42',
+          addressTo: 'ул. Ленина, 15',
+          driverName: 'Иван Петров',
+          price: 420,
+          status: 'completed',
+          rating: 5,
+          durationMinutes: 22,
+          distanceKm: 8.2),
+      TripHistory(
+          id: 3,
+          date: now.subtract(const Duration(days: 5)),
+          addressFrom: 'ул. Ленина, 15',
+          addressTo: 'Бассейн "Дельфин"',
+          driverName: 'Алексей Козлов',
+          price: 0,
+          status: 'cancelled_by_driver'),
     ];
   }
 }

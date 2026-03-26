@@ -1,8 +1,15 @@
+import 'package:autonanny_ui_client/autonanny_ui_client.dart';
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/mappers/client_ui_sdk_mappers.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/dialogs/driver_qr_dialog.dart';
+import 'package:nanny_components/new_design/nd_primary_button.dart';
+import 'package:nanny_components/styles/new_design_app.dart';
 import 'package:nanny_components/widgets/map/full_screen_map_address_picker.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_core/api/google_map_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
@@ -48,11 +55,26 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureLoader(
+    return FutureBuilder<bool>(
       future: vm.loadRequest,
-      completeView: (context, _) {
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: AutonannyLoadingState()),
+          );
+        }
+        if (snapshot.hasError || snapshot.data != true) {
+          return Scaffold(
+            body: Center(
+              child: AutonannyErrorState(
+                title: 'Не удалось открыть поездку',
+                description: snapshot.error?.toString() ?? 'Попробуйте ещё раз.',
+              ),
+            ),
+          );
+        }
         return Scaffold(
-          backgroundColor: NDT.neutral100,
+          backgroundColor: context.autonannyColors.surfaceSecondary,
           body: Stack(
             children: [
               _LiveTripMap(vm: vm),
@@ -84,7 +106,6 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
           ),
         );
       },
-      errorView: (context, error) => ErrorView(errorText: error.toString()),
     );
   }
 
@@ -551,11 +572,8 @@ class _TripSheetState extends State<_TripSheet> {
                 ),
               ),
               const SizedBox(height: 14),
-              Text(vm.statusText, style: NDT.h3),
-              const SizedBox(height: 6),
-              Text(
-                route,
-                style: NDT.bodyS.copyWith(color: NDT.neutral500),
+              TripProgressHeader(
+                data: vm.tripProgressHeaderData(routeLabel: route),
               ),
               const SizedBox(height: 12),
               _statusBlocks(),

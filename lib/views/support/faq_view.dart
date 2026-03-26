@@ -1,6 +1,6 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/view_models/support/faq_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 
 class FaqView extends StatefulWidget {
   const FaqView({super.key});
@@ -27,176 +27,265 @@ class _FaqViewState extends State<FaqView> {
   @override
   Widget build(BuildContext context) {
     final grouped = vm.groupedFaq;
+    final colors = context.autonannyColors;
 
-    return Scaffold(
-      backgroundColor: NannyTheme.background,
-      appBar: const NannyAppBar.light(
+    return AutonannyAppScaffold(
+      appBar: AutonannyAppBar(
         title: 'Частые вопросы',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+          tooltip: 'Назад',
+        ),
       ),
-      body: Column(
-        children: [
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: Column(
-              children: [
-                TextField(
-                  controller: vm.searchController,
-                  onChanged: vm.onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: 'Поиск по вопросам',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    suffixIcon: vm.searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close, size: 20),
-                            onPressed: vm.clearSearch,
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AutonannySpacing.lg,
+                AutonannySpacing.sm,
+                AutonannySpacing.lg,
+                0,
+              ),
+              child: AutonannySectionContainer(
+                child: Column(
+                  children: [
+                    AutonannyTextField(
+                      controller: vm.searchController,
+                      onChanged: vm.onSearchChanged,
+                      hintText: 'Поиск по вопросам',
+                      prefix: const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: AutonannyIcon(AutonannyIcons.search),
+                      ),
+                      suffix: vm.searchQuery.isNotEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: AutonannyIconButton(
+                                size: 36,
+                                icon: const AutonannyIcon(
+                                  AutonannyIcons.close,
+                                ),
+                                onPressed: vm.clearSearch,
+                                variant: AutonannyIconButtonVariant.ghost,
+                              ),
+                            )
+                          : null,
                     ),
-                    filled: true,
-                    fillColor: NannyTheme.neutral50,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                  ),
+                    const SizedBox(height: AutonannySpacing.md),
+                    SizedBox(
+                      height: 40,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: FaqVM.categories.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(width: AutonannySpacing.sm),
+                        itemBuilder: (context, index) {
+                          final category = FaqVM.categories[index];
+                          return _CategoryChip(
+                            label: category,
+                            isSelected: vm.selectedCategory == category,
+                            onTap: () => vm.selectCategory(category),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 36,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: FaqVM.categories.map((cat) {
-                      final isSelected = vm.selectedCategory == cat;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: FilterChip(
-                          label: Text(
-                            cat,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isSelected
-                                  ? Colors.white
-                                  : NannyTheme.neutral700,
-                            ),
-                          ),
-                          selected: isSelected,
-                          onSelected: (_) => vm.selectCategory(cat),
-                          backgroundColor: NannyTheme.neutral100,
-                          selectedColor: NannyTheme.primary,
-                          checkmarkColor: Colors.white,
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 4),
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-          Expanded(
-            child: grouped.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.search_off,
-                            size: 48, color: NannyTheme.neutral300),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Ничего не найдено',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: grouped.entries.map((entry) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8, top: 8),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _categoryIcon(entry.key),
-                                  size: 18,
-                                  color: NannyTheme.primary,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  entry.key,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
-                                ),
-                              ],
+            const SizedBox(height: AutonannySpacing.md),
+            Expanded(
+              child: grouped.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(AutonannySpacing.xl),
+                      child: Center(
+                            child: AutonannyEmptyState(
+                              title: 'Ничего не найдено',
+                              description:
+                                  'Попробуйте изменить поисковый запрос или выбрать другую категорию.',
+                              icon: const AutonannyIcon(AutonannyIcons.search),
                             ),
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        AutonannySpacing.lg,
+                        0,
+                        AutonannySpacing.lg,
+                        AutonannySpacing.xxl,
+                      ),
+                      children: grouped.entries.map((entry) {
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AutonannySpacing.lg,
                           ),
-                          ...entry.value.map((item) => Card(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: ExpansionTile(
-                                  tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-                                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.zero,
-                                  ),
-                                  title: Text(
-                                    item.question,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                  ),
-                                  children: [
-                                    Text(
-                                      item.answer,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            color: NannyTheme.neutral600,
-                                            height: 1.5,
-                                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: colors.statusInfoSurface,
+                                      borderRadius: AutonannyRadii.brMd,
                                     ),
-                                  ],
+                                    child: Center(
+                                      child: AutonannyIcon(
+                                        _categoryIcon(entry.key),
+                                        size: 18,
+                                        color: colors.statusInfo,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: AutonannySpacing.sm),
+                                  Text(
+                                    entry.key,
+                                    style: AutonannyTypography.h3(
+                                      color: colors.textPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AutonannySpacing.sm),
+                              ...entry.value.map(
+                                (item) => Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AutonannySpacing.sm,
+                                  ),
+                                  child: _FaqTile(item: item),
                                 ),
-                              )),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-          ),
-        ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  IconData _categoryIcon(String category) {
+  AutonannyIconAsset _categoryIcon(String category) {
     switch (category) {
       case 'Регистрация':
-        return Icons.person_add;
+        return AutonannyIcons.profile;
       case 'Поездки':
-        return Icons.directions_car;
+        return AutonannyIcons.car;
       case 'Оплата':
-        return Icons.payment;
+        return AutonannyIcons.card;
       case 'Безопасность':
-        return Icons.security;
+        return AutonannyIcons.shield;
       case 'Техподдержка':
-        return Icons.support_agent;
+        return AutonannyIcons.chat;
       default:
-        return Icons.help_outline;
+        return AutonannyIcons.help;
     }
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final components = context.autonannyComponents;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AutonannyRadii.brFull,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.md,
+            vertical: AutonannySpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected ? null : colors.surfaceSecondary,
+            gradient: isSelected ? components.primaryActionGradient : null,
+            borderRadius: AutonannyRadii.brFull,
+            border: Border.all(
+              color: isSelected
+                  ? Colors.transparent
+                  : colors.borderSubtle,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: AutonannyTypography.labelM(
+                color: isSelected ? colors.textInverse : colors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FaqTile extends StatelessWidget {
+  const _FaqTile({required this.item});
+
+  final FaqItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return AutonannyCard(
+      padding: EdgeInsets.zero,
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent,
+          splashColor: colors.actionPrimary.withValues(alpha: 0.06),
+          highlightColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.lg,
+            vertical: AutonannySpacing.xs,
+          ),
+          childrenPadding: const EdgeInsets.fromLTRB(
+            AutonannySpacing.lg,
+            0,
+            AutonannySpacing.lg,
+            AutonannySpacing.lg,
+          ),
+          iconColor: colors.actionPrimary,
+          collapsedIconColor: colors.textTertiary,
+          title: Text(
+            item.question,
+            style: AutonannyTypography.bodyM(
+              color: colors.textPrimary,
+            ).copyWith(fontWeight: FontWeight.w600),
+          ),
+          children: [
+            Text(
+              item.answer,
+              style: AutonannyTypography.bodyS(
+                color: colors.textSecondary,
+              ).copyWith(height: 1.5),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

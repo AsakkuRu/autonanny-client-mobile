@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/rating/driver_rating_details_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/models/from_api/driver_rating.dart';
 
 class DriverRatingDetailsView extends StatefulWidget {
-  final int driverId;
-  final String? driverName;
-  final String? driverPhoto;
-
   const DriverRatingDetailsView({
     super.key,
     required this.driverId,
@@ -16,12 +12,17 @@ class DriverRatingDetailsView extends StatefulWidget {
     this.driverPhoto,
   });
 
+  final int driverId;
+  final String? driverName;
+  final String? driverPhoto;
+
   @override
-  State<DriverRatingDetailsView> createState() => _DriverRatingDetailsViewState();
+  State<DriverRatingDetailsView> createState() =>
+      _DriverRatingDetailsViewState();
 }
 
 class _DriverRatingDetailsViewState extends State<DriverRatingDetailsView> {
-  late DriverRatingDetailsVM vm;
+  late final DriverRatingDetailsVM vm;
 
   @override
   void initState() {
@@ -33,273 +34,294 @@ class _DriverRatingDetailsViewState extends State<DriverRatingDetailsView> {
       driverName: widget.driverName,
       driverPhoto: widget.driverPhoto,
     );
-    vm.loadPage();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Рейтинг водителя',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+    return AutonannyAppScaffold(
+      appBar: AutonannyAppBar(
+        title: 'Рейтинг водителя',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+          tooltip: 'Назад',
         ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: vm.isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AutonannyLoadingState(
+              label: 'Загружаем рейтинг водителя.',
+            )
           : vm.rating == null
-              ? _buildErrorState()
+              ? AutonannyErrorState(
+                  title: 'Не удалось загрузить рейтинг',
+                  description: 'Попробуйте открыть экран ещё раз.',
+                  actionLabel: 'Повторить',
+                  onAction: vm.refresh,
+                )
               : RefreshIndicator(
                   onRefresh: vm.refresh,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        _buildDriverHeader(),
-                        const SizedBox(height: 24),
-                        _buildRatingSummary(),
-                        const SizedBox(height: 24),
-                        _buildReviewsList(),
-                      ],
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AutonannySpacing.lg,
+                      AutonannySpacing.sm,
+                      AutonannySpacing.lg,
+                      AutonannySpacing.xxl,
                     ),
+                    children: [
+                      _DriverOverviewCard(
+                        driverName: widget.driverName,
+                        driverPhoto: widget.driverPhoto,
+                        rating: vm.rating!,
+                      ),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      _RatingSummaryCard(rating: vm.rating!),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      _ReviewsSection(rating: vm.rating!),
+                    ],
                   ),
                 ),
     );
   }
+}
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+class _DriverOverviewCard extends StatelessWidget {
+  const _DriverOverviewCard({
+    required this.driverName,
+    required this.driverPhoto,
+    required this.rating,
+  });
+
+  final String? driverName;
+  final String? driverPhoto;
+  final DriverRating rating;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final resolvedName = (driverName?.trim().isNotEmpty ?? false)
+        ? driverName!.trim()
+        : 'Водитель';
+
+    return AutonannyCard(
+      child: Row(
         children: [
-          Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-          const SizedBox(height: 16),
-          Text(
-            'Не удалось загрузить рейтинг',
-            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+          AutonannyAvatar(
+            image: (driverPhoto?.trim().isNotEmpty ?? false)
+                ? NetworkImage(driverPhoto!)
+                : null,
+            initials: _initials(resolvedName),
+            size: 68,
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: vm.refresh,
-            child: const Text('Повторить'),
+          const SizedBox(width: AutonannySpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  resolvedName,
+                  style: AutonannyTypography.h3(color: colors.textPrimary),
+                ),
+                const SizedBox(height: AutonannySpacing.xs),
+                Text(
+                  '${rating.totalReviews} ${_reviewWord(rating.totalReviews)}',
+                  style: AutonannyTypography.bodyS(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDriverHeader() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            ProfileImage(
-              url: widget.driverPhoto ?? '',
-              radius: 35,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.driverName ?? 'Водитель',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${vm.rating!.totalReviews} ${_getReviewWord(vm.rating!.totalReviews)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _initials(String value) {
+    final parts = value
+        .split(' ')
+        .where((element) => element.trim().isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return 'A';
+    }
+    if (parts.length == 1) {
+      return parts.first.substring(0, 1).toUpperCase();
+    }
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
 
-  Widget _buildRatingSummary() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  vm.rating!.averageRating.toStringAsFixed(1),
-                  style: const TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                const Icon(
-                  Icons.star,
-                  size: 40,
-                  color: Color(0xFFFFA726),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) {
-                final filled = index < vm.rating!.averageRating.round();
-                return Icon(
-                  filled ? Icons.star : Icons.star_border,
-                  size: 28,
-                  color: const Color(0xFFFFA726),
-                );
-              }),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Средняя оценка',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String _reviewWord(int count) {
+    if (count % 10 == 1 && count % 100 != 11) {
+      return 'отзыв';
+    }
+    if ([2, 3, 4].contains(count % 10) && ![12, 13, 14].contains(count % 100)) {
+      return 'отзыва';
+    }
+    return 'отзывов';
   }
+}
 
-  Widget _buildReviewsList() {
-    if (vm.rating!.reviews.isEmpty) {
-      return Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            children: [
-              Icon(Icons.rate_review_outlined, size: 48, color: Colors.grey[400]),
-              const SizedBox(height: 12),
-              Text(
-                'Пока нет отзывов',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              ),
-            ],
+class _RatingSummaryCard extends StatelessWidget {
+  const _RatingSummaryCard({required this.rating});
+
+  final DriverRating rating;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final rounded = rating.averageRating.round().clamp(0, 5);
+
+    return AutonannyCard(
+      child: Column(
+        children: [
+          Text(
+            rating.averageRating.toStringAsFixed(1),
+            style: AutonannyTypography.h1(color: colors.textPrimary),
           ),
-        ),
+          const SizedBox(height: AutonannySpacing.xs),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: AutonannySpacing.xs,
+            children: List.generate(5, (index) {
+              return AutonannyIcon(
+                AutonannyIcons.star,
+                size: 24,
+                color: index < rounded
+                    ? colors.statusWarning
+                    : colors.borderStrong,
+              );
+            }),
+          ),
+          const SizedBox(height: AutonannySpacing.sm),
+          Text(
+            'Средняя оценка',
+            style: AutonannyTypography.bodyS(
+              color: colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewsSection extends StatelessWidget {
+  const _ReviewsSection({required this.rating});
+
+  final DriverRating rating;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rating.reviews.isEmpty) {
+      return const AutonannyEmptyState(
+        title: 'Пока нет отзывов',
+        description:
+            'Оценки клиентов появятся здесь после первых завершённых поездок.',
+        icon: AutonannyIcon(AutonannyIcons.chat, size: 36),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Отзывы',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 12),
-        ...vm.rating!.reviews.map((review) => _buildReviewCard(review)),
-      ],
-    );
-  }
-
-  Widget _buildReviewCard(DriverReview review) {
-    final dateFormat = DateFormat('dd MMM yyyy', 'ru');
-    
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: List.generate(5, (index) {
-                    return Icon(
-                      index < review.rating ? Icons.star : Icons.star_border,
-                      size: 18,
-                      color: const Color(0xFFFFA726),
-                    );
-                  }),
-                ),
-                Text(
-                  dateFormat.format(review.date),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[500],
-                  ),
-                ),
-              ],
-            ),
-            if (review.authorName != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                review.authorName!,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+    return AutonannySectionContainer(
+      title: 'Отзывы',
+      subtitle: 'Последние оценки и комментарии клиентов.',
+      child: Column(
+        children: rating.reviews
+            .map(
+              (review) => Padding(
+                padding: const EdgeInsets.only(bottom: AutonannySpacing.md),
+                child: _ReviewCard(review: review),
               ),
-            ],
-            if (review.criteria != null && review.criteria!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: review.criteria!.map((c) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: NannyTheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    c,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: NannyTheme.primary,
-                    ),
-                  ),
-                )).toList(),
-              ),
-            ],
-            if (review.text != null && review.text!.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                review.text!,
-                style: const TextStyle(fontSize: 14),
-              ),
-            ],
-          ],
-        ),
+            )
+            .toList(growable: false),
       ),
     );
   }
+}
 
-  String _getReviewWord(int count) {
-    if (count % 10 == 1 && count % 100 != 11) return 'отзыв';
-    if ([2, 3, 4].contains(count % 10) && ![12, 13, 14].contains(count % 100)) return 'отзыва';
-    return 'отзывов';
+class _ReviewCard extends StatelessWidget {
+  const _ReviewCard({required this.review});
+
+  final DriverReview review;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final dateFormat = DateFormat('dd MMM yyyy', 'ru');
+
+    return AutonannyCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Wrap(
+                spacing: AutonannySpacing.xs,
+                children: List.generate(5, (index) {
+                  return AutonannyIcon(
+                    AutonannyIcons.star,
+                    size: 18,
+                    color: index < review.rating
+                        ? colors.statusWarning
+                        : colors.borderStrong,
+                  );
+                }),
+              ),
+              Text(
+                dateFormat.format(review.date),
+                style: AutonannyTypography.caption(
+                  color: colors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+          if ((review.authorName?.isNotEmpty ?? false)) ...[
+            const SizedBox(height: AutonannySpacing.sm),
+            Text(
+              review.authorName!,
+              style: AutonannyTypography.labelL(
+                color: colors.textPrimary,
+              ),
+            ),
+          ],
+          if (review.criteria != null && review.criteria!.isNotEmpty) ...[
+            const SizedBox(height: AutonannySpacing.sm),
+            Wrap(
+              spacing: AutonannySpacing.xs,
+              runSpacing: AutonannySpacing.xs,
+              children: review.criteria!
+                  .map(
+                    (criterion) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AutonannySpacing.sm,
+                        vertical: AutonannySpacing.xs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.statusInfoSurface,
+                        borderRadius: AutonannyRadii.brFull,
+                      ),
+                      child: Text(
+                        criterion,
+                        style: AutonannyTypography.caption(
+                          color: colors.actionPrimary,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          ],
+          if ((review.text?.isNotEmpty ?? false)) ...[
+            const SizedBox(height: AutonannySpacing.md),
+            Text(
+              review.text!,
+              style: AutonannyTypography.bodyM(
+                color: colors.textPrimary,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

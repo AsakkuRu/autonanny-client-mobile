@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:nanny_client/main.dart' show localeNotifier, themeNotifier;
 import 'package:nanny_client/views/history/trip_history_view.dart';
 import 'package:nanny_client/views/pages/child_edit.dart';
@@ -7,8 +8,11 @@ import 'package:nanny_client/views/referral/referral_view.dart';
 import 'package:nanny_client/views/support/complaint_view.dart';
 import 'package:nanny_client/views/support/faq_view.dart';
 import 'package:nanny_client/views/support/support_chat_view.dart';
-import 'package:nanny_components/dialogs/loading.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
+import 'package:nanny_components/text_masks.dart';
+import 'package:nanny_components/widgets/nanny_text_forms.dart';
 import 'package:nanny_core/api/api_models/update_me_request.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/child.dart';
@@ -100,7 +104,8 @@ class ClientProfileV2Vm extends ViewModelBase {
     final name = NannyUser.userInfo?.name ?? '';
     final surname = NannyUser.userInfo?.surname ?? '';
     final first = name.isNotEmpty ? name.characters.first.toUpperCase() : '';
-    final second = surname.isNotEmpty ? surname.characters.first.toUpperCase() : '';
+    final second =
+        surname.isNotEmpty ? surname.characters.first.toUpperCase() : '';
     return (first + second).isEmpty ? 'A' : first + second;
   }
 
@@ -174,8 +179,10 @@ class ClientProfileV2Vm extends ViewModelBase {
   }
 
   Future<void> editFullName() async {
-    final firstNameController = TextEditingController(text: NannyUser.userInfo?.name ?? '');
-    final lastNameController = TextEditingController(text: NannyUser.userInfo?.surname ?? '');
+    final firstNameController =
+        TextEditingController(text: NannyUser.userInfo?.name ?? '');
+    final lastNameController =
+        TextEditingController(text: NannyUser.userInfo?.surname ?? '');
 
     final confirmed = await NannyDialogs.showModalDialog(
       context: context,
@@ -205,12 +212,14 @@ class ClientProfileV2Vm extends ViewModelBase {
     final lastName = lastNameController.text.trim();
     if (firstName.isEmpty || lastName.isEmpty) {
       if (context.mounted) {
-        NannyDialogs.showMessageBox(context, 'Ошибка', 'Имя и фамилия не могут быть пустыми');
+        NannyDialogs.showMessageBox(
+            context, 'Ошибка', 'Имя и фамилия не могут быть пустыми');
       }
       return;
     }
 
-    await _updateProfile(UpdateMeRequest(firstName: firstName, lastName: lastName));
+    await _updateProfile(
+        UpdateMeRequest(firstName: firstName, lastName: lastName));
   }
 
   Future<void> changePassword() async {
@@ -231,7 +240,8 @@ class ClientProfileV2Vm extends ViewModelBase {
 
     if (password.isEmpty || password.length < 8) {
       if (context.mounted) {
-        NannyDialogs.showMessageBox(context, 'Ошибка', 'Пароль должен быть не меньше 8 символов');
+        NannyDialogs.showMessageBox(
+            context, 'Ошибка', 'Пароль должен быть не меньше 8 символов');
       }
       return;
     }
@@ -316,7 +326,8 @@ class ClientProfileV2Vm extends ViewModelBase {
     if (!context.mounted) return;
 
     LoadScreen.showLoad(context, true);
-    final checked = await DioRequest.handleRequest(context, NannyAuthApi.checkPinCode(code));
+    final checked = await DioRequest.handleRequest(
+        context, NannyAuthApi.checkPinCode(code));
     if (!checked) return;
     if (!context.mounted) return;
     LoadScreen.showLoad(context, false);
@@ -342,14 +353,16 @@ class ClientProfileV2Vm extends ViewModelBase {
     if (!confirm) return;
     if (code.length < 4) {
       if (context.mounted) {
-        NannyDialogs.showMessageBox(context, 'Ошибка', 'Пин-код должен состоять из 4-х цифр');
+        NannyDialogs.showMessageBox(
+            context, 'Ошибка', 'Пин-код должен состоять из 4-х цифр');
       }
       return;
     }
 
     if (!context.mounted) return;
     LoadScreen.showLoad(context, true);
-    final changed = await DioRequest.handleRequest(context, NannyAuthApi.setPinCode(code));
+    final changed =
+        await DioRequest.handleRequest(context, NannyAuthApi.setPinCode(code));
     if (!changed) return;
     if (!context.mounted) return;
     LoadScreen.showLoad(context, false);
@@ -402,7 +415,8 @@ class ClientProfileV2Vm extends ViewModelBase {
     if (!context.mounted) return;
     LoadScreen.showLoad(context, true);
 
-    final success = await DioRequest.handleRequest(context, NannyUsersApi.updateMe(request));
+    final success = await DioRequest.handleRequest(
+        context, NannyUsersApi.updateMe(request));
     if (!success) return;
 
     await NannyUser.getMe();
@@ -437,11 +451,13 @@ class ClientProfileV2Vm extends ViewModelBase {
   }
 
   void openTripHistory() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const TripHistoryView()));
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const TripHistoryView()));
   }
 
   void openReferral() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const ReferralView()));
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const ReferralView()));
   }
 
   void openFaq() {
@@ -449,28 +465,33 @@ class ClientProfileV2Vm extends ViewModelBase {
   }
 
   void openSupportChat() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportChatView()));
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const SupportChatView()));
   }
 
   void openComplaint() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const ComplaintView()));
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const ComplaintView()));
   }
 
   Future<void> callHotline() async {
     final uri = Uri.parse('tel:88005553535');
     if (!await launchUrl(uri)) {
       if (context.mounted) {
-        NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось открыть телефон');
+        NannyDialogs.showMessageBox(
+            context, 'Ошибка', 'Не удалось открыть телефон');
       }
     }
   }
 
   void openUserAgreement() {
-    NannyDialogs.showMessageBox(context, 'Информация', 'Пользовательское соглашение скоро будет доступно');
+    NannyDialogs.showMessageBox(context, 'Информация',
+        'Пользовательское соглашение скоро будет доступно');
   }
 
   void openPrivacyPolicy() {
-    NannyDialogs.showMessageBox(context, 'Информация', 'Политика конфиденциальности скоро будет доступна');
+    NannyDialogs.showMessageBox(context, 'Информация',
+        'Политика конфиденциальности скоро будет доступна');
   }
 
   Future<void> logout() async {

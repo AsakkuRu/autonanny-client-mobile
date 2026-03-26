@@ -1,7 +1,7 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nanny_client/view_models/history/trip_history_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
 
 class TripHistoryView extends StatefulWidget {
@@ -23,218 +23,338 @@ class _TripHistoryViewState extends State<TripHistoryView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NannyTheme.background,
-      appBar: const NannyAppBar.light(
+    final colors = context.autonannyColors;
+
+    return AutonannyAppScaffold(
+      appBar: AutonannyAppBar(
         title: 'История поездок',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.chevronLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+          variant: AutonannyIconButtonVariant.ghost,
+          size: 36,
+        ),
       ),
       body: vm.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : vm.trips.isEmpty
-              ? _buildEmptyState()
+          : vm.filteredTrips.isEmpty
+              ? const AutonannyEmptyState(
+                  title: 'Нет поездок',
+                  description:
+                      'Ваши завершённые и отменённые поездки появятся здесь после первых заказов.',
+                  icon: AutonannyIcon(AutonannyIcons.calendar, size: 36),
+                )
               : RefreshIndicator(
                   onRefresh: vm.refresh,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(
+                      AutonannySpacing.lg,
+                      AutonannySpacing.sm,
+                      AutonannySpacing.lg,
+                      100,
+                    ),
                     itemCount: vm.filteredTrips.length,
                     itemBuilder: (context, index) {
-                      return _buildTripCard(vm.filteredTrips[index]);
+                      return Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: AutonannySpacing.md,
+                        ),
+                        child: _TripCard(
+                          trip: vm.filteredTrips[index],
+                          onTap: () =>
+                              vm.showTripDetails(vm.filteredTrips[index]),
+                        ),
+                      );
                     },
                   ),
                 ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: vm.showFilterDialog,
-        icon: Badge(
-          isLabelVisible: vm.hasActiveFilters,
-          child: const Icon(Icons.filter_list),
+        backgroundColor: colors.actionPrimary,
+        foregroundColor: colors.textInverse,
+        icon: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const AutonannyIcon(
+              AutonannyIcons.list,
+              color: Colors.white,
+              size: 18,
+            ),
+            if (vm.hasActiveFilters)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF22C55E),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
         ),
-        label: const Text('Фильтры'),
+        label: Text(
+          'Фильтры',
+          style: AutonannyTypography.labelL(color: colors.textInverse),
+        ),
       ),
     );
   }
+}
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.history, size: 64, color: NannyTheme.neutral300),
-          const SizedBox(height: 16),
-          Text(
-            'Нет поездок',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Ваши завершённые поездки\nбудут отображаться здесь',
-            textAlign: TextAlign.center,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: NannyTheme.neutral500),
-          ),
-        ],
-      ),
-    );
-  }
+class _TripCard extends StatelessWidget {
+  const _TripCard({
+    required this.trip,
+    required this.onTap,
+  });
 
-  Widget _buildTripCard(TripHistory trip) {
+  final TripHistory trip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
     final dateFormat = DateFormat('dd MMM yyyy, HH:mm', 'ru');
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+    final isCancelled = trip.isCancelled;
+
+    return AutonannyCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                dateFormat.format(trip.date),
+                style: AutonannyTypography.caption(
+                  color: colors.textTertiary,
+                ),
+              ),
+              _StatusChip(
+                label: trip.statusText,
+                isCompleted: trip.isCompleted,
+                isCancelled: isCancelled,
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          _RoutePreview(
+            fromAddress: trip.addressFrom.isNotEmpty
+                ? trip.addressFrom
+                : 'Адрес отправления не указан',
+            toAddress: trip.addressTo.isNotEmpty
+                ? trip.addressTo
+                : 'Адрес назначения не указан',
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          Row(
+            children: [
+              Expanded(
+                child: trip.driverName != null
+                    ? _DriverInfo(
+                        name: trip.driverName!,
+                        photoUrl: trip.driverPhoto,
+                        rating: trip.rating,
+                      )
+                    : Text(
+                        'Водитель не указан',
+                        style: AutonannyTypography.bodyS(
+                          color: colors.textTertiary,
+                        ),
+                      ),
+              ),
+              if (trip.price != null) ...[
+                const SizedBox(width: AutonannySpacing.md),
+                Text(
+                  '${trip.price!.toStringAsFixed(0)} ₽',
+                  style: AutonannyTypography.h3(color: colors.textPrimary),
+                ),
+              ],
+            ],
           ),
         ],
       ),
-      child: InkWell(
-        onTap: () => vm.showTripDetails(trip),
-        borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.isCompleted,
+    required this.isCancelled,
+  });
+
+  final String label;
+  final bool isCompleted;
+  final bool isCancelled;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final background = isCompleted
+        ? colors.statusSuccessSurface
+        : isCancelled
+            ? colors.statusDangerSurface
+            : colors.statusInfoSurface;
+    final foreground = isCompleted
+        ? colors.statusSuccess
+        : isCancelled
+            ? colors.statusDanger
+            : colors.statusInfo;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AutonannySpacing.sm,
+        vertical: AutonannySpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: AutonannyRadii.brFull,
+      ),
+      child: Text(
+        label,
+        style: AutonannyTypography.labelM(color: foreground),
+      ),
+    );
+  }
+}
+
+class _RoutePreview extends StatelessWidget {
+  const _RoutePreview({
+    required this.fromAddress,
+    required this.toAddress,
+  });
+
+  final String fromAddress;
+  final String toAddress;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: colors.actionPrimary,
+                shape: BoxShape.circle,
+              ),
+            ),
+            Container(
+              width: 2,
+              height: 28,
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              color: colors.borderSubtle,
+            ),
+            AutonannyIcon(
+              AutonannyIcons.location,
+              size: 16,
+              color: colors.statusDanger,
+            ),
+          ],
+        ),
+        const SizedBox(width: AutonannySpacing.md),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Дата и статус
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    dateFormat.format(trip.date),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: NannyTheme.neutral500,
-                        ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: trip.isCompleted
-                          ? NannyTheme.success.withOpacity(0.1)
-                          : NannyTheme.danger.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      trip.statusText,
-                      style:
-                          Theme.of(context).textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: trip.isCompleted
-                                    ? NannyTheme.successText
-                                    : NannyTheme.danger,
-                              ),
-                    ),
-                  ),
-                ],
+              Text(
+                fromAddress,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AutonannyTypography.bodyM(color: colors.textPrimary),
               ),
-              const SizedBox(height: 12),
-
-              // Маршрут
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Column(
-                    children: [
-                      const Icon(Icons.circle,
-                          size: 10, color: NannyTheme.primary),
-                      Container(
-                        width: 2,
-                        height: 24,
-                        color: NannyTheme.neutral200,
-                      ),
-                      const Icon(Icons.location_on,
-                          size: 14, color: NannyTheme.danger),
-                    ],
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          trip.addressFrom.isNotEmpty
-                              ? trip.addressFrom
-                              : 'Адрес отправления не указан',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          trip.addressTo.isNotEmpty
-                              ? trip.addressTo
-                              : 'Адрес назначения не указан',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Водитель и цена
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (trip.driverName != null)
-                    Row(
-                      children: [
-                        ProfileImage(
-                          url: trip.driverPhoto ?? '',
-                          radius: 24,
-                          showOnlineDot: false,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          trip.driverName!,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                        ),
-                        if (trip.rating != null) ...[
-                          const SizedBox(width: 6),
-                          const Icon(Icons.star,
-                              size: 14, color: Color(0xFFFFA726)),
-                          const SizedBox(width: 2),
-                          Text(
-                            trip.rating.toString(),
-                            style: Theme.of(context)
-                                .textTheme
-                                .labelSmall
-                                ?.copyWith(
-                                  color: NannyTheme.neutral600,
-                                ),
-                          ),
-                        ],
-                      ],
-                    )
-                  else
-                    const SizedBox(),
-                  if (trip.price != null)
-                    Text(
-                      '${trip.price!.toStringAsFixed(0)} ₽',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                ],
+              const SizedBox(height: AutonannySpacing.md),
+              Text(
+                toAddress,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AutonannyTypography.bodyM(color: colors.textPrimary),
               ),
             ],
           ),
         ),
-      ),
+      ],
     );
+  }
+}
+
+class _DriverInfo extends StatelessWidget {
+  const _DriverInfo({
+    required this.name,
+    required this.photoUrl,
+    required this.rating,
+  });
+
+  final String name;
+  final String? photoUrl;
+  final int? rating;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Row(
+      children: [
+        AutonannyAvatar(
+          size: 44,
+          image: (photoUrl ?? '').isNotEmpty ? NetworkImage(photoUrl!) : null,
+          initials: _initials(name),
+        ),
+        const SizedBox(width: AutonannySpacing.sm),
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AutonannyTypography.bodyM(color: colors.textPrimary)
+                      .copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              if (rating != null) ...[
+                const SizedBox(width: AutonannySpacing.xs),
+                AutonannyIcon(
+                  AutonannyIcons.star,
+                  size: 14,
+                  color: colors.statusWarning,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  rating.toString(),
+                  style: AutonannyTypography.caption(
+                    color: colors.textTertiary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _initials(String value) {
+    final parts = value
+        .split(' ')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) return 'D';
+    final first = parts.first.substring(0, 1).toUpperCase();
+    final second =
+        parts.length > 1 ? parts[1].substring(0, 1).toUpperCase() : '';
+    return '$first$second';
   }
 }

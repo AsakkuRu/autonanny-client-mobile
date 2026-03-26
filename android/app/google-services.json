@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "477442562518",
-    "project_id": "autonanny-41178",
-    "storage_bucket": "autonanny-41178.appspot.com"
+    "project_number": "715207553808",
+    "project_id": "autonanny-dev",
+    "storage_bucket": "autonanny-dev.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:477442562518:android:d5373a4c58a075e7186c77",
+        "mobilesdk_app_id": "1:715207553808:android:e6e360ce5a31e3dae32b95",
         "android_client_info": {
           "package_name": "com.nyanya_go.nanny_client"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyAqtFDxSZJ3Q46RIcFsONMjF5BXKjMzcA4"
+          "current_key": "AIzaSyDjrgKUF7KDpcvoLoQtBj57r_ely8Zmp1o"
         }
       ],
       "services": {

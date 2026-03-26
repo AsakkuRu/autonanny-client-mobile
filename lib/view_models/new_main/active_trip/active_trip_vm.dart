@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/sos_activate_request.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
@@ -319,8 +321,7 @@ class ActiveTripVM extends ViewModelBase {
       }
       driverId = _toInt(data['driver_id']) ?? driverId;
       orderId = _toInt(data['order_id']) ?? orderId;
-      scheduleRoadId =
-          _toInt(data['schedule_road_id']) ??
+      scheduleRoadId = _toInt(data['schedule_road_id']) ??
           _toInt(data['id_schedule_road']) ??
           scheduleRoadId;
       chatId = _toInt(data['chat_id']) ?? chatId;
@@ -501,7 +502,7 @@ class ActiveTripVM extends ViewModelBase {
     final allowRollback =
         statusId == 14 && (nextStatus == 6 || nextStatus == 7);
     // Do not roll back from more advanced states (e.g. 13 -> 4).
-      if (next >= current ||
+    if (next >= current ||
         nextStatus == 2 ||
         nextStatus == 3 ||
         nextStatus == 11 ||

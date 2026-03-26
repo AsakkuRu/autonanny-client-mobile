@@ -1,5 +1,4 @@
-import 'package:flutter/material.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/models/from_api/notification_item.dart';
 
 /// B-014 TASK-B14: ViewModel центра уведомлений (клиент)
@@ -52,7 +51,8 @@ class NotificationCenterVM extends ViewModelBase {
 
   void markAllAsRead() {
     update(() {
-      notifications = notifications.map((n) => n.copyWith(isRead: true)).toList();
+      notifications =
+          notifications.map((n) => n.copyWith(isRead: true)).toList();
     });
   }
 

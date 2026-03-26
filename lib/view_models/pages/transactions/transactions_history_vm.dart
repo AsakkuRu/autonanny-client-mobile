@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/models/from_api/transaction.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -90,6 +91,7 @@ class TransactionsHistoryVM extends ViewModelBase {
     );
   }
 
+  @override
   void dispose() {
     searchController.dispose();
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/api/nanny_chats_api.dart';
 
 class SupportMessage {
@@ -32,7 +33,7 @@ class SupportChatVM extends ViewModelBase {
 
   final TextEditingController messageController = TextEditingController();
   final ScrollController scrollController = ScrollController();
-  
+
   List<SupportMessage> messages = [];
   bool isLoading = true;
   int? chatId;
@@ -81,13 +82,16 @@ class SupportChatVM extends ViewModelBase {
   Future<void> _loadMessages() async {
     final result = await NannyChatsApi.getSupportMessages();
     if (result.success && result.response != null) {
-      messages = result.response!.messages.map((m) => SupportMessage(
-        id: m.id ?? 0,
-        text: m.msg,
-        timestamp: DateTime.fromMillisecondsSinceEpoch((m.timestampSend * 1000).toInt()),
-        isFromMe: m.isMe,
-        isRead: true,
-      )).toList();
+      messages = result.response!.messages
+          .map((m) => SupportMessage(
+                id: m.id ?? 0,
+                text: m.msg,
+                timestamp: DateTime.fromMillisecondsSinceEpoch(
+                    (m.timestampSend * 1000).toInt()),
+                isFromMe: m.isMe,
+                isRead: true,
+              ))
+          .toList();
     }
   }
 
@@ -129,9 +133,11 @@ class SupportChatVM extends ViewModelBase {
     }
   }
 
+  @override
   void dispose() {
     messageController.dispose();
     scrollController.dispose();
+    super.dispose();
   }
 
   List<SupportMessage> _generateMockMessages() {

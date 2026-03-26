@@ -72,9 +72,10 @@ class NannyUser {
 
     var loginResult = await login(
       LoginRequest(
-          login: data.login,
-          password: data.password,
-          fbid:  "Пятисотый"),
+        login: data.login,
+        password: data.password,
+        fbid: await PushTokenSync.getTokenOrEmpty(),
+      ),
     );
 
     // var me = await getMe();

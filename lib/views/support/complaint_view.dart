@@ -1,6 +1,6 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/view_models/support/complaint_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 
 class ComplaintView extends StatefulWidget {
   final int? orderId;
@@ -41,265 +41,300 @@ class _ComplaintViewState extends State<ComplaintView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Подать жалобу',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+    final colors = context.autonannyColors;
+
+    return AutonannyAppScaffold(
+      appBar: AutonannyAppBar(
+        title: 'Подать жалобу',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+          tooltip: 'Назад',
         ),
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (widget.driverName != null) ...[
-              Text(
-                'Жалоба на водителя: ${widget.driverName}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AutonannySpacing.lg,
+            AutonannySpacing.sm,
+            AutonannySpacing.lg,
+            AutonannySpacing.xxl,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.driverName != null) ...[
+                AutonannyInlineBanner(
+                  title: 'Жалоба на водителя',
+                  message: widget.driverName,
+                  tone: AutonannyBannerTone.warning,
+                  leading: const AutonannyIcon(AutonannyIcons.warning),
                 ),
-              ),
-              const SizedBox(height: 20),
-            ],
-
-            const Text(
-              'Причина жалобы *',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ...vm.complaintReasons.map((reason) => _buildReasonTile(reason)),
-            const SizedBox(height: 24),
-
-            const Text(
-              'Описание проблемы *',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: vm.descriptionController,
-              maxLines: 5,
-              maxLength: 1000,
-              decoration: InputDecoration(
-                hintText: 'Опишите ситуацию подробнее...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey[300]!),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: NannyTheme.primary),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            const Text(
-              'Прикрепить доказательства',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Фото или видео (необязательно)',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildAttachmentsSection(),
-            const SizedBox(height: 32),
-
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: vm.canSubmit ? vm.submitComplaint : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: NannyTheme.primary,
-                  disabledBackgroundColor: Colors.grey[300],
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: vm.isSubmitting
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
+                const SizedBox(height: AutonannySpacing.lg),
+              ],
+              AutonannySectionContainer(
+                title: 'Причина жалобы',
+                subtitle: 'Выберите основной повод обращения.',
+                child: Column(
+                  children: vm.complaintReasons
+                      .map(
+                        (reason) => Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AutonannySpacing.sm,
+                          ),
+                          child: _ReasonTile(
+                            reason: reason,
+                            isSelected: vm.selectedReason == reason,
+                            onTap: () => vm.selectReason(reason),
+                          ),
                         ),
                       )
-                    : const Text(
-                        'Отправить жалобу',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Мы рассмотрим вашу жалобу в течение 24 часов и свяжемся с вами.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReasonTile(String reason) {
-    final isSelected = vm.selectedReason == reason;
-    return GestureDetector(
-      onTap: () => vm.selectReason(reason),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? NannyTheme.primary.withOpacity(0.1) : Colors.grey[50],
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected ? NannyTheme.primary : Colors.grey[300]!,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? NannyTheme.primary : Colors.grey,
-              size: 22,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                reason,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-                  color: isSelected ? NannyTheme.primary : Colors.black87,
+                      .toList(),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAttachmentsSection() {
-    return Column(
-      children: [
-        if (vm.attachments.isNotEmpty) ...[
-          SizedBox(
-            height: 100,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: vm.attachments.length,
-              itemBuilder: (context, index) {
-                return Stack(
+              const SizedBox(height: AutonannySpacing.lg),
+              AutonannySectionContainer(
+                title: 'Описание проблемы',
+                subtitle: 'Опишите ситуацию подробнее.',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.grey[200],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          vm.attachments[index],
-                          fit: BoxFit.cover,
+                    TextField(
+                      controller: vm.descriptionController,
+                      maxLines: 5,
+                      maxLength: 1000,
+                      decoration: InputDecoration(
+                        hintText: 'Что произошло?',
+                        hintStyle: AutonannyTypography.bodyS(
+                          color: colors.textTertiary,
                         ),
+                        filled: true,
+                        fillColor: colors.surfaceSecondary,
+                        contentPadding: const EdgeInsets.all(
+                          AutonannySpacing.lg,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: AutonannyRadii.brLg,
+                          borderSide: BorderSide(color: colors.borderSubtle),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: AutonannyRadii.brLg,
+                          borderSide: BorderSide(
+                            color: colors.actionPrimary,
+                            width: 1.4,
+                          ),
+                        ),
+                      ),
+                      style: AutonannyTypography.bodyM(
+                        color: colors.textPrimary,
                       ),
                     ),
-                    Positioned(
-                      top: 4,
-                      right: 12,
-                      child: GestureDetector(
-                        onTap: () => vm.removeAttachment(index),
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                        ),
+                    Text(
+                      'Чем подробнее описание, тем быстрее мы разберём ситуацию.',
+                      style: AutonannyTypography.bodyS(
+                        color: colors.textSecondary,
                       ),
                     ),
                   ],
-                );
-              },
+                ),
+              ),
+              const SizedBox(height: AutonannySpacing.lg),
+              AutonannySectionContainer(
+                title: 'Доказательства',
+                subtitle: 'Фото или видео можно приложить при необходимости.',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (vm.attachments.isNotEmpty) ...[
+                      SizedBox(
+                        height: 110,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: vm.attachments.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: AutonannySpacing.sm),
+                          itemBuilder: (context, index) {
+                            return _AttachmentTile(
+                              file: vm.attachments[index],
+                              onRemove: () => vm.removeAttachment(index),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: AutonannySpacing.md),
+                    ],
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AutonannyButton(
+                            label: 'Фото',
+                            variant: AutonannyButtonVariant.secondary,
+                            leading: const AutonannyIcon(
+                              AutonannyIcons.card,
+                            ),
+                            onPressed: vm.pickImage,
+                          ),
+                        ),
+                        const SizedBox(width: AutonannySpacing.sm),
+                        Expanded(
+                          child: AutonannyButton(
+                            label: 'Видео',
+                            variant: AutonannyButtonVariant.secondary,
+                            leading: const AutonannyIcon(
+                              AutonannyIcons.video,
+                            ),
+                            onPressed: vm.pickVideo,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AutonannySpacing.xl),
+              AutonannyButton(
+                label: 'Отправить жалобу',
+                onPressed: vm.canSubmit ? vm.submitComplaint : null,
+                variant: AutonannyButtonVariant.danger,
+                isLoading: vm.isSubmitting,
+              ),
+              const SizedBox(height: AutonannySpacing.md),
+              Text(
+                'Мы рассмотрим обращение в течение 24 часов и свяжемся с вами.',
+                textAlign: TextAlign.center,
+                style: AutonannyTypography.bodyS(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReasonTile extends StatelessWidget {
+  const _ReasonTile({
+    required this.reason,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String reason;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AutonannyRadii.brLg,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.lg,
+            vertical: AutonannySpacing.md,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? colors.statusDangerSurface
+                : colors.surfaceSecondary,
+            borderRadius: AutonannyRadii.brLg,
+            border: Border.all(
+              color: isSelected
+                  ? colors.statusDanger
+                  : colors.borderSubtle,
+              width: isSelected ? 1.6 : 1,
             ),
           ),
-          const SizedBox(height: 12),
-        ],
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: vm.pickImage,
-                icon: const Icon(Icons.photo_camera),
-                label: const Text('Фото'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+          child: Row(
+            children: [
+              AutonannyIcon(
+                isSelected
+                    ? AutonannyIcons.checkCircle
+                    : AutonannyIcons.dot,
+                color: isSelected
+                    ? colors.statusDanger
+                    : colors.textTertiary,
+                size: 20,
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              Expanded(
+                child: Text(
+                  reason,
+                  style: AutonannyTypography.bodyM(
+                    color: isSelected
+                        ? colors.statusDanger
+                        : colors.textPrimary,
+                  ).copyWith(
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: vm.pickVideo,
-                icon: const Icon(Icons.videocam),
-                label: const Text('Видео'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _AttachmentTile extends StatelessWidget {
+  const _AttachmentTile({
+    required this.file,
+    required this.onRemove,
+  });
+
+  final dynamic file;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return SizedBox(
+      width: 110,
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: AutonannyRadii.brLg,
+            child: Image.file(
+              file,
+              width: 110,
+              height: 110,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: colors.statusDanger,
+                  borderRadius: AutonannyRadii.brFull,
+                ),
+                child: const Center(
+                  child: AutonannyIcon(
+                    AutonannyIcons.close,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 
 /// B-013 TASK-B13: Экран оспаривания платежа
 class DisputeView extends StatefulWidget {
@@ -39,7 +40,11 @@ class _DisputeViewState extends State<DisputeView> {
 
   Future<void> _submit() async {
     if (_selectedReason == null) {
-      NannyDialogs.showMessageBox(context, 'Выберите причину', 'Укажите причину оспаривания');
+      NannyDialogs.showMessageBox(
+        context,
+        'Выберите причину',
+        'Укажите причину оспаривания',
+      );
       return;
     }
 
@@ -54,26 +59,31 @@ class _DisputeViewState extends State<DisputeView> {
 
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Спор принят. Мы рассмотрим его в течение 3 рабочих дней.'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 4),
+      SnackBar(
+        content: const Text(
+          'Спор принят. Мы рассмотрим его в течение 3 рабочих дней.',
+        ),
+        backgroundColor: context.autonannyColors.statusSuccess,
+        duration: const Duration(seconds: 4),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Оспорить платёж',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+      backgroundColor: colors.surfaceBase,
+      appBar: AutonannyAppBar(
+        title: 'Оспорить платёж',
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: AutonannyIcon(
+            AutonannyIcons.chevronLeft,
+            color: colors.textPrimary,
+          ),
         ),
-        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -100,10 +110,12 @@ class _DisputeViewState extends State<DisputeView> {
               maxLength: 500,
               decoration: InputDecoration(
                 hintText: 'Опишите ситуацию подробнее...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: NannyTheme.primary),
+                  borderSide: BorderSide(color: colors.actionPrimary),
                 ),
               ),
             ),
@@ -111,44 +123,28 @@ class _DisputeViewState extends State<DisputeView> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: colors.statusInfoSurface,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue, size: 18),
-                  SizedBox(width: 8),
+                  Icon(Icons.info_outline, color: colors.statusInfo, size: 18),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Спор будет рассмотрен в течение 3 рабочих дней. Мы свяжемся с вами через поддержку.',
-                      style: TextStyle(fontSize: 12, color: Colors.blue),
+                      style: TextStyle(fontSize: 12, color: colors.statusInfo),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: NannyTheme.primary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text(
-                        'Подать спор',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
-                      ),
-              ),
+            AutonannyButton(
+              label: 'Подать спор',
+              isLoading: _isSubmitting,
+              onPressed: _isSubmitting ? null : _submit,
             ),
           ],
         ),
@@ -157,17 +153,22 @@ class _DisputeViewState extends State<DisputeView> {
   }
 
   Widget _buildOrderInfo() {
+    final colors = context.autonannyColors;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: colors.surfaceSecondary,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: colors.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Заказ', style: TextStyle(fontSize: 13, color: Colors.grey)),
+          Text(
+            'Заказ',
+            style: TextStyle(fontSize: 13, color: colors.textTertiary),
+          ),
           const SizedBox(height: 4),
           Text(
             widget.route,
@@ -177,9 +178,15 @@ class _DisputeViewState extends State<DisputeView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Сумма: ${widget.amount.toStringAsFixed(0)} ₽',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-              Text('#${widget.orderId}', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              Text(
+                'Сумма: ${widget.amount.toStringAsFixed(0)} ₽',
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              ),
+              Text(
+                '#${widget.orderId}',
+                style: TextStyle(fontSize: 12, color: colors.textTertiary),
+              ),
             ],
           ),
         ],
@@ -189,23 +196,27 @@ class _DisputeViewState extends State<DisputeView> {
 
   Widget _buildReasonTile(String reason) {
     final isSelected = _selectedReason == reason;
+    final colors = context.autonannyColors;
+
     return GestureDetector(
       onTap: () => setState(() => _selectedReason = reason),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? NannyTheme.primary.withOpacity(0.08) : Colors.white,
+          color: isSelected ? colors.statusInfoSurface : colors.surfaceElevated,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? NannyTheme.primary : Colors.grey.shade200,
+            color: isSelected ? colors.actionPrimary : colors.borderSubtle,
           ),
         ),
         child: Row(
           children: [
             Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: isSelected ? NannyTheme.primary : Colors.grey,
+              isSelected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              color: isSelected ? colors.actionPrimary : colors.textTertiary,
               size: 20,
             ),
             const SizedBox(width: 12),
@@ -213,7 +224,7 @@ class _DisputeViewState extends State<DisputeView> {
               reason,
               style: TextStyle(
                 fontSize: 14,
-                color: isSelected ? NannyTheme.primary : Colors.black87,
+                color: isSelected ? colors.actionPrimary : colors.textPrimary,
                 fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
               ),
             ),

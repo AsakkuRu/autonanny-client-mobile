@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/views/add_card.dart';
-import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_core/models/from_api/user_cards.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 /// FE-MVP-020: ViewModel для настроек автоплатежей
@@ -18,10 +18,10 @@ class AutopaySettingsVM extends ViewModelBase {
   @override
   Future<bool> loadPage() async {
     // Загружаем список карт
-    final cardsResult = await NannyUsersApi.getCards();
+    final cardsResult = await NannyUsersApi.getUserCards();
     if (cardsResult.success && cardsResult.response != null) {
       cards = cardsResult.response!.cards;
-      
+
       // Если есть карты, выбираем первую по умолчанию
       if (cards.isNotEmpty && selectedCardId == null) {
         selectedCardId = cards.first.id;
@@ -56,7 +56,7 @@ class AutopaySettingsVM extends ViewModelBase {
     }
 
     isAutopayEnabled = value;
-    
+
     // Сохраняем в локальное хранилище
     // TODO: Когда будет готов API, сохранять на сервере
     final storage = LocalStorage('autopay_settings');
@@ -68,6 +68,9 @@ class AutopaySettingsVM extends ViewModelBase {
 
     update(() {});
 
+    if (!context.mounted) {
+      return;
+    }
     NannyDialogs.showMessageBox(
       context,
       "Успех",
@@ -79,12 +82,12 @@ class AutopaySettingsVM extends ViewModelBase {
 
   void selectCard(int cardId) async {
     selectedCardId = cardId;
-    
+
     // Сохраняем выбор
     final storage = LocalStorage('autopay_settings');
     await storage.ready;
     await storage.setItem('card_id', cardId);
-    
+
     update(() {});
   }
 

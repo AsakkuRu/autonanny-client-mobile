@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/dialogs/loading.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
+import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/child_medical_info.dart';
 import 'package:nanny_core/models/from_api/emergency_contact.dart';
 import 'package:nanny_core/nanny_core.dart';
-import 'package:image_picker/image_picker.dart';
 
 class ChildEditVM extends ViewModelBase {
   final Child? child;
@@ -27,11 +29,13 @@ class ChildEditVM extends ViewModelBase {
   final TextEditingController patronymicController = TextEditingController();
   final TextEditingController birthdayController = TextEditingController();
   final TextEditingController schoolClassController = TextEditingController();
-  final TextEditingController characterNotesController = TextEditingController();
-  
+  final TextEditingController characterNotesController =
+      TextEditingController();
+
   // FE-MVP-013: Контроллеры для медицинской информации
   final TextEditingController allergiesController = TextEditingController();
-  final TextEditingController chronicDiseasesController = TextEditingController();
+  final TextEditingController chronicDiseasesController =
+      TextEditingController();
   final TextEditingController medicationsController = TextEditingController();
   String? bloodType;
   final TextEditingController policyNumberController = TextEditingController();
@@ -39,7 +43,7 @@ class ChildEditVM extends ViewModelBase {
   String? gender;
   DateTime? birthday;
   String? photoPath;
-  
+
   // FE-MVP-014: Список экстренных контактов
   List<EmergencyContact> emergencyContacts = [];
 
@@ -52,7 +56,7 @@ class ChildEditVM extends ViewModelBase {
     gender = child!.gender;
     birthday = child!.birthday;
     photoPath = child!.photoPath;
-    
+
     if (birthday != null) {
       birthdayController.text = _formatDate(birthday!);
     }
@@ -71,7 +75,8 @@ class ChildEditVM extends ViewModelBase {
   Future<void> pickBirthday() async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: birthday ?? DateTime.now().subtract(const Duration(days: 365 * 5)),
+      initialDate:
+          birthday ?? DateTime.now().subtract(const Duration(days: 365 * 5)),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
       locale: const Locale('ru'),
@@ -79,7 +84,7 @@ class ChildEditVM extends ViewModelBase {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
-              primary: NannyTheme.primary,
+              primary: AutonannyPalette.primary,
             ),
           ),
           child: child!,
@@ -110,25 +115,32 @@ class ChildEditVM extends ViewModelBase {
 
       try {
         Logger().i('Uploading photo: ${image.path}');
-        final uploadResult = await NannyFilesApi.uploadFiles([XFile(image.path)]);
-        Logger().i('Upload result: success=${uploadResult.success}, statusCode=${uploadResult.statusCode}, error=${uploadResult.errorMessage}');
+        final uploadResult =
+            await NannyFilesApi.uploadFiles([XFile(image.path)]);
+        Logger().i(
+            'Upload result: success=${uploadResult.success}, statusCode=${uploadResult.statusCode}, error=${uploadResult.errorMessage}');
 
         if (!context.mounted) return;
         LoadScreen.showLoad(context, false);
 
-        if (uploadResult.success && uploadResult.response != null && uploadResult.response!.paths.isNotEmpty) {
-          Logger().i('Photo uploaded, path: ${uploadResult.response!.paths.first}');
+        if (uploadResult.success &&
+            uploadResult.response != null &&
+            uploadResult.response!.paths.isNotEmpty) {
+          Logger()
+              .i('Photo uploaded, path: ${uploadResult.response!.paths.first}');
           update(() {
             photoPath = uploadResult.response!.paths.first;
           });
         } else {
-          await NannyDialogs.showMessageBox(context, 'Ошибка', uploadResult.errorMessage);
+          await NannyDialogs.showMessageBox(
+              context, 'Ошибка', uploadResult.errorMessage);
         }
       } catch (e) {
         Logger().e('Photo upload error: $e');
         if (!context.mounted) return;
         LoadScreen.showLoad(context, false);
-        await NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось загрузить фото: $e');
+        await NannyDialogs.showMessageBox(
+            context, 'Ошибка', 'Не удалось загрузить фото: $e');
       }
     }
   }
@@ -172,17 +184,17 @@ class ChildEditVM extends ViewModelBase {
       id: child?.id,
       surname: surnameController.text.trim(),
       name: nameController.text.trim(),
-      patronymic: patronymicController.text.trim().isEmpty 
-          ? null 
+      patronymic: patronymicController.text.trim().isEmpty
+          ? null
           : patronymicController.text.trim(),
       birthday: birthday,
       age: age,
       gender: gender,
-      schoolClass: schoolClassController.text.trim().isEmpty 
-          ? null 
+      schoolClass: schoolClassController.text.trim().isEmpty
+          ? null
           : schoolClassController.text.trim(),
-      characterNotes: characterNotesController.text.trim().isEmpty 
-          ? null 
+      characterNotes: characterNotesController.text.trim().isEmpty
+          ? null
           : characterNotesController.text.trim(),
       photoPath: photoPath,
       idUser: NannyUser.userInfo?.id ?? 0,
@@ -195,16 +207,19 @@ class ChildEditVM extends ViewModelBase {
       if (!context.mounted) return;
       if (!createResult.success) {
         LoadScreen.showLoad(context, false);
-        NannyDialogs.showMessageBox(context, "Ошибка", createResult.errorMessage);
+        NannyDialogs.showMessageBox(
+            context, "Ошибка", createResult.errorMessage);
         return;
       }
       savedChildId = createResult.response;
     } else {
-      final updateResult = await NannyChildrenApi.updateChild(child!.id!, childData);
+      final updateResult =
+          await NannyChildrenApi.updateChild(child!.id!, childData);
       if (!context.mounted) return;
       if (!updateResult.success) {
         LoadScreen.showLoad(context, false);
-        NannyDialogs.showMessageBox(context, "Ошибка", updateResult.errorMessage);
+        NannyDialogs.showMessageBox(
+            context, "Ошибка", updateResult.errorMessage);
         return;
       }
       savedChildId = child!.id;
@@ -245,7 +260,7 @@ class ChildEditVM extends ViewModelBase {
   // FE-MVP-013: Загрузка медицинской информации
   Future<void> _loadMedicalInfo() async {
     if (child?.id == null) return;
-    
+
     final result = await NannyChildrenApi.getMedicalInfo(child!.id!);
     if (result.success && result.response != null) {
       final info = result.response!;
@@ -270,29 +285,41 @@ class ChildEditVM extends ViewModelBase {
 
     final medicalInfo = ChildMedicalInfo(
       idChild: childId,
-      allergies: allergiesController.text.trim().isEmpty ? null : allergiesController.text.trim(),
-      chronicDiseases: chronicDiseasesController.text.trim().isEmpty ? null : chronicDiseasesController.text.trim(),
-      medications: medicationsController.text.trim().isEmpty ? null : medicationsController.text.trim(),
+      allergies: allergiesController.text.trim().isEmpty
+          ? null
+          : allergiesController.text.trim(),
+      chronicDiseases: chronicDiseasesController.text.trim().isEmpty
+          ? null
+          : chronicDiseasesController.text.trim(),
+      medications: medicationsController.text.trim().isEmpty
+          ? null
+          : medicationsController.text.trim(),
       bloodType: bloodType,
-      medicalPolicyNumber: policyNumberController.text.trim().isEmpty ? null : policyNumberController.text.trim(),
+      medicalPolicyNumber: policyNumberController.text.trim().isEmpty
+          ? null
+          : policyNumberController.text.trim(),
     );
 
     // Пытаемся обновить или создать
     if (child?.id != null) {
       // Сначала пробуем обновить
-      var updateResult = await NannyChildrenApi.updateMedicalInfo(childId, medicalInfo);
+      var updateResult =
+          await NannyChildrenApi.updateMedicalInfo(childId, medicalInfo);
       if (!updateResult.success) {
         // Если не получилось обновить, создаём
-        var createResult = await NannyChildrenApi.createMedicalInfo(medicalInfo);
+        var createResult =
+            await NannyChildrenApi.createMedicalInfo(medicalInfo);
         if (!createResult.success) {
-          Logger().e('Failed to save medical info: ${createResult.errorMessage}');
+          Logger()
+              .e('Failed to save medical info: ${createResult.errorMessage}');
         }
       }
     } else {
       // Новый ребёнок - создаём медицинскую информацию
       var createResult = await NannyChildrenApi.createMedicalInfo(medicalInfo);
       if (!createResult.success) {
-        Logger().e('Failed to create medical info: ${createResult.errorMessage}');
+        Logger()
+            .e('Failed to create medical info: ${createResult.errorMessage}');
       }
     }
   }
@@ -300,7 +327,7 @@ class ChildEditVM extends ViewModelBase {
   // FE-MVP-014: Загрузка экстренных контактов
   Future<void> _loadEmergencyContacts() async {
     if (child?.id == null) return;
-    
+
     final result = await NannyChildrenApi.getEmergencyContacts(child!.id!);
     if (result.success && result.response != null) {
       emergencyContacts = result.response!;
@@ -324,7 +351,7 @@ class ChildEditVM extends ViewModelBase {
     LoadScreen.showLoad(context, true);
     try {
       final apiResult = await NannyChildrenApi.createEmergencyContact(result);
-      
+
       if (!context.mounted) return;
       LoadScreen.showLoad(context, false);
 
@@ -333,13 +360,15 @@ class ChildEditVM extends ViewModelBase {
         if (!context.mounted) return;
         await NannyDialogs.showMessageBox(context, 'Успех', 'Контакт добавлен');
       } else {
-        await NannyDialogs.showMessageBox(context, 'Ошибка', apiResult.errorMessage);
+        await NannyDialogs.showMessageBox(
+            context, 'Ошибка', apiResult.errorMessage);
       }
     } catch (e) {
       if (!context.mounted) return;
       LoadScreen.showLoad(context, false);
       Logger().e('Add emergency contact error: $e');
-      await NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось добавить контакт');
+      await NannyDialogs.showMessageBox(
+          context, 'Ошибка', 'Не удалось добавить контакт');
     }
   }
 
@@ -360,8 +389,9 @@ class ChildEditVM extends ViewModelBase {
 
     // Контакт на сервере - обновляем через API
     LoadScreen.showLoad(context, true);
-    final apiResult = await NannyChildrenApi.updateEmergencyContact(contact.id!, result);
-    
+    final apiResult =
+        await NannyChildrenApi.updateEmergencyContact(contact.id!, result);
+
     if (!context.mounted) return;
     LoadScreen.showLoad(context, false);
 
@@ -393,7 +423,7 @@ class ChildEditVM extends ViewModelBase {
     // Контакт на сервере - удаляем через API
     LoadScreen.showLoad(context, true);
     final result = await NannyChildrenApi.deleteEmergencyContact(contact.id!);
-    
+
     if (!context.mounted) return;
     LoadScreen.showLoad(context, false);
 
@@ -407,16 +437,18 @@ class ChildEditVM extends ViewModelBase {
   }
 
   // FE-MVP-014: Диалог для добавления/редактирования контакта
-  Future<EmergencyContact?> _showContactDialog({EmergencyContact? contact}) async {
+  Future<EmergencyContact?> _showContactDialog(
+      {EmergencyContact? contact}) async {
     final nameController = TextEditingController(text: contact?.name ?? '');
-    final relationshipController = TextEditingController(text: contact?.relationship ?? '');
+    final relationshipController =
+        TextEditingController(text: contact?.relationship ?? '');
     final phoneController = TextEditingController(text: contact?.phone ?? '');
     final phoneMask = MaskTextInputFormatter(
       mask: '+7 (###) ### ## ##',
       filter: {'#': RegExp(r'[0-9]')},
     );
-    if (contact?.phone != null && contact!.phone.isNotEmpty) {
-      phoneController.text = contact!.phone;
+    if (contact != null && contact.phone.isNotEmpty) {
+      phoneController.text = contact.phone;
       phoneMask.formatEditUpdate(
         TextEditingValue.empty,
         TextEditingValue(text: contact.phone),
@@ -426,7 +458,8 @@ class ChildEditVM extends ViewModelBase {
     return showDialog<EmergencyContact>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(contact == null ? 'Добавить контакт' : 'Редактировать контакт'),
+        title: Text(
+            contact == null ? 'Добавить контакт' : 'Редактировать контакт'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

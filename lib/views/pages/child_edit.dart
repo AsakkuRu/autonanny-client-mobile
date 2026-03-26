@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/child_edit_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/styles/nanny_theme.dart';
+import 'package:nanny_components/widgets/nanny_text_forms.dart';
+import 'package:nanny_components/widgets/profile_image.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 
 class ChildEditView extends StatefulWidget {
@@ -27,11 +30,13 @@ class _ChildEditViewState extends State<ChildEditView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NannyTheme.background,
-      appBar: NannyAppBar.light(
-        hasBackButton: true,
+    return AutonannyAppScaffold(
+      appBar: AutonannyAppBar(
         title: widget.child == null ? "Добавить ребенка" : "Редактировать",
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -129,8 +134,7 @@ class _ChildEditViewState extends State<ChildEditView> {
 
             // Пол
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -195,8 +199,7 @@ class _ChildEditViewState extends State<ChildEditView> {
 
             // Особенности характера
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -260,7 +263,8 @@ class _ChildEditViewState extends State<ChildEditView> {
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(10),
@@ -282,10 +286,14 @@ class _ChildEditViewState extends State<ChildEditView> {
                           DropdownMenuItem(value: 'O-', child: Text('I (O-)')),
                           DropdownMenuItem(value: 'A+', child: Text('II (A+)')),
                           DropdownMenuItem(value: 'A-', child: Text('II (A-)')),
-                          DropdownMenuItem(value: 'B+', child: Text('III (B+)')),
-                          DropdownMenuItem(value: 'B-', child: Text('III (B-)')),
-                          DropdownMenuItem(value: 'AB+', child: Text('IV (AB+)')),
-                          DropdownMenuItem(value: 'AB-', child: Text('IV (AB-)')),
+                          DropdownMenuItem(
+                              value: 'B+', child: Text('III (B+)')),
+                          DropdownMenuItem(
+                              value: 'B-', child: Text('III (B-)')),
+                          DropdownMenuItem(
+                              value: 'AB+', child: Text('IV (AB+)')),
+                          DropdownMenuItem(
+                              value: 'AB-', child: Text('IV (AB-)')),
                         ],
                         onChanged: (value) {
                           vm.bloodType = value;
@@ -316,8 +324,7 @@ class _ChildEditViewState extends State<ChildEditView> {
                 ),
                 IconButton(
                   onPressed: vm.addEmergencyContact,
-                  icon: const Icon(Icons.add_circle,
-                      color: NannyTheme.primary),
+                  icon: const Icon(Icons.add_circle, color: NannyTheme.primary),
                   tooltip: 'Добавить контакт',
                 ),
               ],
@@ -398,15 +405,13 @@ class _ChildEditViewState extends State<ChildEditView> {
                           ),
                         ),
                         IconButton(
-                          onPressed: () =>
-                              vm.editEmergencyContact(contact),
+                          onPressed: () => vm.editEmergencyContact(contact),
                           icon: const Icon(Icons.edit, size: 20),
                           color: NannyTheme.neutral500,
                         ),
                         if (vm.emergencyContacts.length > 1)
                           IconButton(
-                            onPressed: () =>
-                                vm.deleteEmergencyContact(contact),
+                            onPressed: () => vm.deleteEmergencyContact(contact),
                             icon: const Icon(Icons.delete, size: 20),
                             color: NannyTheme.danger,
                           ),
@@ -420,10 +425,12 @@ class _ChildEditViewState extends State<ChildEditView> {
             // Кнопка сохранения. NEW-008 / ТЗ: недоступна без минимум одного экстренного контакта (создание и редактирование)
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              child: AutonannyButton(
                 onPressed: vm.emergencyContacts.isEmpty ? null : vm.save,
-                child: Text(
-                  widget.child == null ? 'Добавить' : 'Сохранить',
+                label: widget.child == null ? 'Добавить' : 'Сохранить',
+                leading: const AutonannyIcon(
+                  AutonannyIcons.checkCircle,
+                  color: Colors.white,
                 ),
               ),
             ),

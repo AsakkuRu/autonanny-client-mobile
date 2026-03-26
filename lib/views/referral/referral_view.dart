@@ -1,7 +1,7 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
-import 'package:nanny_client/view_models/referral/referral_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:intl/intl.dart';
+import 'package:nanny_client/view_models/referral/referral_vm.dart';
 
 class ReferralView extends StatefulWidget {
   const ReferralView({super.key});
@@ -27,235 +27,291 @@ class _ReferralViewState extends State<ReferralView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NannyTheme.background,
-      appBar: const NannyAppBar.light(
+    return AutonannyAppScaffold(
+      appBar: AutonannyAppBar(
         title: 'Реферальная программа',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.chevronLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+          variant: AutonannyIconButtonVariant.ghost,
+          size: 36,
+        ),
       ),
       body: vm.isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: vm.loadData,
-              color: NannyTheme.primary,
-              child: SingleChildScrollView(
+              child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildPromoCard(),
-                    const SizedBox(height: 16),
-                    _buildPeriodFilter(),
-                    const SizedBox(height: 16),
-                    _buildStatsGrid(),
-                    const SizedBox(height: 16),
-                    _buildReferralsList(),
-                    const SizedBox(height: 16),
-                    _buildBonusHistory(),
-                    const SizedBox(height: 16),
-                    _buildRules(),
-                    const SizedBox(height: 16),
-                    _buildApplyPromo(),
-                    const SizedBox(height: 24),
-                  ],
+                padding: const EdgeInsets.fromLTRB(
+                  AutonannySpacing.lg,
+                  AutonannySpacing.sm,
+                  AutonannySpacing.lg,
+                  AutonannySpacing.xxl,
                 ),
+                children: [
+                  _PromoCard(vm: vm),
+                  const SizedBox(height: AutonannySpacing.xl),
+                  _PeriodFilter(
+                    selected: vm.selectedPeriod,
+                    onChanged: vm.changePeriod,
+                  ),
+                  const SizedBox(height: AutonannySpacing.xl),
+                  _StatsGrid(stats: vm.stats),
+                  if ((vm.stats?.referrals ?? []).isNotEmpty) ...[
+                    const SizedBox(height: AutonannySpacing.xl),
+                    _ReferralsSection(vm: vm),
+                  ],
+                  if ((vm.stats?.bonusHistory ?? []).isNotEmpty) ...[
+                    const SizedBox(height: AutonannySpacing.xl),
+                    _BonusHistorySection(vm: vm),
+                  ],
+                  const SizedBox(height: AutonannySpacing.xl),
+                  _RulesSection(vm: vm),
+                  const SizedBox(height: AutonannySpacing.xl),
+                  _ApplyPromoSection(vm: vm),
+                ],
               ),
             ),
     );
   }
+}
 
-  Widget _buildPromoCard() {
+class _PromoCard extends StatelessWidget {
+  const _PromoCard({
+    required this.vm,
+  });
+
+  final ReferralVM vm;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
+      padding: const EdgeInsets.all(AutonannySpacing.xxl),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            NannyTheme.primary,
-            NannyTheme.primaryDark,
-          ],
+          colors: [Color(0xFF5B4FCF), Color(0xFF4337B8)],
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.all(Radius.circular(AutonannyRadii.xl)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const Icon(Icons.card_giftcard, color: Colors.white, size: 40),
-            const SizedBox(height: 12),
-            const Text(
-              'Ваш промокод',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                vm.promoCode,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _actionButton(Icons.copy, 'Копировать', vm.copyCode),
-                const SizedBox(width: 16),
-                _actionButton(Icons.share, 'Поделиться', vm.shareCode),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _actionButton(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: Colors.white, size: 20),
+          const AutonannyIcon(
+            AutonannyIcons.ticket,
+            color: Colors.white,
+            size: 40,
           ),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          const SizedBox(height: AutonannySpacing.md),
+          Text(
+            'Ваш промокод',
+            style: AutonannyTypography.bodyS(
+              color: const Color(0xB3FFFFFF),
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.sm),
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AutonannySpacing.xxl,
+              vertical: AutonannySpacing.md,
+            ),
+            decoration: BoxDecoration(
+              color: const Color(0x21FFFFFF),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              vm.promoCode,
+              style: AutonannyTypography.h1(color: Colors.white).copyWith(
+                letterSpacing: 2,
+              ),
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _PromoActionButton(
+                icon: AutonannyIcons.copy,
+                label: 'Копировать',
+                onTap: vm.copyCode,
+              ),
+              const SizedBox(width: AutonannySpacing.xl),
+              _PromoActionButton(
+                icon: AutonannyIcons.arrowRight,
+                label: 'Поделиться',
+                onTap: vm.shareCode,
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildPeriodFilter() {
-    final periods = [
-      ('week', 'Неделя'),
-      ('month', 'Месяц'),
-      ('all', 'Всё время'),
-    ];
-    return Row(
-      children: periods.map((p) {
-        final isSelected = vm.selectedPeriod == p.$1;
-        return Expanded(
-          child: GestureDetector(
-            onTap: () => vm.changePeriod(p.$1),
-            child: Container(
-              margin: EdgeInsets.only(
-                right: p.$1 != 'all' ? 6 : 0,
-                left: p.$1 != 'week' ? 6 : 0,
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: isSelected ? NannyTheme.primary : Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: isSelected ? NannyTheme.primary : Colors.grey[300]!,
-                ),
-              ),
-              child: Text(
-                p.$2,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: isSelected ? Colors.white : Colors.grey[700],
-                ),
-              ),
+class _PromoActionButton extends StatelessWidget {
+  const _PromoActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final AutonannyIconAsset icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Column(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: const BoxDecoration(
+              color: Color(0x26FFFFFF),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: AutonannyIcon(
+              icon,
+              color: Colors.white,
+              size: 18,
             ),
           ),
-        );
-      }).toList(),
+          const SizedBox(height: AutonannySpacing.xs),
+          Text(
+            label,
+            style: AutonannyTypography.caption(
+              color: const Color(0xCCFFFFFF),
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
 
-  Widget _buildStatsGrid() {
-    final s = vm.stats;
-    if (s == null) return const SizedBox.shrink();
+class _PeriodFilter extends StatelessWidget {
+  const _PeriodFilter({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return AutonannySegmentedControl<String>(
+      value: selected,
+      onChanged: onChanged,
+      options: const [
+        AutonannySegmentedOption(value: 'week', label: 'Неделя'),
+        AutonannySegmentedOption(value: 'month', label: 'Месяц'),
+        AutonannySegmentedOption(value: 'all', label: 'Всё время'),
+      ],
+    );
+  }
+}
+
+class _StatsGrid extends StatelessWidget {
+  const _StatsGrid({
+    required this.stats,
+  });
+
+  final ClientReferralStats? stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = this.stats;
+    if (stats == null) return const SizedBox.shrink();
+
     return Column(
       children: [
         Row(
           children: [
             Expanded(
-              child: _statCard(
-                  'Приглашено',
-                  '${s.totalInvited}',
-                  Icons.person_add,
-                  Colors.blue),
+              child: _StatCard(
+                label: 'Приглашено',
+                value: '${stats.totalInvited}',
+                icon: AutonannyIcons.group,
+                iconColor: const Color(0xFF2563EB),
+                iconBackground: const Color(0x142563EB),
+              ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AutonannySpacing.md),
             Expanded(
-              child: _statCard(
-                  'Зарегистрировано',
-                  '${s.registered}',
-                  Icons.how_to_reg,
-                  Colors.indigo),
+              child: _StatCard(
+                label: 'Зарегистрировано',
+                value: '${stats.registered}',
+                icon: AutonannyIcons.verified,
+                iconColor: const Color(0xFF4F46E5),
+                iconBackground: const Color(0x144F46E5),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AutonannySpacing.md),
         Row(
           children: [
             Expanded(
-              child: _statCard('Активных', '${s.active}',
-                  Icons.check_circle, Colors.green),
+              child: _StatCard(
+                label: 'Активных',
+                value: '${stats.active}',
+                icon: AutonannyIcons.checkCircle,
+                iconColor: const Color(0xFF16A34A),
+                iconBackground: const Color(0x1416A34A),
+              ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AutonannySpacing.md),
             Expanded(
-              child: _statCard(
-                  'Бонус за период',
-                  '${s.periodBonus.toStringAsFixed(0)} ₽',
-                  Icons.monetization_on,
-                  NannyTheme.primary),
+              child: _StatCard(
+                label: 'Бонус за период',
+                value: '${stats.periodBonus.toStringAsFixed(0)} ₽',
+                icon: AutonannyIcons.wallet,
+                iconColor: const Color(0xFF5B4FCF),
+                iconBackground: const Color(0x145B4FCF),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: NannyTheme.shadow.withOpacity(0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(14),
+        const SizedBox(height: AutonannySpacing.md),
+        AutonannySectionContainer(
           child: Row(
             children: [
-              const Icon(Icons.account_balance_wallet,
-                  color: NannyTheme.primary, size: 24),
-              const SizedBox(width: 12),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: Color(0x145B4FCF),
+                  borderRadius: BorderRadius.all(Radius.circular(14)),
+                ),
+                alignment: Alignment.center,
+                child: const AutonannyIcon(
+                  AutonannyIcons.wallet,
+                  color: Color(0xFF5B4FCF),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.md),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${s.totalBonus.toStringAsFixed(0)} ₽',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800),
+                    '${stats.totalBonus.toStringAsFixed(0)} ₽',
+                    style: AutonannyTypography.h2(
+                      color: context.autonannyColors.textPrimary,
+                    ),
                   ),
                   Text(
                     'Всего заработано',
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelSmall
-                        ?.copyWith(color: NannyTheme.neutral500),
+                    style: AutonannyTypography.bodyS(
+                      color: context.autonannyColors.textTertiary,
+                    ),
                   ),
                 ],
               ),
@@ -265,352 +321,439 @@ class _ReferralViewState extends State<ReferralView> {
       ],
     );
   }
+}
 
-  Widget _statCard(String label, String value, IconData icon, Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(14),
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
+    required this.iconBackground,
+  });
+
+  final String label;
+  final String value;
+  final AutonannyIconAsset icon;
+  final Color iconColor;
+  final Color iconBackground;
+
+  @override
+  Widget build(BuildContext context) {
+    return AutonannyCard(
       child: Column(
         children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 6),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconBackground,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            alignment: Alignment.center,
+            child: AutonannyIcon(
+              icon,
+              color: iconColor,
+              size: 18,
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.sm),
           Text(
             value,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w700),
+            textAlign: TextAlign.center,
+            style: AutonannyTypography.h3(
+              color: context.autonannyColors.textPrimary,
+            ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: AutonannySpacing.xs),
           Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .labelSmall
-                ?.copyWith(color: NannyTheme.neutral500),
             textAlign: TextAlign.center,
+            style: AutonannyTypography.caption(
+              color: context.autonannyColors.textTertiary,
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildReferralsList() {
-    final referrals = vm.stats?.referrals ?? [];
-    if (referrals.isEmpty) return const SizedBox.shrink();
+class _ReferralsSection extends StatelessWidget {
+  const _ReferralsSection({
+    required this.vm,
+  });
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
+  final ReferralVM vm;
+
+  @override
+  Widget build(BuildContext context) {
+    final referrals = vm.stats?.referrals ?? const <ReferralUser>[];
+    final format = DateFormat('dd.MM.yyyy');
+
+    return AutonannySectionContainer(
+      title: 'Мои рефералы',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Мои рефералы',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          ...referrals.map((r) => _buildReferralTile(r)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReferralTile(ReferralUser r) {
-    final fmt = DateFormat('dd.MM.yyyy');
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: NannyTheme.primary.withOpacity(0.1),
-            child: Text(
-              r.name.isNotEmpty ? r.name[0] : '?',
-              style: const TextStyle(color: NannyTheme.primary, fontWeight: FontWeight.bold),
+          for (var index = 0; index < referrals.length; index++) ...[
+            _ReferralTile(
+              referral: referrals[index],
+              dateText:
+                  'Зарегистрирован ${format.format(referrals[index].registeredAt)}',
+              statusLabel: vm.statusLabel(referrals[index].status),
+              badgeVariant: _statusVariant(referrals[index].status),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(r.name, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
-                Text(
-                  'Зарегистрирован ${fmt.format(r.registeredAt)}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: vm.statusColor(r.status).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  vm.statusLabel(r.status),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: vm.statusColor(r.status),
-                  ),
-                ),
+            if (index != referrals.length - 1)
+              Divider(
+                height: 1,
+                color: context.autonannyColors.borderSubtle,
               ),
-              if (r.bonusEarned > 0)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    '+${r.bonusEarned.toStringAsFixed(0)} ₽',
-                    style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w500),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBonusHistory() {
-    final history = vm.stats?.bonusHistory ?? [];
-    if (history.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: vm.toggleBonusHistory,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'История начислений',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                Icon(
-                  vm.showBonusHistory
-                      ? Icons.expand_less
-                      : Icons.expand_more,
-                  color: NannyTheme.neutral500,
-                ),
-              ],
-            ),
-          ),
-          if (vm.showBonusHistory) ...[
-            const SizedBox(height: 12),
-            ...history.map((h) => _buildBonusTile(h)),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildBonusTile(BonusHistoryItem h) {
-    final fmt = DateFormat('dd.MM.yyyy');
+  AutonannyBadgeVariant _statusVariant(String status) {
+    return switch (status) {
+      'active' => AutonannyBadgeVariant.success,
+      'first_ride' => AutonannyBadgeVariant.info,
+      'registered' => AutonannyBadgeVariant.warning,
+      _ => AutonannyBadgeVariant.neutral,
+    };
+  }
+}
+
+class _ReferralTile extends StatelessWidget {
+  const _ReferralTile({
+    required this.referral,
+    required this.dateText,
+    required this.statusLabel,
+    required this.badgeVariant,
+  });
+
+  final ReferralUser referral;
+  final String dateText;
+  final String statusLabel;
+  final AutonannyBadgeVariant badgeVariant;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(vertical: AutonannySpacing.md),
+      child: Row(
+        children: [
+          AutonannyAvatar(
+            size: 40,
+            initials: referral.name.isNotEmpty ? referral.name[0] : '?',
+          ),
+          const SizedBox(width: AutonannySpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  referral.name,
+                  style: AutonannyTypography.bodyM(
+                    color: context.autonannyColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.xxs),
+                Text(
+                  dateText,
+                  style: AutonannyTypography.bodyS(
+                    color: context.autonannyColors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              AutonannyBadge(
+                label: statusLabel,
+                variant: badgeVariant,
+              ),
+              if (referral.bonusEarned > 0) ...[
+                const SizedBox(height: AutonannySpacing.xs),
+                Text(
+                  '+${referral.bonusEarned.toStringAsFixed(0)} ₽',
+                  style: AutonannyTypography.labelM(
+                    color: context.autonannyColors.statusSuccess,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BonusHistorySection extends StatelessWidget {
+  const _BonusHistorySection({
+    required this.vm,
+  });
+
+  final ReferralVM vm;
+
+  @override
+  Widget build(BuildContext context) {
+    final history = vm.stats?.bonusHistory ?? const <BonusHistoryItem>[];
+    final format = DateFormat('dd.MM.yyyy');
+
+    return AutonannySectionContainer(
+      title: 'История начислений',
+      trailing: InkWell(
+        onTap: vm.toggleBonusHistory,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.all(AutonannySpacing.xs),
+          child: AutonannyIcon(
+            vm.showBonusHistory
+                ? AutonannyIcons.chevronLeft
+                : AutonannyIcons.chevronRight,
+            color: context.autonannyColors.textTertiary,
+            size: 18,
+          ),
+        ),
+      ),
+      child: vm.showBonusHistory
+          ? Column(
+              children: [
+                for (var index = 0; index < history.length; index++) ...[
+                  _BonusHistoryTile(
+                    item: history[index],
+                    dateText: format.format(history[index].date),
+                  ),
+                  if (index != history.length - 1)
+                    Divider(
+                      height: 1,
+                      color: context.autonannyColors.borderSubtle,
+                    ),
+                ],
+              ],
+            )
+          : Text(
+              'Нажмите, чтобы посмотреть историю начислений по рефералам.',
+              style: AutonannyTypography.bodyS(
+                color: context.autonannyColors.textTertiary,
+              ),
+            ),
+    );
+  }
+}
+
+class _BonusHistoryTile extends StatelessWidget {
+  const _BonusHistoryTile({
+    required this.item,
+    required this.dateText,
+  });
+
+  final BonusHistoryItem item;
+  final String dateText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AutonannySpacing.md),
       child: Row(
         children: [
           Container(
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
+              color: context.autonannyColors.statusSuccessSurface,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.add, color: Colors.green, size: 18),
+            alignment: Alignment.center,
+            child: AutonannyIcon(
+              AutonannyIcons.add,
+              color: context.autonannyColors.statusSuccess,
+              size: 18,
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: AutonannySpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(h.description, style: const TextStyle(fontSize: 13)),
-                Text(fmt.format(h.date), style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-              ],
-            ),
-          ),
-          Text(
-            '+${h.amount.toStringAsFixed(0)} ₽',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.green,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRules() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: vm.toggleRules,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Как это работает',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
-                Icon(
-                  vm.showRules ? Icons.expand_less : Icons.expand_more,
-                  color: NannyTheme.neutral500,
-                ),
-              ],
-            ),
-          ),
-          if (vm.showRules) ...[
-            const SizedBox(height: 12),
-            _stepTile('1', 'Поделитесь промокодом с друзьями'),
-            _stepTile('2', 'Друг регистрируется и вводит промокод'),
-            _stepTile('3', 'Друг получает скидку 15% на первый заказ'),
-            _stepTile('4',
-                'Вы получаете 500 ₽ бонуса после первой поездки друга'),
-            const Divider(height: 20),
-            Text(
-              'Бонусы начисляются автоматически после завершения первой поездки приглашённого. Бонусы не имеют срока действия и могут быть использованы для оплаты поездок.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: NannyTheme.neutral600),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _stepTile(String step, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: NannyTheme.primary.withOpacity(0.1),
-            child: Text(
-              step,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: NannyTheme.primary),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 14))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildApplyPromo() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'У вас есть промокод?',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: vm.promoInputController,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: InputDecoration(
-                    hintText: 'Введите промокод',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide:
-                          BorderSide(color: NannyTheme.neutral200),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
+                Text(
+                  item.description,
+                  style: AutonannyTypography.bodyS(
+                    color: context.autonannyColors.textPrimary,
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: vm.isApplying ? null : vm.applyPromo,
-                  child: vm.isApplying
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text('Применить'),
+                const SizedBox(height: AutonannySpacing.xxs),
+                Text(
+                  dateText,
+                  style: AutonannyTypography.caption(
+                    color: context.autonannyColors.textTertiary,
+                  ),
                 ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.sm),
+          Text(
+            '+${item.amount.toStringAsFixed(0)} ₽',
+            style: AutonannyTypography.labelL(
+              color: context.autonannyColors.statusSuccess,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RulesSection extends StatelessWidget {
+  const _RulesSection({
+    required this.vm,
+  });
+
+  final ReferralVM vm;
+
+  @override
+  Widget build(BuildContext context) {
+    return AutonannySectionContainer(
+      title: 'Как это работает',
+      trailing: InkWell(
+        onTap: vm.toggleRules,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.all(AutonannySpacing.xs),
+          child: AutonannyIcon(
+            vm.showRules
+                ? AutonannyIcons.chevronLeft
+                : AutonannyIcons.chevronRight,
+            color: context.autonannyColors.textTertiary,
+            size: 18,
+          ),
+        ),
+      ),
+      child: vm.showRules
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _RuleStep(
+                  step: '1',
+                  text: 'Поделитесь промокодом с друзьями.',
+                ),
+                const _RuleStep(
+                  step: '2',
+                  text: 'Друг регистрируется и вводит ваш промокод.',
+                ),
+                const _RuleStep(
+                  step: '3',
+                  text: 'Друг получает скидку 15% на первый заказ.',
+                ),
+                const _RuleStep(
+                  step: '4',
+                  text: 'Вы получаете 500 ₽ бонуса после его первой поездки.',
+                ),
+                Divider(
+                  height: AutonannySpacing.xl,
+                  color: context.autonannyColors.borderSubtle,
+                ),
+                Text(
+                  'Бонусы начисляются автоматически после завершения первой поездки приглашённого пользователя. Их можно использовать для оплаты следующих поездок.',
+                  style: AutonannyTypography.bodyS(
+                    color: context.autonannyColors.textTertiary,
+                  ),
+                ),
+              ],
+            )
+          : Text(
+              'Покажем правила начисления и условия программы.',
+              style: AutonannyTypography.bodyS(
+                color: context.autonannyColors.textTertiary,
               ),
-            ],
+            ),
+    );
+  }
+}
+
+class _RuleStep extends StatelessWidget {
+  const _RuleStep({
+    required this.step,
+    required this.text,
+  });
+
+  final String step;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AutonannySpacing.md),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color:
+                  context.autonannyColors.actionPrimary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              step,
+              style: AutonannyTypography.labelM(
+                color: context.autonannyColors.actionPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.md),
+          Expanded(
+            child: Text(
+              text,
+              style: AutonannyTypography.bodyM(
+                color: context.autonannyColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApplyPromoSection extends StatelessWidget {
+  const _ApplyPromoSection({
+    required this.vm,
+  });
+
+  final ReferralVM vm;
+
+  @override
+  Widget build(BuildContext context) {
+    return AutonannySectionContainer(
+      title: 'У вас есть промокод?',
+      subtitle: 'Введите код, если вам его прислали друзья или партнёры.',
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: AutonannyTextField(
+              controller: vm.promoInputController,
+              hintText: 'Введите промокод',
+              keyboardType: TextInputType.text,
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.md),
+          SizedBox(
+            width: 120,
+            child: AutonannyButton(
+              label: 'Применить',
+              onPressed: vm.isApplying ? null : vm.applyPromo,
+              isLoading: vm.isApplying,
+              size: AutonannyButtonSize.medium,
+            ),
           ),
         ],
       ),

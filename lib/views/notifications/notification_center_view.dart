@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/notifications/notification_center_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_core/models/from_api/notification_item.dart';
+import 'package:nanny_core/models/from_api/notification_item.dart' as api;
 
 /// B-014 TASK-B14: Центр уведомлений (клиент)
 class NotificationCenterView extends StatefulWidget {
@@ -13,172 +13,142 @@ class NotificationCenterView extends StatefulWidget {
 
 class _NotificationCenterViewState extends State<NotificationCenterView> {
   late NotificationCenterVM vm;
+  late Future<bool> _loadFuture;
 
   @override
   void initState() {
     super.initState();
     vm = NotificationCenterVM(context: context, update: setState);
+    _loadFuture = vm.loadRequest;
+  }
+
+  Future<void> _refresh() async {
+    final future = _reload();
+    setState(() => _loadFuture = future);
+    await future;
+  }
+
+  Future<bool> _reload() async {
+    await vm.refresh();
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NannyTheme.background,
-      appBar: NannyAppBar.light(
+    return AutonannyAppScaffold(
+      appBar: AutonannyAppBar(
         title: 'Уведомления',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+          tooltip: 'Назад',
+        ),
         actions: [
           if (vm.unreadCount > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: TextButton(
-                onPressed: vm.markAllAsRead,
-                child: const Text(
-                  'Прочитать все',
-                  style: TextStyle(fontSize: 13),
+            TextButton(
+              onPressed: vm.markAllAsRead,
+              child: Text(
+                'Прочитать все',
+                style: AutonannyTypography.labelM(
+                  color: context.autonannyColors.actionPrimary,
                 ),
               ),
             ),
         ],
       ),
-      body: FutureLoader(
-        future: vm.loadRequest,
-        completeView: (ctx, _) => Column(
-          children: [
-            _buildFilterChips(),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: vm.refresh,
-                child: vm.filteredNotifications.isEmpty
-                    ? _buildEmpty()
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: vm.filteredNotifications.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (_, i) => _buildCard(vm.filteredNotifications[i]),
-                      ),
+      body: FutureBuilder<bool>(
+        future: _loadFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return Center(
+              child: CircularProgressIndicator(
+                color: context.autonannyColors.actionPrimary,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+            );
+          }
 
-  Widget _buildFilterChips() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: vm.filters.map((f) {
-            final isSelected = vm.selectedFilter == f['key'];
-            return Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                label: Text(f['label']!),
-                selected: isSelected,
-                onSelected: (_) => vm.setFilter(f['key']!),
-                selectedColor: NannyTheme.primary.withOpacity(0.15),
-                checkmarkColor: NannyTheme.primary,
-                labelStyle: TextStyle(
-                  color: isSelected ? NannyTheme.primary : NannyTheme.neutral700,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(AutonannySpacing.xl),
+                child: AutonannyErrorState(
+                  title: 'Не удалось загрузить уведомления',
+                  description: snapshot.error.toString(),
                 ),
               ),
             );
-          }).toList(),
-        ),
-      ),
-    );
-  }
+          }
 
-  Widget _buildCard(NotificationItem item) {
-    return GestureDetector(
-      onTap: () => vm.markAsRead(item.id),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: item.isRead ? Colors.white : NannyTheme.primary.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: item.isRead ? NannyTheme.neutral100 : NannyTheme.primary.withOpacity(0.3),
-          ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildIcon(item.type),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.title,
-                          style: TextStyle(
-                            fontWeight: item.isRead ? FontWeight.w500 : FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                      if (!item.isRead)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(color: NannyTheme.primary, shape: BoxShape.circle),
-                        ),
-                    ],
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AutonannySpacing.lg,
+                  AutonannySpacing.sm,
+                  AutonannySpacing.lg,
+                  0,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    height: 40,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: vm.filters.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(width: AutonannySpacing.sm),
+                      itemBuilder: (_, i) {
+                        final filter = vm.filters[i];
+                        return _FilterChip(
+                          label: filter['label']!,
+                          isSelected: vm.selectedFilter == filter['key'],
+                          onTap: () => vm.setFilter(filter['key']!),
+                        );
+                      },
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(item.body, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
-                  const SizedBox(height: 6),
-                  Text(_formatDate(item.createdAt), style: TextStyle(fontSize: 11, color: Colors.grey[400])),
-                ],
+                ),
               ),
-            ),
-          ],
-        ),
+              const SizedBox(height: AutonannySpacing.md),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _refresh,
+                  child: vm.filteredNotifications.isEmpty
+                      ? const Center(
+                          child: AutonannyEmptyState(
+                            title: 'Нет уведомлений',
+                            description:
+                                'Новые события по поездкам, оплатам и системе появятся здесь.',
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(
+                            AutonannySpacing.lg,
+                            0,
+                            AutonannySpacing.lg,
+                            AutonannySpacing.xxl,
+                          ),
+                          itemCount: vm.filteredNotifications.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: AutonannySpacing.sm),
+                          itemBuilder: (_, i) =>
+                              _buildCard(vm.filteredNotifications[i]),
+                        ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildIcon(String type) {
-    final data = _iconForType(type);
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: data.$2.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
+  Widget _buildCard(api.NotificationItem item) {
+    return NotificationItem(
+      data: item.notificationItemData(
+        timeLabel: _formatDate(item.createdAt),
       ),
-      child: Icon(data.$1, color: data.$2, size: 20),
-    );
-  }
-
-  (IconData, Color) _iconForType(String type) {
-    switch (type) {
-      case 'order': return (Icons.directions_car, Colors.blue);
-      case 'payment': return (Icons.payments, Colors.green);
-      case 'referral': return (Icons.card_giftcard, Colors.purple);
-      case 'system': return (Icons.info_outline, Colors.orange);
-      default: return (Icons.notifications, NannyTheme.primary);
-    }
-  }
-
-  Widget _buildEmpty() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.notifications_none, size: 64, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text('Нет уведомлений', style: TextStyle(fontSize: 16, color: Colors.grey[500])),
-        ],
-      ),
+      onTap: () => vm.markAsRead(item.id),
     );
   }
 
@@ -189,5 +159,55 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
     if (diff.inHours < 24) return '${diff.inHours} ч назад';
     if (diff.inDays < 7) return '${diff.inDays} д назад';
     return '${date.day}.${date.month}.${date.year}';
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final components = context.autonannyComponents;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AutonannyRadii.brFull,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.md,
+            vertical: AutonannySpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected ? null : colors.surfaceSecondary,
+            gradient: isSelected ? components.primaryActionGradient : null,
+            borderRadius: AutonannyRadii.brFull,
+            border: Border.all(
+              color: isSelected
+                  ? Colors.transparent
+                  : colors.borderSubtle,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: AutonannyTypography.labelM(
+                color: isSelected ? colors.textInverse : colors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

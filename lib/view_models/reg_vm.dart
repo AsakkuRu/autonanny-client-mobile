@@ -95,11 +95,13 @@ class RegVM extends ViewModelBase {
       ),
     );
 
+    final pushToken = await PushTokenSync.getTokenOrEmpty();
     await NannyUser.login(
       LoginRequest(
-          login: NannyGlobals.phone,
-          password: passHash,
-          fbid: "Пятисотый"),
+        login: NannyGlobals.phone,
+        password: passHash,
+        fbid: pushToken,
+      ),
     );
 
     if (!context.mounted) return;

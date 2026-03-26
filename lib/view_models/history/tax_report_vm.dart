@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
 
@@ -71,7 +71,6 @@ class TaxReportVM {
   }
 
   void _applyMock() {
-    final now = DateTime(selectedYear);
     trips = List.generate(24, (i) {
       final date = DateTime(selectedYear, (i % 12) + 1, (i % 28) + 1);
       return TripHistory(
@@ -93,7 +92,8 @@ class TaxReportVM {
 
   Future<void> generateAndSharePdf() async {
     if (trips.isEmpty) {
-      NannyDialogs.showMessageBox(context, 'Нет данных', 'Загрузите данные перед экспортом');
+      NannyDialogs.showMessageBox(
+          context, 'Нет данных', 'Загрузите данные перед экспортом');
       return;
     }
 
@@ -112,12 +112,14 @@ class TaxReportVM {
             children: [
               pw.Text(
                 'Налоговый отчёт — АвтоНяня (Родитель)',
-                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+                style:
+                    pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
               ),
               pw.SizedBox(height: 4),
               pw.Text(
                 'Год: $selectedYear',
-                style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
+                style:
+                    const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
               ),
               pw.Divider(),
             ],
@@ -140,15 +142,19 @@ class TaxReportVM {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 _pdfStat('Поездок', '$totalTrips'),
-                _pdfStat('Итого расходов', '${totalSpent.toStringAsFixed(0)} ₽'),
-                _pdfStat('Ср. стоимость', '${(totalTrips > 0 ? totalSpent / totalTrips : 0).toStringAsFixed(0)} ₽'),
+                _pdfStat(
+                    'Итого расходов', '${totalSpent.toStringAsFixed(0)} ₽'),
+                _pdfStat('Ср. стоимость',
+                    '${(totalTrips > 0 ? totalSpent / totalTrips : 0).toStringAsFixed(0)} ₽'),
               ],
             ),
             pw.SizedBox(height: 16),
             pw.TableHelper.fromTextArray(
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+              headerStyle:
+                  pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
               cellStyle: const pw.TextStyle(fontSize: 9),
-              headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
+              headerDecoration:
+                  const pw.BoxDecoration(color: PdfColors.grey200),
               cellHeight: 28,
               columnWidths: {
                 0: const pw.FixedColumnWidth(70),
@@ -157,12 +163,16 @@ class TaxReportVM {
                 3: const pw.FixedColumnWidth(70),
               },
               headers: ['Дата', 'Откуда', 'Куда', 'Сумма'],
-              data: trips.map((t) => [
-                dateFormat.format(t.date),
-                t.addressFrom,
-                t.addressTo,
-                t.price != null ? '${t.price!.toStringAsFixed(0)} ₽' : '—',
-              ]).toList(),
+              data: trips
+                  .map((t) => [
+                        dateFormat.format(t.date),
+                        t.addressFrom,
+                        t.addressTo,
+                        t.price != null
+                            ? '${t.price!.toStringAsFixed(0)} ₽'
+                            : '—',
+                      ])
+                  .toList(),
             ),
             pw.SizedBox(height: 12),
             pw.Container(
@@ -170,7 +180,8 @@ class TaxReportVM {
               decoration: const pw.BoxDecoration(color: PdfColors.grey100),
               child: pw.Text(
                 '* Данный отчёт носит справочный характер. Уточняйте налоговые вычеты у специалиста.',
-                style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                style:
+                    const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
               ),
             ),
           ],
@@ -183,7 +194,8 @@ class TaxReportVM {
       );
     } catch (e) {
       if (context.mounted) {
-        NannyDialogs.showMessageBox(context, 'Ошибка', 'Не удалось создать PDF: $e');
+        NannyDialogs.showMessageBox(
+            context, 'Ошибка', 'Не удалось создать PDF: $e');
       }
     }
 
@@ -193,9 +205,11 @@ class TaxReportVM {
   pw.Widget _pdfStat(String label, String value) {
     return pw.Column(
       children: [
-        pw.Text(label, style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+        pw.Text(label,
+            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
         pw.SizedBox(height: 2),
-        pw.Text(value, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+        pw.Text(value,
+            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
       ],
     );
   }

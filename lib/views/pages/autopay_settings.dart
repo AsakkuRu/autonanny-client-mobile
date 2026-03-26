@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/autopay_settings_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 
 /// FE-MVP-020: Экран настроек автоматического списания
 class AutopaySettingsView extends StatefulWidget {
@@ -11,7 +11,7 @@ class AutopaySettingsView extends StatefulWidget {
 }
 
 class _AutopaySettingsViewState extends State<AutopaySettingsView> {
-  late AutopaySettingsVM vm;
+  late final AutopaySettingsVM vm;
 
   @override
   void initState() {
@@ -21,246 +21,198 @@ class _AutopaySettingsViewState extends State<AutopaySettingsView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFf7f7f7),
-      appBar: const NannyAppBar(
+    return AutonannyListScreenShell(
+      appBar: AutonannyAppBar(
         title: 'Автоплатежи',
-        color: Color(0xFFf7f7f7),
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
-      body: FutureLoader(
+      header: _buildHeader(),
+      body: FutureBuilder<bool>(
         future: vm.loadRequest,
-        completeView: (context, data) {
-          if (!data) {
-            return const ErrorView(
-              errorText: 'Не удалось загрузить данные',
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const AutonannyLoadingState(
+              label: 'Загружаем настройки автоплатежей.',
             );
           }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Информационная карточка
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE3F2FD),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Color(0xFF1976D2)),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Автоматическое списание происходит еженедельно с выбранной карты',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF1976D2),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+          if (snapshot.hasError || snapshot.data != true) {
+            return AutonannyErrorState(
+              title: 'Не удалось загрузить данные',
+              description: snapshot.error?.toString() ??
+                  'Попробуйте открыть настройки ещё раз.',
+              actionLabel: 'Повторить',
+              onAction: () => vm.reloadPage(),
+            );
+          }
+
+          return ListView(
+            children: [
+              const AutonannyInlineBanner(
+                title: 'Еженедельное списание',
+                message:
+                    'Автоматическая оплата будет проходить с выбранной карты раз в неделю.',
+                tone: AutonannyBannerTone.info,
+                leading: AutonannyIcon(AutonannyIcons.info),
+              ),
+              const SizedBox(height: AutonannySpacing.lg),
+              AutonannySectionContainer(
+                title: 'Автоматическое списание',
+                subtitle:
+                    'Включите автоплатежи, чтобы не подтверждать оплату вручную.',
+                trailing: AutonannySwitch(
+                  value: vm.isAutopayEnabled,
+                  onChanged: vm.toggleAutopay,
                 ),
-                const SizedBox(height: 24),
-
-                // Переключатель автоплатежей
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.autorenew,
-                        size: 32,
-                        color: Color(0xFF6750A4),
-                      ),
-                      const SizedBox(width: 16),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Автоматическое списание',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF2B2B2B),
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Еженедельная оплата',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF757575),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch(
-                        value: vm.isAutopayEnabled,
-                        onChanged: vm.toggleAutopay,
-                        activeColor: const Color(0xFF6750A4),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Выбор карты по умолчанию
-                if (vm.isAutopayEnabled) ...[
-                  const Text(
-                    'Карта для списания',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF2B2B2B),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  if (vm.cards.isEmpty)
+                child: Row(
+                  children: [
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF3CD),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFFFE69C)),
+                        color: context.autonannyColors.surfaceSecondary,
+                        borderRadius: AutonannyRadii.brMd,
                       ),
+                      alignment: Alignment.center,
+                      child: AutonannyIcon(
+                        AutonannyIcons.timer,
+                        color: context.autonannyColors.actionPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: AutonannySpacing.lg),
+                    Expanded(
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.warning_amber, color: Color(0xFF856404)),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'У вас нет привязанных карт',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF856404),
-                                  ),
-                                ),
-                              ),
-                            ],
+                          Text(
+                            'Еженедельная оплата',
+                            style: AutonannyTypography.labelL(
+                              color: context.autonannyColors.textPrimary,
+                            ),
                           ),
-                          const SizedBox(height: 12),
-                          ElevatedButton.icon(
-                            onPressed: vm.addCard,
-                            icon: const Icon(Icons.add_card),
-                            label: const Text('Добавить карту'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF6750A4),
-                              foregroundColor: Colors.white,
+                          const SizedBox(height: AutonannySpacing.xs),
+                          Text(
+                            vm.isAutopayEnabled
+                                ? 'Списание будет происходить автоматически.'
+                                : 'Сейчас автоплатежи отключены.',
+                            style: AutonannyTypography.bodyS(
+                              color: context.autonannyColors.textSecondary,
                             ),
                           ),
                         ],
                       ),
-                    )
-                  else
-                    ...vm.cards.map((card) {
-                      final isSelected = vm.selectedCardId == card.id;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: InkWell(
-                          onTap: () => vm.selectCard(card.id),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFF6750A4)
-                                    : const Color(0xFFE0E0E0),
-                                width: isSelected ? 2 : 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.credit_card,
-                                  size: 32,
-                                  color: isSelected
-                                      ? const Color(0xFF6750A4)
-                                      : const Color(0xFF757575),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '**** ${card.cardNumber}',
-                                        style: const TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF2B2B2B),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        card.name,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF757575),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (isSelected)
-                                  const Icon(
-                                    Icons.check_circle,
-                                    color: Color(0xFF6750A4),
-                                    size: 24,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  const SizedBox(height: 16),
-                  
-                  // Кнопка добавления карты
-                  if (vm.cards.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: vm.addCard,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Добавить другую карту'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF6750A4),
-                      ),
                     ),
-                ],
+                  ],
+                ),
+              ),
+              if (vm.isAutopayEnabled) ...[
+                const SizedBox(height: AutonannySpacing.lg),
+                _buildCardsSection(),
               ],
-            ),
+            ],
           );
         },
-        errorView: (context, error) => ErrorView(errorText: error.toString()),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final colors = context.autonannyColors;
+
+    return Container(
+      padding: const EdgeInsets.all(AutonannySpacing.xl),
+      decoration: const BoxDecoration(
+        gradient: AutonannyGradients.hero,
+        borderRadius: AutonannyRadii.brLg,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Автоматические списания',
+                  style: AutonannyTypography.h2(color: colors.textInverse),
+                ),
+                const SizedBox(height: AutonannySpacing.xs),
+                Text(
+                  'Настройте карту и дайте приложению оплачивать поездки автоматически.',
+                  style: AutonannyTypography.bodyS(
+                    color: colors.textInverse.withValues(alpha: 0.82),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.lg),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: colors.textInverse.withValues(alpha: 0.16),
+              borderRadius: AutonannyRadii.brMd,
+            ),
+            alignment: Alignment.center,
+            child: const AutonannyIcon(
+              AutonannyIcons.card,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardsSection() {
+    if (vm.cards.isEmpty) {
+      return AutonannyInlineBanner(
+        title: 'Нет привязанных карт',
+        message: 'Добавьте карту, чтобы включить автоплатежи.',
+        tone: AutonannyBannerTone.warning,
+        leading: const AutonannyIcon(AutonannyIcons.warning),
+        trailing: AutonannyButton(
+          label: 'Добавить',
+          size: AutonannyButtonSize.medium,
+          onPressed: vm.addCard,
+          expand: false,
+        ),
+      );
+    }
+
+    return AutonannySectionContainer(
+      title: 'Карта для списания',
+      subtitle:
+          'Выберите карту, с которой будет происходить еженедельная оплата.',
+      trailing: AutonannyButton(
+        label: 'Добавить',
+        variant: AutonannyButtonVariant.secondary,
+        size: AutonannyButtonSize.medium,
+        leading: const AutonannyIcon(AutonannyIcons.add),
+        onPressed: vm.addCard,
+        expand: false,
+      ),
+      child: Column(
+        children: vm.cards
+            .asMap()
+            .entries
+            .map((entry) => Padding(
+                  padding: EdgeInsets.only(
+                    bottom: entry.key == vm.cards.length - 1
+                        ? 0
+                        : AutonannySpacing.md,
+                  ),
+                  child: PaymentMethodCard(
+                    data: entry.value.paymentMethodCardData.copyWith(
+                      isSelected: vm.selectedCardId == entry.value.id,
+                    ),
+                    onTap: () => vm.selectCard(entry.value.id),
+                  ),
+                ))
+            .toList(growable: false),
       ),
     );
   }

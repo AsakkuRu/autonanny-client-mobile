@@ -50,11 +50,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAqtFDxSZJ3Q46RIcFsONMjF5BXKjMzcA4',
-    appId: '1:477442562518:android:d5373a4c58a075e7186c77',
-    messagingSenderId: '477442562518',
-    projectId: 'autonanny-41178',
-    storageBucket: 'autonanny-41178.appspot.com',
+    apiKey: 'AIzaSyDjrgKUF7KDpcvoLoQtBj57r_ely8Zmp1o',
+    appId: '1:715207553808:android:e6e360ce5a31e3dae32b95',
+    messagingSenderId: '715207553808',
+    projectId: 'autonanny-dev',
+    storageBucket: 'autonanny-dev.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
 
@@ -108,7 +108,8 @@ class SpendingAnalyticsVM extends ViewModelBase {
     // Group by month
     final monthMap = <String, double>{};
     for (final trip in trips) {
-      final key = '${trip.date.month.toString().padLeft(2, '0')}.${trip.date.year}';
+      final key =
+          '${trip.date.month.toString().padLeft(2, '0')}.${trip.date.year}';
       monthMap.putIfAbsent(key, () => 0);
       monthMap[key] = monthMap[key]! + (trip.price ?? 0);
     }
@@ -133,9 +134,6 @@ class SpendingAnalyticsVM extends ViewModelBase {
         return 3;
     }
   }
-
-  // Исторические мок-данные оставлены только для локальной отладки и не используются в production-логике.
-  List<TripHistory> _generateMockData() => [];
 }
 
 class _DriverAcc {

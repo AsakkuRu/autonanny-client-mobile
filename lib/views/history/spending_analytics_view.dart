@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/history/spending_analytics_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 
 class SpendingAnalyticsView extends StatefulWidget {
   const SpendingAnalyticsView({super.key});
@@ -20,16 +20,35 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
     return Scaffold(
-      backgroundColor: NannyTheme.background,
-      appBar: const NannyAppBar.light(
+      backgroundColor: colors.surfaceBase,
+      appBar: AutonannyAppBar(
         title: 'Аналитика расходов',
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: AutonannyIcon(
+            AutonannyIcons.chevronLeft,
+            color: colors.textPrimary,
+          ),
+        ),
       ),
-      body: FutureLoader(
+      body: FutureBuilder<bool>(
         future: vm.loadRequest,
-        completeView: (context, data) {
-          if (vm.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done ||
+              vm.isLoading) {
+            return const Center(child: AutonannyLoadingState());
+          }
+          if (snapshot.hasError || snapshot.data != true) {
+            return Center(
+              child: AutonannyErrorState(
+                title: 'Не удалось загрузить аналитику',
+                description:
+                    snapshot.error?.toString() ?? 'Попробуйте ещё раз позже.',
+              ),
+            );
           }
           return RefreshIndicator(
             onRefresh: () async => vm.reloadPage(),
@@ -42,21 +61,25 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const SizedBox(height: 80),
-                        Icon(Icons.pie_chart_outline,
-                            size: 64, color: NannyTheme.neutral300),
+                        Icon(
+                          Icons.pie_chart_outline,
+                          size: 64,
+                          color: colors.borderStrong,
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Пока нет данных для аналитики',
-                          style: Theme.of(context).textTheme.titleMedium,
+                          style: AutonannyTypography.h3(
+                            color: colors.textPrimary,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'После завершения оплаченных поездок здесь появятся графики ваших расходов.',
                           textAlign: TextAlign.center,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: NannyTheme.neutral500),
+                          style: AutonannyTypography.bodyM(
+                            color: colors.textTertiary,
+                          ),
                         ),
                       ],
                     )
@@ -75,12 +98,13 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
             ),
           );
         },
-        errorView: (context, error) => ErrorView(errorText: error.toString()),
       ),
     );
   }
 
   Widget _buildPeriodSelector() {
+    final colors = context.autonannyColors;
+
     return SizedBox(
       height: 36,
       child: ListView(
@@ -94,13 +118,13 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
                 period,
                 style: TextStyle(
                   fontSize: 13,
-                  color: isSelected ? Colors.white : NannyTheme.neutral700,
+                  color: isSelected ? Colors.white : colors.textSecondary,
                 ),
               ),
               selected: isSelected,
               onSelected: (_) => vm.changePeriod(period),
-              backgroundColor: NannyTheme.neutral100,
-              selectedColor: NannyTheme.primary,
+              backgroundColor: colors.surfaceSecondary,
+              selectedColor: colors.actionPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
@@ -113,27 +137,44 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
   Widget _buildSummaryCards() {
     return Row(
       children: [
-        Expanded(child: _summaryCard('Всего', '${vm.totalSpent.toStringAsFixed(0)} ₽', Icons.wallet, NannyTheme.primary)),
+        Expanded(
+          child: _summaryCard(
+            'Всего',
+            '${vm.totalSpent.toStringAsFixed(0)} ₽',
+            Icons.wallet,
+            context.autonannyColors.actionPrimary,
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: _summaryCard('Поездок', '${vm.totalTrips}', Icons.directions_car, Colors.green)),
+        Expanded(
+          child: _summaryCard(
+            'Поездок',
+            '${vm.totalTrips}',
+            Icons.directions_car,
+            context.autonannyColors.statusSuccess,
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(child: _summaryCard('Средняя', '${vm.averageTrip.toStringAsFixed(0)} ₽', Icons.analytics, Colors.orange)),
+        Expanded(
+          child: _summaryCard(
+            'Средняя',
+            '${vm.averageTrip.toStringAsFixed(0)} ₽',
+            Icons.analytics,
+            context.autonannyColors.statusWarning,
+          ),
+        ),
       ],
     );
   }
 
   Widget _summaryCard(String label, String value, IconData icon, Color color) {
+    final colors = context.autonannyColors;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: colors.surfaceElevated,
+        borderRadius: AutonannyRadii.brLg,
+        boxShadow: AutonannyShadows.card,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Column(
@@ -150,10 +191,9 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
           const SizedBox(height: 2),
           Text(
             label,
-            style: Theme.of(context)
-                .textTheme
-                .labelSmall
-                ?.copyWith(color: NannyTheme.neutral500),
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: colors.textTertiary),
           ),
         ],
       ),
@@ -162,21 +202,16 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
 
   Widget _buildMonthlyChart() {
     if (vm.monthlySpendings.isEmpty) return const SizedBox.shrink();
+    final colors = context.autonannyColors;
 
     final maxAmount = vm.monthlySpendings
         .fold<double>(0, (max, s) => s.amount > max ? s.amount : max);
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: colors.surfaceElevated,
+        borderRadius: AutonannyRadii.brXl,
+        boxShadow: AutonannyShadows.card,
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -211,7 +246,7 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
                         Container(
                           height: barHeight,
                           decoration: BoxDecoration(
-                            color: NannyTheme.primary,
+                            color: colors.actionPrimary,
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(6),
                             ),
@@ -222,7 +257,7 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
                           s.label,
                           style: TextStyle(
                             fontSize: 10,
-                            color: NannyTheme.neutral500,
+                            color: colors.textTertiary,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -240,18 +275,13 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
 
   Widget _buildDriverBreakdown() {
     if (vm.driverSpendings.isEmpty) return const SizedBox.shrink();
+    final colors = context.autonannyColors;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        color: colors.surfaceElevated,
+        borderRadius: AutonannyRadii.brXl,
+        boxShadow: AutonannyShadows.card,
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -296,7 +326,7 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
                         '${ds.total.toStringAsFixed(0)} ₽ (${ds.tripCount} поездок)',
                         style: TextStyle(
                           fontSize: 13,
-                          color: NannyTheme.neutral700,
+                          color: colors.textSecondary,
                         ),
                       ),
                     ],
@@ -306,7 +336,7 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
                       value: percent,
-                      backgroundColor: NannyTheme.neutral100,
+                      backgroundColor: colors.surfaceSecondary,
                       valueColor: AlwaysStoppedAnimation(ds.color),
                       minHeight: 8,
                     ),
@@ -328,7 +358,7 @@ class _SpendingAnalyticsViewState extends State<SpendingAnalyticsView> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: NannyTheme.primary,
+                  color: colors.actionPrimary,
                 ),
               ),
             ],

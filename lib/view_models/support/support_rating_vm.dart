@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/api/nanny_chats_api.dart';
 
 class SupportRatingVM extends ViewModelBase {
@@ -25,7 +26,8 @@ class SupportRatingVM extends ViewModelBase {
 
   Future<void> submitRating() async {
     if (rating == 0) {
-      NannyDialogs.showMessageBox(context, 'Выберите оценку', 'Пожалуйста, отметьте от 1 до 5 звёзд');
+      NannyDialogs.showMessageBox(
+          context, 'Выберите оценку', 'Пожалуйста, отметьте от 1 до 5 звёзд');
       return;
     }
 
@@ -35,7 +37,9 @@ class SupportRatingVM extends ViewModelBase {
     final result = await NannyChatsApi.rateSupportChat(
       ticketId: ticketId,
       rating: rating,
-      comment: commentController.text.trim().isEmpty ? null : commentController.text.trim(),
+      comment: commentController.text.trim().isEmpty
+          ? null
+          : commentController.text.trim(),
     );
 
     update(() => isSubmitting = false);
@@ -62,5 +66,6 @@ class SupportRatingVM extends ViewModelBase {
   @override
   void dispose() {
     commentController.dispose();
+    super.dispose();
   }
 }
