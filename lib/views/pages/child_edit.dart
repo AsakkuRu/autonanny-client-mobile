@@ -3,7 +3,6 @@ import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/child_edit_vm.dart';
 import 'package:nanny_components/styles/nanny_theme.dart';
 import 'package:nanny_components/widgets/nanny_text_forms.dart';
-import 'package:nanny_components/widgets/profile_image.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 
 class ChildEditView extends StatefulWidget {
@@ -30,6 +29,8 @@ class _ChildEditViewState extends State<ChildEditView> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
     return AutonannyAppScaffold(
       appBar: AutonannyAppBar(
         title: widget.child == null ? "Добавить ребенка" : "Редактировать",
@@ -48,9 +49,11 @@ class _ChildEditViewState extends State<ChildEditView> {
                 onTap: vm.pickPhoto,
                 child: Stack(
                   children: [
-                    ProfileImage(
-                      url: vm.photoPath ?? '',
-                      radius: 100,
+                    AutonannyAvatar(
+                      imageUrl: vm.photoPath,
+                      initials: _childInitials(),
+                      size: 100,
+                      borderRadius: BorderRadius.circular(28),
                     ),
                     Positioned(
                       right: 0,
@@ -58,20 +61,20 @@ class _ChildEditViewState extends State<ChildEditView> {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: NannyTheme.primary,
+                          color: colors.actionPrimary,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: NannyTheme.shadow.withOpacity(0.25),
+                              color: NannyTheme.shadow.withValues(alpha: 0.25),
                               blurRadius: 6,
                               offset: const Offset(0, 3),
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.camera_alt,
+                        child: const AutonannyIcon(
+                          AutonannyIcons.edit,
                           color: Colors.white,
-                          size: 20,
+                          size: 18,
                         ),
                       ),
                     ),
@@ -140,7 +143,7 @@ class _ChildEditViewState extends State<ChildEditView> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: NannyTheme.shadow.withOpacity(0.08),
+                    color: NannyTheme.shadow.withValues(alpha: 0.08),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -205,7 +208,7 @@ class _ChildEditViewState extends State<ChildEditView> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: NannyTheme.shadow.withOpacity(0.08),
+                    color: NannyTheme.shadow.withValues(alpha: 0.08),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -270,7 +273,7 @@ class _ChildEditViewState extends State<ChildEditView> {
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withValues(alpha: 0.05),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -367,7 +370,7 @@ class _ChildEditViewState extends State<ChildEditView> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: NannyTheme.shadow.withOpacity(0.08),
+                          color: NannyTheme.shadow.withValues(alpha: 0.08),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -438,5 +441,23 @@ class _ChildEditViewState extends State<ChildEditView> {
         ),
       ),
     );
+  }
+
+  String _childInitials() {
+    String firstChar(String? value) {
+      if (value == null || value.trim().isEmpty) {
+        return '';
+      }
+      return value.trim().characters.first;
+    }
+
+    final first = vm.nameController.text.trim().isNotEmpty
+        ? firstChar(vm.nameController.text)
+        : firstChar(widget.child?.name);
+    final second = vm.surnameController.text.trim().isNotEmpty
+        ? firstChar(vm.surnameController.text)
+        : firstChar(widget.child?.surname);
+    final initials = '$first$second'.trim().toUpperCase();
+    return initials.isEmpty ? 'A' : initials;
   }
 }

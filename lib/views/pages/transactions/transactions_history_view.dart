@@ -6,7 +6,14 @@ import 'package:nanny_core/models/from_api/transaction.dart';
 
 /// FE-MVP-023: Экран истории финансовых операций
 class TransactionsHistoryView extends StatefulWidget {
-  const TransactionsHistoryView({super.key});
+  const TransactionsHistoryView({
+    super.key,
+    this.initialTransactionType,
+    this.initialSearchQuery,
+  });
+
+  final String? initialTransactionType;
+  final String? initialSearchQuery;
 
   @override
   State<TransactionsHistoryView> createState() =>
@@ -19,7 +26,12 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
   @override
   void initState() {
     super.initState();
-    vm = TransactionsHistoryVM(context: context, update: setState);
+    vm = TransactionsHistoryVM(
+      context: context,
+      update: setState,
+      initialTransactionType: widget.initialTransactionType,
+      initialSearchQuery: widget.initialSearchQuery,
+    );
   }
 
   @override
@@ -82,6 +94,10 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
           return Column(
             children: [
               _buildSearchBar(),
+              if (vm.hasActiveFilters) ...[
+                const SizedBox(height: AutonannySpacing.md),
+                _buildActiveFiltersBanner(),
+              ],
               const SizedBox(height: AutonannySpacing.lg),
               Expanded(
                 child: RefreshIndicator(
@@ -188,6 +204,22 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
         AutonannyIcons.document,
         size: 44,
         color: context.autonannyColors.textTertiary,
+      ),
+    );
+  }
+
+  Widget _buildActiveFiltersBanner() {
+    return AutonannyInlineBanner(
+      title: 'Активны фильтры истории',
+      message: vm.activeFiltersSummary,
+      tone: AutonannyBannerTone.info,
+      leading: const AutonannyIcon(AutonannyIcons.settings),
+      trailing: AutonannyButton(
+        label: 'Сбросить',
+        variant: AutonannyButtonVariant.secondary,
+        size: AutonannyButtonSize.medium,
+        expand: false,
+        onPressed: vm.clearFilters,
       ),
     );
   }

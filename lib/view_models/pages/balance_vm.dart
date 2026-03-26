@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
+import 'package:nanny_client/views/pages/autopay_settings.dart';
 import 'package:nanny_client/views/pages/transactions/transactions_history_view.dart';
 import 'package:nanny_components/base_views/views/pages/wallet.dart';
 import 'package:nanny_core/nanny_core.dart';
@@ -35,23 +35,37 @@ class BalanceVM extends ViewModelBase {
         _cardsRequest = NannyUsersApi.getUserCards();
       });
 
-  void navigateToWallet() => Navigator.push(
+  void navigateToWallet() async {
+    await Navigator.push(
       context,
       MaterialPageRoute(
-          builder: (context) => const WalletView(
-                title: "Пополнение баланса",
-                subtitle: "Выберите способ пополнения",
-              )));
+        builder: (context) => const WalletView(
+          title: "Пополнение баланса",
+          subtitle: "Выберите способ пополнения",
+        ),
+      ),
+    );
+    if (!context.mounted) {
+      return;
+    }
+    updateState();
+  }
 
   void navigateToHistory() => Navigator.push(context,
       MaterialPageRoute(builder: (context) => const TransactionsHistoryView()));
 
-  void showAutofillDialog() => NannyDialogs.showMessageBox(
-        context,
-        "Автопополнение",
-        "Функция автоматического пополнения баланса находится в разработке. "
-            "Скоро она станет доступна.",
-      );
+  void navigateToAutopaySettings() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AutopaySettingsView(),
+      ),
+    );
+    if (!context.mounted) {
+      return;
+    }
+    updateState();
+  }
 
   String formatCurrency(double balance) {
     final formatter = NumberFormat("#,##0.00", "en_US");

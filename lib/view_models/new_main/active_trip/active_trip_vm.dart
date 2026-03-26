@@ -34,6 +34,7 @@ class ActiveTripVM extends ViewModelBase {
   StreamSubscription? _expiredSub;
   StreamSubscription? _routeSub;
   Timer? _statusPollTimer;
+  Timer? _waitingTimer;
   Duration? _statusPollInterval;
   bool _isReconcilingTerminalState = false;
   bool _isReconcilingStatusState = false;
@@ -49,6 +50,9 @@ class ActiveTripVM extends ViewModelBase {
   bool noDriversFound = false;
   bool isBusy = false;
   bool connectionTimedOut = false;
+  String? awaitingSince;
+  bool meetingVerified = false;
+  int waitingSeconds = 0;
   String statusText = 'Ищем водителя...';
   Map<String, dynamic>? driverLocation;
   List<Map<String, dynamic>> nearbyDrivers = [];
@@ -62,6 +66,26 @@ class ActiveTripVM extends ViewModelBase {
   bool get isArrived => statusId == 7 || statusId == 6;
   bool get isInProgress => statusId == 14 || statusId == 15;
   bool get isEnRoute => statusId == 13 || statusId == 5;
+  bool get canShowSos => isInProgress;
+  bool get hasWaitingTimer => isArrived && awaitingSince?.isNotEmpty == true;
+  bool get isWithinFreeWaitingWindow => waitingSeconds < 10 * 60;
+  String get waitingTimerLabel {
+    final minutes = (waitingSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (waitingSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  String get waitingStatusTitle =>
+      isWithinFreeWaitingWindow ? 'Бесплатное ожидание' : 'Ожидание у подъезда';
+  String get waitingStatusHint {
+    if (isWithinFreeWaitingWindow) {
+      final remaining = (10 * 60 - waitingSeconds).clamp(0, 10 * 60);
+      final minutes = (remaining ~/ 60).toString().padLeft(2, '0');
+      final seconds = (remaining % 60).toString().padLeft(2, '0');
+      return 'Первые 10 минут бесплатно. Осталось $minutes:$seconds.';
+    }
+    return 'Бесплатный период ожидания завершён.';
+  }
 
   static const Map<int, int> _statusPriority = {
     2: 90,
@@ -309,7 +333,8 @@ class ActiveTripVM extends ViewModelBase {
     _statusSub = _socket!.on('trip.status_changed').listen((msg) {
       connectionTimedOut = false;
       final data = Map<String, dynamic>.from(msg['data'] ?? const {});
-      final status = _mapTripStatusToUiStatusId(data['status']?.toString());
+      final status = _toInt(data['legacy_status_id']) ??
+          _mapTripStatusToUiStatusId(data['status']?.toString());
       if (!_matchesTrackedTrip(data)) {
         if (status != null) {
           _reconcileStatusStateFromServer();
@@ -360,7 +385,8 @@ class ActiveTripVM extends ViewModelBase {
         _reconcileTerminalStateFromServer(fallbackStatus: 2);
         return;
       }
-      final cancelledStatus = _mapTripStatusToUiStatusId(
+      final cancelledStatus = _toInt(data['legacy_status_id']) ??
+          _mapTripStatusToUiStatusId(
             data['status']?.toString(),
           ) ??
           3;
@@ -456,6 +482,54 @@ class ActiveTripVM extends ViewModelBase {
         .toList(growable: false);
   }
 
+  String? _extractAwaitingSince(Map data) {
+    final raw = data['awaiting_since'];
+    if (raw == null) return awaitingSince;
+    final normalized = raw.toString().trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  bool _extractMeetingVerified(Map data) {
+    final raw = data['meeting_verified'];
+    if (raw == null) return meetingVerified;
+    return raw == true;
+  }
+
+  int _resolveWaitingSeconds(String? rawAwaitingSince) {
+    final raw = rawAwaitingSince?.trim();
+    if (raw == null || raw.isEmpty) return 0;
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return 0;
+    final diff = DateTime.now().difference(parsed.toLocal()).inSeconds;
+    return diff > 0 ? diff : 0;
+  }
+
+  void _syncWaitingTimer() {
+    if (!isArrived || awaitingSince?.isEmpty != false) {
+      waitingSeconds = 0;
+      _waitingTimer?.cancel();
+      _waitingTimer = null;
+      return;
+    }
+
+    waitingSeconds = _resolveWaitingSeconds(awaitingSince);
+    if (_waitingTimer != null) {
+      return;
+    }
+
+    _waitingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!isArrived || awaitingSince?.isEmpty != false) {
+        _waitingTimer?.cancel();
+        _waitingTimer = null;
+        return;
+      }
+      waitingSeconds++;
+      if (context.mounted) {
+        update(() {});
+      }
+    });
+  }
+
   void _refreshStatusText() {
     switch (statusId) {
       case 13:
@@ -514,6 +588,7 @@ class ActiveTripVM extends ViewModelBase {
         // Закрыть окно QR/PIN при переходе из «ожидание» в «поездка началась»
         if (wasArrived) onTripStarted?.call();
       }
+      _syncWaitingTimer();
       _startStatusPolling();
     }
   }
@@ -747,6 +822,9 @@ class ActiveTripVM extends ViewModelBase {
     chatId = _toInt(activeOrder['id_chat']) ?? chatId;
     addresses = _extractAddresses(activeOrder);
     children = _extractChildren(activeOrder);
+    awaitingSince = _extractAwaitingSince(activeOrder);
+    meetingVerified = _extractMeetingVerified(activeOrder);
+    _syncWaitingTimer();
     if (updateRoute) {
       ensureRoutePolyline();
     }
@@ -884,6 +962,7 @@ class ActiveTripVM extends ViewModelBase {
     }
   }
 
+  @override
   void dispose() {
     _stopStatusPolling();
     _connectedSub?.cancel();
@@ -893,6 +972,7 @@ class ActiveTripVM extends ViewModelBase {
     _locationSub?.cancel();
     _expiredSub?.cancel();
     _routeSub?.cancel();
+    _waitingTimer?.cancel();
     // Не dispose сокет — он общий синглтон
     _socket = null;
   }

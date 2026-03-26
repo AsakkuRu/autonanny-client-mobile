@@ -43,7 +43,9 @@ class AddCardVM extends ViewModelBase {
   void trySendCardData() async {
     if (!fullNameState.currentState!.validate() ||
         !cardState.currentState!.validate() ||
-        !expState.currentState!.validate()) return;
+        !expState.currentState!.validate()) {
+      return;
+    }
 
     LoadScreen.showLoad(context, true);
 
@@ -62,7 +64,7 @@ class AddCardVM extends ViewModelBase {
     if (!context.mounted) return;
 
     LoadScreen.showLoad(context, false);
-    Navigator.pop(context);
+    Navigator.pop(context, true);
   }
 
   void tryPay() async {
@@ -84,16 +86,6 @@ class AddCardVM extends ViewModelBase {
     var user = NannyUser.userInfo!;
     String? ipv6 = await NetworkInfo().getWifiIPv6();
 
-    if (ipv6 == null) {
-      if (!context.mounted) return;
-
-      LoadScreen.showLoad(context, false);
-      NannyDialogs.showMessageBox(
-          context, "Ошибка", "Не удалось получить данные для создания заявки!");
-
-      return;
-    }
-
     String cardData = CardData(
       pan: cardNumMask.getUnmaskedText(),
       expDate: expMask.getUnmaskedText(),
@@ -102,7 +94,7 @@ class AddCardVM extends ViewModelBase {
 
     var init = NannyUsersApi.startPayment(
       StartPaymentRequest(
-          ip: ipv6,
+          ip: ipv6 ?? '127.0.0.1',
           amount: int.parse(amount) * 100,
           cardData: cardData,
           email: email,
@@ -115,6 +107,10 @@ class AddCardVM extends ViewModelBase {
     bool success = await DioRequest.handleRequest(context, init);
     if (!success) return;
     var initRes = (await init).response!;
+    if (initRes.paymentId == 'demo') {
+      await _addMoney(0);
+      return;
+    }
     int payId = int.parse(initRes.paymentId);
     if (!context.mounted) return;
 
@@ -280,7 +276,7 @@ class AddCardVM extends ViewModelBase {
     LoadScreen.showLoad(context, false);
     await NannyDialogs.showMessageBox(context, "Успех", "Счёт пополнен");
     // ignore: use_build_context_synchronously
-    Navigator.pop(context);
+    Navigator.pop(context, true);
   }
 
   bool _checkError(AcquiringResponse request) {

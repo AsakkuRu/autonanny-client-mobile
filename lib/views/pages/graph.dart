@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/graph_vm.dart';
+import 'package:nanny_client/views/pages/contract_details_view.dart';
+import 'package:nanny_components/base_views/views/pages/wallet.dart';
 import 'package:nanny_components/widgets/date_selector.dart';
 import 'package:nanny_components/widgets/driver_contact_card.dart';
 import 'package:nanny_components/widgets/schedule_viewer.dart';
@@ -27,6 +29,8 @@ class _GraphViewState extends State<GraphView>
   late final GraphVM vm;
   Timer? _fallbackRefreshTimer;
   StreamSubscription<void>? _tabSelectedSub;
+  int _selectedTabIndex = 0;
+  int? _selectedContractPreviewId;
 
   @override
   void initState() {
@@ -63,7 +67,7 @@ class _GraphViewState extends State<GraphView>
 
     return AutonannyAppScaffold(
       appBar: const AutonannyAppBar(
-        title: 'График поездок',
+        title: 'Контракты',
         leading: SizedBox(width: 24),
       ),
       body: FutureBuilder<bool>(
@@ -85,10 +89,6 @@ class _GraphViewState extends State<GraphView>
             );
           }
 
-          if (vm.schedules.isEmpty) {
-            return _EmptyGraphState(onCreateTap: vm.toGraphCreate);
-          }
-
           return SafeArea(
             child: Column(
               children: [
@@ -107,89 +107,48 @@ class _GraphViewState extends State<GraphView>
                       leading: AutonannyIcon(AutonannyIcons.warning),
                     ),
                   ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AutonannySpacing.xl,
-                    AutonannySpacing.md,
-                    AutonannySpacing.xl,
-                    0,
-                  ),
-                  child: _GraphHeader(
-                    vm: vm,
-                    onPickSchedule: _openSchedulePicker,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AutonannySpacing.xl,
-                    AutonannySpacing.lg,
-                    AutonannySpacing.xl,
-                    AutonannySpacing.md,
-                  ),
-                  child: AutonannySectionContainer(
-                    title: 'Выбранный день',
-                    subtitle:
-                        'Переключайте дни недели, чтобы посмотреть расписание маршрутов.',
-                    child: DateSelector(onDateSelected: vm.weekdaySelected),
-                  ),
-                ),
                 Expanded(
-                  child: AutonannyBottomSheetShell(
-                    child: ListView(
-                      padding: EdgeInsets.zero,
-                      children: [
-                        _ContractStatusSection(vm: vm),
-                        if (vm.selectedSchedule?.isPaused == true) ...[
-                          const SizedBox(height: AutonannySpacing.lg),
-                          _PausedContractBanner(schedule: vm.selectedSchedule!),
-                        ],
-                        if (vm.responses
-                            .where(
-                                (r) => r.idSchedule == vm.selectedSchedule?.id)
-                            .isNotEmpty) ...[
-                          const SizedBox(height: AutonannySpacing.lg),
-                          _ResponsesSection(vm: vm),
-                        ],
-                        if (vm.driverContact != null) ...[
-                          const SizedBox(height: AutonannySpacing.lg),
-                          DriverContactCard(
-                            driver: vm.driverContact!,
-                            onChatPressed: vm.openDriverChat,
-                            onShowQR: vm.showDriverQR,
-                          ),
-                        ],
-                        const SizedBox(height: AutonannySpacing.lg),
-                        AutonannySectionContainer(
-                          title: 'Маршруты графика',
-                          subtitle:
-                              'Маршруты отображаются для выбранного дня недели.',
-                          child: ScheduleViewer(
-                            schedule: vm.selectedSchedule,
-                            selectedWeedkays: vm.selectedWeekday,
-                          ),
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AutonannySpacing.xl,
+                          AutonannySpacing.md,
+                          AutonannySpacing.xl,
+                          0,
                         ),
-                        const SizedBox(height: AutonannySpacing.lg),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _BudgetCard(
-                                title: 'Расходы в неделю',
-                                amount: vm.spentsInWeek,
-                                tone: _BudgetCardTone.primary,
-                              ),
-                            ),
-                            const SizedBox(width: AutonannySpacing.md),
-                            Expanded(
-                              child: _BudgetCard(
-                                title: 'Расходы в месяц',
-                                amount: vm.spentsInMonth,
-                                tone: _BudgetCardTone.neutral,
-                              ),
+                        child: AutonannyTopTabs(
+                          items: [
+                            const AutonannyTopTabItem(label: 'Расписание'),
+                            AutonannyTopTabItem(
+                              label: 'Контракты',
+                              badgeCount: vm.schedules.isEmpty
+                                  ? null
+                                  : vm.schedules.length,
                             ),
                           ],
+                          currentIndex: _selectedTabIndex,
+                          onTap: (index) {
+                            setState(() {
+                              _selectedTabIndex = index;
+                            });
+                          },
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: AutonannySpacing.md),
+                      Expanded(
+                        child: _selectedTabIndex == 0
+                            ? (vm.schedules.isEmpty
+                                ? _EmptyGraphState(
+                                    onCreateTap: vm.toGraphCreate)
+                                : _buildScheduleTab())
+                            : (vm.schedules.isEmpty
+                                ? _EmptyContractsState(
+                                    onCreateTap: vm.toGraphCreate,
+                                  )
+                                : _buildContractsTab()),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -198,6 +157,298 @@ class _GraphViewState extends State<GraphView>
         },
       ),
     );
+  }
+
+  Widget _buildScheduleTab() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AutonannySpacing.xl,
+            0,
+            AutonannySpacing.xl,
+            0,
+          ),
+          child: _GraphHeader(
+            vm: vm,
+            onPickSchedule: _openSchedulePicker,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AutonannySpacing.xl,
+            AutonannySpacing.lg,
+            AutonannySpacing.xl,
+            AutonannySpacing.md,
+          ),
+          child: AutonannySectionContainer(
+            title: 'Выбранный день',
+            subtitle:
+                'Переключайте дни недели, чтобы посмотреть расписание маршрутов.',
+            child: DateSelector(onDateSelected: vm.weekdaySelected),
+          ),
+        ),
+        Expanded(
+          child: AutonannyBottomSheetShell(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _ContractStatusSection(vm: vm),
+                if (vm.selectedSchedule?.isPaused == true) ...[
+                  const SizedBox(height: AutonannySpacing.lg),
+                  _PausedContractBanner(schedule: vm.selectedSchedule!),
+                ],
+                if (vm.responses
+                    .where((r) => r.idSchedule == vm.selectedSchedule?.id)
+                    .isNotEmpty) ...[
+                  const SizedBox(height: AutonannySpacing.lg),
+                  _ResponsesSection(vm: vm),
+                ],
+                if (vm.driverContact != null) ...[
+                  const SizedBox(height: AutonannySpacing.lg),
+                  DriverContactCard(
+                    driver: vm.driverContact!,
+                    onChatPressed: vm.openDriverChat,
+                    onShowQR: vm.showDriverQR,
+                  ),
+                ],
+                const SizedBox(height: AutonannySpacing.lg),
+                AutonannySectionContainer(
+                  title: 'Маршруты графика',
+                  subtitle: 'Маршруты отображаются для выбранного дня недели.',
+                  child: ScheduleViewer(
+                    schedule: vm.selectedSchedule,
+                    selectedWeedkays: vm.selectedWeekday,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.lg),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _BudgetCard(
+                        title: 'Расходы в неделю',
+                        amount: vm.spentsInWeek,
+                        tone: _BudgetCardTone.primary,
+                      ),
+                    ),
+                    const SizedBox(width: AutonannySpacing.md),
+                    Expanded(
+                      child: _BudgetCard(
+                        title: 'Расходы в месяц',
+                        amount: vm.spentsInMonth,
+                        tone: _BudgetCardTone.neutral,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildContractsTab() {
+    final previewSchedule = _previewSchedule;
+    final previewPanels = previewSchedule?.contractDayPanelsData ?? const [];
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AutonannySpacing.xl,
+        0,
+        AutonannySpacing.xl,
+        AutonannySpacing.xl,
+      ),
+      children: [
+        const AutonannyInlineBanner(
+          title: 'Все ваши контракты в одном месте',
+          message:
+              'Открывайте нужный контракт и быстро переключайтесь в его расписание без входа в create/edit flow.',
+          tone: AutonannyBannerTone.info,
+          leading: AutonannyIcon(AutonannyIcons.list),
+        ),
+        const SizedBox(height: AutonannySpacing.lg),
+        ...vm.schedules.map(
+          (schedule) => Padding(
+            padding: const EdgeInsets.only(bottom: AutonannySpacing.md),
+            child: ContractSummaryCard(
+              data: schedule.contractSummaryCardData(
+                isHighlighted: previewSchedule?.id == schedule.id,
+                nextTripLabel: _nextTripLabelFor(schedule),
+                statusLabelOverride: _contractStatusLabelFor(schedule),
+                statusVariantOverride: _contractStatusVariantFor(schedule),
+              ),
+              onTap: () => _openContractDetails(schedule),
+              onAction: () {
+                setState(() {
+                  _selectedTabIndex = 0;
+                });
+                vm.scheduleSelected(schedule);
+              },
+            ),
+          ),
+        ),
+        if (previewSchedule != null) ...[
+          const SizedBox(height: AutonannySpacing.sm),
+          AutonannyInlineBanner(
+            title: 'Маршруты по контракту «${previewSchedule.title}»',
+            message:
+                'Это read-only preview по дням. Полный detail screen будет следующим шагом этого epic.',
+            tone: AutonannyBannerTone.info,
+            leading: const AutonannyIcon(AutonannyIcons.calendar),
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          if (previewPanels.isEmpty)
+            const AutonannyInlineBanner(
+              title: 'Маршруты пока не добавлены',
+              message:
+                  'У этого контракта еще нет маршрутов для read-only preview.',
+              tone: AutonannyBannerTone.warning,
+              leading: AutonannyIcon(AutonannyIcons.warning),
+            )
+          else
+            ...previewPanels.map(
+              (panel) => Padding(
+                padding: const EdgeInsets.only(bottom: AutonannySpacing.md),
+                child: ContractDayPanel(data: panel),
+              ),
+            ),
+        ],
+        const SizedBox(height: AutonannySpacing.sm),
+        AutonannyButton(
+          label: 'Создать контракт',
+          leading: const AutonannyIcon(
+            AutonannyIcons.add,
+            color: Colors.white,
+          ),
+          onPressed: vm.toGraphCreate,
+        ),
+      ],
+    );
+  }
+
+  Schedule? get _previewSchedule {
+    if (vm.schedules.isEmpty) {
+      return null;
+    }
+
+    final preferredId = _selectedContractPreviewId ??
+        vm.selectedSchedule?.id ??
+        vm.schedules.first.id;
+
+    for (final schedule in vm.schedules) {
+      if (schedule.id == preferredId) {
+        return schedule;
+      }
+    }
+
+    return vm.schedules.first;
+  }
+
+  Future<void> _openContractDetails(Schedule schedule) async {
+    setState(() {
+      _selectedContractPreviewId = schedule.id;
+    });
+
+    await vm.scheduleSelected(schedule);
+    if (!mounted) {
+      return;
+    }
+
+    final responsesCount = vm.responses
+        .where((response) => response.idSchedule == schedule.id)
+        .length;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ContractDetailsView(
+          schedule: schedule,
+          summaryData: schedule.contractSummaryCardData(
+            nextTripLabel: _nextTripLabelFor(schedule),
+            statusLabelOverride: _contractStatusLabelFor(schedule),
+            statusVariantOverride: _contractStatusVariantFor(schedule),
+          ),
+          dayPanels: schedule.contractDayPanelsData,
+          driverContact:
+              vm.selectedSchedule?.id == schedule.id ? vm.driverContact : null,
+          responsesCount: responsesCount,
+          onOpenSchedule: () {
+            Navigator.of(context).maybePop();
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _selectedTabIndex = 0;
+            });
+          },
+          onEditContract: () {
+            Navigator.of(context).maybePop();
+            if (!mounted) {
+              return;
+            }
+            vm.toGraphEdit(schedule: schedule);
+          },
+          onOpenChat: vm.driverContact != null ? vm.openDriverChat : null,
+          onShowQr: vm.driverContact != null ? vm.showDriverQR : null,
+        ),
+      ),
+    );
+  }
+
+  String? _nextTripLabelFor(Schedule schedule) {
+    if (schedule.roads.isEmpty) {
+      return null;
+    }
+
+    final roads = schedule.roads.toList(growable: false)
+      ..sort((left, right) {
+        final byDay = left.weekDay.index.compareTo(right.weekDay.index);
+        if (byDay != 0) {
+          return byDay;
+        }
+        final byHour = left.startTime.hour.compareTo(right.startTime.hour);
+        if (byHour != 0) {
+          return byHour;
+        }
+        return left.startTime.minute.compareTo(right.startTime.minute);
+      });
+
+    final road = roads.first;
+    return '${road.weekDay.shortName} · '
+        '${road.startTime.formatTime()} – ${road.endTime.formatTime()}';
+  }
+
+  String _contractStatusLabelFor(Schedule schedule) {
+    if (schedule.isPaused == true) {
+      return 'Приостановлен';
+    }
+    if (vm.selectedSchedule?.id == schedule.id && vm.driverContact != null) {
+      return 'Контракт подтверждён';
+    }
+    if (vm.responses.any((response) => response.idSchedule == schedule.id)) {
+      return 'Ожидает выбора водителя';
+    }
+    if (schedule.isActive == true) {
+      return 'Активен';
+    }
+    return 'Ожидает откликов';
+  }
+
+  AutonannyStatusVariant _contractStatusVariantFor(Schedule schedule) {
+    if (schedule.isPaused == true) {
+      return AutonannyStatusVariant.warning;
+    }
+    if (vm.selectedSchedule?.id == schedule.id && vm.driverContact != null) {
+      return AutonannyStatusVariant.success;
+    }
+    if (vm.responses.any((response) => response.idSchedule == schedule.id)) {
+      return AutonannyStatusVariant.warning;
+    }
+    if (schedule.isActive == true) {
+      return AutonannyStatusVariant.success;
+    }
+    return AutonannyStatusVariant.neutral;
   }
 
   Future<void> _openSchedulePicker() async {
@@ -340,6 +591,42 @@ class _EmptyGraphState extends StatelessWidget {
             const SizedBox(height: AutonannySpacing.lg),
             AutonannyButton(
               label: 'Создать график',
+              leading: const AutonannyIcon(
+                AutonannyIcons.add,
+                color: Colors.white,
+              ),
+              onPressed: onCreateTap,
+              expand: false,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyContractsState extends StatelessWidget {
+  const _EmptyContractsState({required this.onCreateTap});
+
+  final VoidCallback onCreateTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AutonannySpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const AutonannyEmptyState(
+              title: 'Контракты пока не созданы',
+              description:
+                  'Создайте первый контракт, чтобы увидеть здесь сводку по детям, маршрутам и стоимости.',
+              icon: AutonannyIcon(AutonannyIcons.list, size: 36),
+            ),
+            const SizedBox(height: AutonannySpacing.lg),
+            AutonannyButton(
+              label: 'Создать контракт',
               leading: const AutonannyIcon(
                 AutonannyIcons.add,
                 color: Colors.white,
@@ -586,22 +873,175 @@ class _PausedContractBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pieces = <String>[
-      if (schedule.pauseFrom != null)
-        'с ${schedule.pauseFrom!.substring(0, 10)}',
-      if (schedule.pauseUntil != null)
-        'по ${schedule.pauseUntil!.substring(0, 10)}',
-    ];
+    final colors = context.autonannyColors;
+    final pauseFrom = _formatPauseDate(schedule.pauseFrom);
+    final pauseUntil = _formatPauseDate(schedule.pauseUntil);
+    final pauseReason = _formatPauseReason(schedule.pauseReason);
 
-    return AutonannyInlineBanner(
-      title: 'Контракт приостановлен водителем',
-      message: [
-        if (pieces.isNotEmpty) pieces.join(' '),
-        if ((schedule.pauseReason ?? '').isNotEmpty)
-          'Причина: ${schedule.pauseReason}',
-      ].join('\n'),
-      tone: AutonannyBannerTone.warning,
-      leading: const AutonannyIcon(AutonannyIcons.warning),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AutonannySectionContainer(
+          title: 'Контракт приостановлен водителем',
+          subtitle: 'Поездки по этому контракту временно не выполняются.',
+          trailing: const AutonannyBadge(label: 'На паузе'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AutonannyInlineBanner(
+                title: 'Причина паузы',
+                message: pauseReason,
+                tone: AutonannyBannerTone.warning,
+                leading: const AutonannyIcon(AutonannyIcons.warning),
+              ),
+              const SizedBox(height: AutonannySpacing.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: _PauseMetricCard(
+                      label: 'Пауза с',
+                      value: pauseFrom,
+                    ),
+                  ),
+                  const SizedBox(width: AutonannySpacing.md),
+                  Expanded(
+                    child: _PauseMetricCard(
+                      label: 'Пауза до',
+                      value: pauseUntil,
+                    ),
+                  ),
+                ],
+              ),
+              if (_isBalancePause(schedule.pauseReason)) ...[
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyInlineBanner(
+                  title: 'Нужно пополнить баланс',
+                  message:
+                      'Контракт поставлен на паузу из-за нехватки средств. После пополнения вы сможете вернуться к поездкам.',
+                  tone: AutonannyBannerTone.warning,
+                  leading: const AutonannyIcon(AutonannyIcons.wallet),
+                  trailing: AutonannyButton(
+                    label: 'Пополнить',
+                    size: AutonannyButtonSize.medium,
+                    variant: AutonannyButtonVariant.secondary,
+                    expand: false,
+                    onPressed: () => _openWalletTopUp(context),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: AutonannySpacing.md),
+        AutonannyInlineBanner(
+          title: schedule.pauseUntil != null
+              ? 'Автовозобновление $pauseUntil'
+              : 'Ожидаем ручного возобновления',
+          message: schedule.pauseUntil != null
+              ? 'Когда срок паузы закончится, контракт снова станет активным автоматически.'
+              : 'Новые поездки по этому контракту появятся после ручного возобновления.',
+          tone: AutonannyBannerTone.info,
+          leading: const AutonannyIcon(AutonannyIcons.calendar),
+        ),
+        const SizedBox(height: AutonannySpacing.md),
+        Container(
+          padding: const EdgeInsets.all(AutonannySpacing.lg),
+          decoration: BoxDecoration(
+            color: colors.surfaceSecondary,
+            borderRadius: AutonannyRadii.brLg,
+          ),
+          child: Text(
+            'Отклики и детализация маршрутов сохраняются, но ближайшие поездки не будут запланированы, пока пауза активна.',
+            style: AutonannyTypography.bodyS(
+              color: colors.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _formatPauseDate(String? raw) {
+    if (raw == null || raw.isEmpty) {
+      return '—';
+    }
+    return raw.length >= 10 ? raw.substring(0, 10) : raw;
+  }
+
+  String _formatPauseReason(String? raw) {
+    switch (raw) {
+      case 'illness':
+        return 'Болезнь или временная нетрудоспособность';
+      case 'car_repair':
+        return 'Ремонт автомобиля';
+      case 'family':
+        return 'Семейные обстоятельства';
+      case 'vacation':
+        return 'Отпуск или командировка';
+      case 'insufficient_balance':
+      case 'low_balance':
+      case 'lack_of_funds':
+        return 'Недостаточно средств для продолжения контракта';
+      default:
+        return (raw == null || raw.isEmpty) ? 'Причина не указана' : raw;
+    }
+  }
+
+  bool _isBalancePause(String? raw) {
+    return raw == 'insufficient_balance' ||
+        raw == 'low_balance' ||
+        raw == 'lack_of_funds';
+  }
+
+  void _openWalletTopUp(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const WalletView(
+          title: 'Пополнение баланса',
+          subtitle: 'Выберите способ пополнения',
+        ),
+      ),
+    );
+  }
+}
+
+class _PauseMetricCard extends StatelessWidget {
+  const _PauseMetricCard({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Container(
+      padding: const EdgeInsets.all(AutonannySpacing.lg),
+      decoration: BoxDecoration(
+        color: colors.surfaceSecondary,
+        borderRadius: AutonannyRadii.brLg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AutonannyTypography.labelM(
+              color: colors.textTertiary,
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.xs),
+          Text(
+            value,
+            style: AutonannyTypography.h3(
+              color: colors.textPrimary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

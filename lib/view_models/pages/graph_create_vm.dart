@@ -69,10 +69,14 @@ class GraphCreateVM extends ViewModelBase {
         orElse: () => GraphType.week,
       );
 
-      // NEW-005: при редактировании восстанавливаем выбранных детей из маршрутов
-      if (schedule!.roads.isNotEmpty &&
-          schedule!.roads.first.children != null) {
-        selectedChildrenIds = List<int>.from(schedule!.roads.first.children!);
+      // NEW-005: при редактировании восстанавливаем детей контракта как
+      // объединение детей из всех маршрутов.
+      final restoredChildrenIds = schedule!.roads
+          .expand((road) => road.children ?? const <int>[])
+          .toSet()
+          .toList(growable: false);
+      if (restoredChildrenIds.isNotEmpty) {
+        selectedChildrenIds = restoredChildrenIds;
       }
       editor.childCount = selectedChildrenIds.isNotEmpty
           ? selectedChildrenIds.length
@@ -100,55 +104,6 @@ class GraphCreateVM extends ViewModelBase {
 
   void changeTitle(String? text) {
     editor.title = text!;
-  }
-
-  void addOrEditRoute({Road? updatingRoad}) async {
-    if (updatingRoad == null && selectedWeekday.isEmpty) {
-      NannyDialogs.showMessageBox(
-          context, "Ошибка", "Выберите хотя бы один день");
-      return;
-    }
-    final NannyWeekday baseWeekday = updatingRoad?.weekDay ??
-        (selectedWeekday.isNotEmpty
-            ? selectedWeekday.first
-            : NannyWeekday.monday);
-
-    final result = await NannyDialogs.showRouteCreateOrEditSheet(
-      context,
-      baseWeekday,
-      road: updatingRoad,
-      tariffId: editor.tariff.id,
-      allSelectedWeekdays: selectedWeekday,
-    );
-    if (result == null) return;
-
-    final road = result.road;
-
-    // Определяем целевые дни для маршрута
-    final List<NannyWeekday> targetDays =
-        result.applyToAllSelectedDays && selectedWeekday.isNotEmpty
-            ? List<NannyWeekday>.from(selectedWeekday)
-            : (result.targetWeekdays ?? [road.weekDay]);
-
-    // Если редактируем существующий маршрут — удаляем все его копии (по шаблону)
-    if (updatingRoad != null) {
-      final existingCopies =
-          editor.roads.where((e) => e.isIdenticalTo(updatingRoad)).toList();
-      for (final r in existingCopies) {
-        editor.deleteRoad(r);
-      }
-    }
-
-    // Добавляем новые маршруты по выбранным дням
-    for (var weekday in targetDays) {
-      final updatedRoad = road.copyWith(
-        weekDay: weekday,
-        children: selectedChildrenIds.isNotEmpty ? selectedChildrenIds : null,
-      );
-      editor.addRoad(updatedRoad);
-    }
-
-    update(() {});
   }
 
   void deleteRoute(Road road) async {
@@ -199,8 +154,6 @@ class GraphCreateVM extends ViewModelBase {
   }
 
   void weekdaySelected(NannyWeekday weekday) {
-    final previousDays = List<NannyWeekday>.from(selectedWeekday);
-
     update(() {
       if (!selectedWeekday.contains(weekday)) {
         selectedWeekday.add(weekday);
@@ -209,10 +162,15 @@ class GraphCreateVM extends ViewModelBase {
         }
       } else {
         selectedWeekday.remove(weekday);
+        final routesForRemovedDay = editor.roads
+            .where((road) => road.weekDay == weekday)
+            .toList(growable: false);
+        for (final road in routesForRemovedDay) {
+          editor.deleteRoad(road);
+        }
       }
+      selectedWeekday.sort((left, right) => left.index.compareTo(right.index));
     });
-
-    _syncRoutesForAllDays(previousDays, selectedWeekday);
   }
 
   void selectCarType(DriveTariff type) {
@@ -234,6 +192,7 @@ class GraphCreateVM extends ViewModelBase {
   void toggleChildSelection(int childId) {
     if (selectedChildrenIds.contains(childId)) {
       selectedChildrenIds.remove(childId);
+      _syncRouteChildrenWithSelectedChildren();
     } else {
       // FE-MVP-007: Ограничение максимум 4 детей
       if (selectedChildrenIds.length >= 4) {
@@ -250,69 +209,81 @@ class GraphCreateVM extends ViewModelBase {
     update(() {});
   }
 
-  void _syncRoutesForAllDays(
-    List<NannyWeekday> previousDays,
-    List<NannyWeekday> currentDays,
-  ) {
-    if (previousDays.isEmpty || editor.roads.isEmpty) return;
+  List<NannyWeekday> get sortedSelectedWeekdays {
+    final days = List<NannyWeekday>.from(selectedWeekday);
+    days.sort((left, right) => left.index.compareTo(right.index));
+    return days;
+  }
 
-    final prevSet = previousDays.toSet();
-    final currentSet = currentDays.toSet();
+  List<Road> routesForDay(NannyWeekday weekday) {
+    return editor.roads
+        .where((road) => road.weekDay == weekday)
+        .toList(growable: false);
+  }
 
-    final addedDays = currentSet.difference(prevSet);
-    final removedDays = prevSet.difference(currentSet);
+  List<Child> get selectedContractChildren {
+    final selectedIds = selectedChildrenIds.toSet();
+    return children
+        .where((child) => child.id != null && selectedIds.contains(child.id))
+        .toList(growable: false);
+  }
 
-    if (addedDays.isEmpty && removedDays.isEmpty) return;
+  List<int> initialRouteChildrenIds({Road? road}) {
+    final selectedIds = selectedChildrenIds.toSet();
+    final routeChildren = road?.children
+            ?.where((childId) => selectedIds.contains(childId))
+            .toList(growable: false) ??
+        const <int>[];
+    if (routeChildren.isNotEmpty) {
+      return routeChildren;
+    }
+    return List<int>.from(selectedChildrenIds);
+  }
 
-    final List<Road> templates = [];
-    final Map<Road, Set<NannyWeekday>> templateDays = {};
+  List<Child> routeChildrenForRoad(Road road) {
+    final routeChildIds = initialRouteChildrenIds(road: road).toSet();
+    return selectedContractChildren
+        .where((child) => child.id != null && routeChildIds.contains(child.id))
+        .toList(growable: false);
+  }
 
-    for (final road in editor.roads) {
-      final existing = templates.cast<Road?>().firstWhere(
-            (t) => t != null && t.isIdenticalTo(road),
-            orElse: () => null,
-          );
-
-      if (existing == null) {
-        templates.add(road);
-        templateDays[road] = {road.weekDay};
-      } else {
-        templateDays[existing]!.add(road.weekDay);
-      }
+  void saveRoute({
+    required Road route,
+    required NannyWeekday weekday,
+    required List<int> childIds,
+    Road? updatingRoad,
+  }) {
+    if (updatingRoad != null) {
+      editor.deleteRoad(updatingRoad);
     }
 
-    final List<Road> roadsToAdd = [];
-    final List<Road> roadsToRemove = [];
+    editor.addRoad(
+      route.copyWith(
+        weekDay: weekday,
+        children: childIds,
+      ),
+    );
+    update(() {});
+  }
 
-    for (final template in templates) {
-      final days = templateDays[template] ?? {};
-
-      // Считаем маршрут "общим", если на момент изменения он покрывал
-      // все ранее выбранные дни графика.
-      if (prevSet.difference(days).isEmpty) {
-        for (final day in addedDays) {
-          roadsToAdd.add(
-            template.copyWith(
-              weekDay: day,
-            ),
-          );
-        }
-
-        for (final day in removedDays) {
-          roadsToRemove.addAll(
-            editor.roads.where(
-              (r) => r.isIdenticalTo(template) && r.weekDay == day,
-            ),
-          );
-        }
-      }
+  void _syncRouteChildrenWithSelectedChildren() {
+    final selectedIds = selectedChildrenIds.toSet();
+    final roadsSnapshot = List<Road>.from(editor.roads);
+    if (roadsSnapshot.isEmpty) {
+      return;
     }
 
-    for (final road in roadsToRemove) {
+    for (final road in roadsSnapshot) {
       editor.deleteRoad(road);
     }
-    for (final road in roadsToAdd) {
-      editor.addRoad(road);
+
+    for (final road in roadsSnapshot) {
+      final routeChildren = road.children == null
+          ? List<int>.from(selectedChildrenIds)
+          : road.children!
+              .where((childId) => selectedIds.contains(childId))
+              .toList(growable: false);
+      editor.addRoad(road.copyWith(children: routeChildren));
     }
   }
 
@@ -369,14 +340,33 @@ class GraphCreateVM extends ViewModelBase {
       return;
     }
 
-    // Синхронизируем текущий выбор детей во все маршруты (в запрос уходят road.children)
+    final routesWithoutChildren = editor.roads
+        .where((road) => initialRouteChildrenIds(road: road).isEmpty)
+        .toList(growable: false);
+    if (routesWithoutChildren.isNotEmpty) {
+      final daysWithoutChildren = routesWithoutChildren
+          .map((road) => road.weekDay.shortName)
+          .toSet()
+          .join(", ");
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        "У каждого маршрута должны быть выбраны дети.\n"
+            "Проверьте маршруты для: $daysWithoutChildren.",
+      );
+      return;
+    }
+
+    // Нормализуем children у маршрутов перед отправкой,
+    // не перетирая route-specific привязки.
     final roadsSnapshot = List<Road>.from(editor.roads);
     for (var r in roadsSnapshot) {
       editor.deleteRoad(r);
     }
-    final childrenToSend = selectedChildrenIds;
     for (var r in roadsSnapshot) {
-      editor.addRoad(r.copyWith(children: childrenToSend));
+      editor.addRoad(
+        r.copyWith(children: initialRouteChildrenIds(road: r)),
+      );
     }
 
     LoadScreen.showLoad(context, true);

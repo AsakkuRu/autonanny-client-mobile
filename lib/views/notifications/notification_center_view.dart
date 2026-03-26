@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/notifications/notification_center_vm.dart';
+import 'package:nanny_client/views/pages/balance.dart';
+import 'package:nanny_client/views/pages/graph.dart';
+import 'package:nanny_client/views/pages/transactions/transactions_history_view.dart';
 import 'package:nanny_core/models/from_api/notification_item.dart' as api;
 
 /// B-014 TASK-B14: Центр уведомлений (клиент)
@@ -148,8 +151,56 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
       data: item.notificationItemData(
         timeLabel: _formatDate(item.createdAt),
       ),
-      onTap: () => vm.markAsRead(item.id),
+      onTap: () => _openNotification(item),
     );
+  }
+
+  Future<void> _openNotification(api.NotificationItem item) async {
+    vm.markAsRead(item.id);
+
+    final target = item.payload?['target']?.toString();
+    final resolvedTarget = target ?? _fallbackTarget(item.type);
+
+    switch (resolvedTarget) {
+      case 'contracts':
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const GraphView(persistState: false),
+          ),
+        );
+        return;
+      case 'balance':
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const BalanceView(persistState: false),
+          ),
+        );
+        return;
+      case 'wallet_operation':
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TransactionsHistoryView(
+              initialTransactionType:
+                  item.payload?['transaction_type']?.toString(),
+              initialSearchQuery: item.payload?['search_query']?.toString(),
+            ),
+          ),
+        );
+        return;
+      default:
+        return;
+    }
+  }
+
+  String? _fallbackTarget(String type) {
+    switch (type) {
+      case 'payment':
+        return 'wallet_operation';
+      case 'order':
+        return 'contracts';
+      default:
+        return null;
+    }
   }
 
   String _formatDate(DateTime date) {

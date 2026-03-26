@@ -18,6 +18,7 @@ import 'package:nanny_core/models/from_api/child_short.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
+import 'package:nanny_core/models/from_api/other_parametr.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 const int _kMaxChildren = 4;
@@ -233,12 +234,17 @@ class NewClientMainVM extends ViewModelBase {
 
   List<ChildShort> children = [];
   final Set<int> _selectedChildIds = {};
+  List<OtherParametr> additionalParams = [];
+  final Set<String> _selectedAdditionalParamKeys = {};
 
   List<ChildShort> get selectedChildren =>
       children.where((c) => _selectedChildIds.contains(c.id)).toList();
 
   bool isChildSelected(ChildShort child) =>
       _selectedChildIds.contains(child.id);
+
+  bool isAdditionalParamSelected(OtherParametr param) =>
+      _selectedAdditionalParamKeys.contains(_additionalParamKey(param));
 
   void toggleChild(ChildShort child,
       {required void Function(String) showToast}) {
@@ -267,6 +273,16 @@ class NewClientMainVM extends ViewModelBase {
       _selectedChildIds.removeWhere((id) => !validIds.contains(id));
       update(() {});
     }
+  }
+
+  void toggleAdditionalParam(OtherParametr param) {
+    final key = _additionalParamKey(param);
+    if (_selectedAdditionalParamKeys.contains(key)) {
+      _selectedAdditionalParamKeys.remove(key);
+    } else {
+      _selectedAdditionalParamKeys.add(key);
+    }
+    update(() {});
   }
 
   // ─── Валидация и отправка ─────────────────────────────────────────────────
@@ -317,7 +333,7 @@ class NewClientMainVM extends ViewModelBase {
           description: '',
           typeDrive: DriveType.oneWay.id,
           idTariff: selectedTariff!.id,
-          otherParametrs: [],
+          otherParametrs: selectedAdditionalParamsPayload,
           childrenIds: _selectedChildIds.toList(),
         )),
       );
@@ -417,8 +433,26 @@ class NewClientMainVM extends ViewModelBase {
       NewMainScreenAnalytics.loadFailed('children', childrenRes.toString());
     }
 
+    final paramsRes = await NannyStaticDataApi.getOtherParams();
+    if (paramsRes.success && paramsRes.response != null) {
+      additionalParams = paramsRes.response!;
+    } else {
+      NewMainScreenAnalytics.loadFailed('other_params', paramsRes.toString());
+    }
+
     return true;
   }
+
+  List<Map<String, dynamic>> get selectedAdditionalParamsPayload {
+    final childCount = _selectedChildIds.isEmpty ? 1 : _selectedChildIds.length;
+    return additionalParams
+        .where(isAdditionalParamSelected)
+        .map((param) => param.toGraphJson(childCount))
+        .toList(growable: false);
+  }
+
+  String _additionalParamKey(OtherParametr param) =>
+      '${param.id ?? param.title}';
 
   @override
   void dispose() {

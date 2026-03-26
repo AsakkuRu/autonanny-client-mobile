@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/view_models/pages/graph_create_vm.dart';
-import 'package:nanny_components/widgets/schedule_viewer.dart';
 import 'package:nanny_components/widgets/weeks_selector.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
-import 'package:nanny_core/models/from_api/other_parametr.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class GraphCreate extends StatefulWidget {
@@ -33,11 +32,56 @@ class _GraphCreateState extends State<GraphCreate> {
 
   bool get _isEditMode => widget.schedule != null;
 
+  Future<void> _showRouteFlow(
+    NannyWeekday weekday, {
+    Road? updatingRoad,
+  }) async {
+    if (vm.selectedChildrenIds.isEmpty) {
+      return;
+    }
+
+    final result = await NannyDialogs.showRouteCreateOrEditSheet(
+      context,
+      weekday,
+      road: updatingRoad,
+      tariffId: vm.editor.tariff.id,
+      allSelectedWeekdays: [weekday],
+      applyToAllDaysDefault: false,
+    );
+    if (result == null || !mounted) {
+      return;
+    }
+
+    final routeChildrenIds = await showModalBottomSheet<List<int>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _RouteChildrenSheet(
+        children: vm.selectedContractChildren,
+        initialSelectedIds: vm.initialRouteChildrenIds(road: updatingRoad),
+        weekdayLabel: weekday.fullName,
+        routeTitle:
+            result.road.title.isEmpty ? 'Маршрут без названия' : result.road.title,
+      ),
+    );
+    if (routeChildrenIds == null || routeChildrenIds.isEmpty) {
+      return;
+    }
+
+    vm.saveRoute(
+      route: result.road,
+      weekday: weekday,
+      childIds: routeChildrenIds,
+      updatingRoad: updatingRoad,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return AutonannyAppScaffold(
       appBar: AutonannyAppBar(
-        title: _isEditMode ? 'Редактирование графика' : 'Новый график поездок',
+        title: _isEditMode ? 'Редактирование контракта' : 'Новый контракт',
         leading: AutonannyIconButton(
           icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -53,7 +97,7 @@ class _GraphCreateState extends State<GraphCreate> {
             AutonannySpacing.lg,
           ),
           child: AutonannyButton(
-            label: _isEditMode ? 'Обновить график' : 'Создать график',
+            label: _isEditMode ? 'Обновить контракт' : 'Создать контракт',
             onPressed: vm.confirm,
             leading: const AutonannyIcon(
               AutonannyIcons.checkCircle,
@@ -95,14 +139,14 @@ class _GraphCreateState extends State<GraphCreate> {
                 AutonannySectionContainer(
                   title: 'Основные параметры',
                   subtitle:
-                      'Название графика, тип программы и дни, в которые нужен водитель.',
+                      'Базовые параметры контракта: название и формат регулярных поездок.',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       AutonannyTextField(
                         controller: vm.nameController,
-                        labelText: 'Название графика',
-                        hintText: 'Например, школа и секции',
+                        labelText: 'Название контракта',
+                        hintText: 'Например, школа, секции и дом',
                         onChanged: vm.changeTitle,
                       ),
                       const SizedBox(height: AutonannySpacing.lg),
@@ -119,7 +163,19 @@ class _GraphCreateState extends State<GraphCreate> {
                             .toList(growable: false),
                         onChanged: vm.graphTypeChanged,
                       ),
-                      const SizedBox(height: AutonannySpacing.lg),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.lg),
+                _ChildrenSection(vm: vm),
+                const SizedBox(height: AutonannySpacing.lg),
+                AutonannySectionContainer(
+                  title: 'Дни поездок и маршруты',
+                  subtitle:
+                      'Сначала выберите дни контракта, затем добавьте маршруты для выбранных дней.',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
                         'Дни поездок',
                         style: AutonannyTypography.labelL(
@@ -131,46 +187,54 @@ class _GraphCreateState extends State<GraphCreate> {
                         selectedWeekday: vm.selectedWeekday,
                         onChanged: vm.weekdaySelected,
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AutonannySpacing.lg),
-                _ChildrenSection(vm: vm),
-                const SizedBox(height: AutonannySpacing.lg),
-                AutonannySectionContainer(
-                  title: 'Расписание маршрутов',
-                  subtitle:
-                      'Добавьте хотя бы один маршрут для каждого выбранного дня графика.',
-                  trailing: AutonannyButton(
-                    label: 'Добавить',
-                    size: AutonannyButtonSize.medium,
-                    expand: false,
-                    leading: const AutonannyIcon(
-                      AutonannyIcons.add,
-                      color: Colors.white,
-                    ),
-                    onPressed: vm.addOrEditRoute,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (vm.editor.roads.isEmpty)
-                        const AutonannyEmptyState(
-                          title: 'Маршруты ещё не добавлены',
-                          description:
-                              'Создайте первый маршрут, чтобы график можно было сохранить.',
-                          icon: AutonannyIcon(AutonannyIcons.route, size: 36),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      if (vm.selectedChildrenIds.isEmpty)
+                        const AutonannyInlineBanner(
+                          title: 'Сначала выберите детей контракта',
+                          message:
+                              'Маршруты создаются только после выбора детей, которые относятся к контракту.',
+                          tone: AutonannyBannerTone.warning,
+                          leading: AutonannyIcon(AutonannyIcons.warning),
+                        )
+                      else
+                        AutonannyInlineBanner(
+                          title:
+                              'Выбрано детей: ${vm.selectedChildrenIds.length}',
+                          message:
+                              'Новые маршруты будут привязаны только к выбранным детям контракта.',
+                          tone: AutonannyBannerTone.info,
+                          leading: const AutonannyIcon(AutonannyIcons.child),
+                        ),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      if (vm.selectedWeekday.isEmpty)
+                        const AutonannyInlineBanner(
+                          title: 'Выберите дни контракта',
+                          message:
+                              'После выбора дней появятся отдельные панели, внутри которых можно добавлять маршруты.',
+                          tone: AutonannyBannerTone.info,
+                          leading: AutonannyIcon(AutonannyIcons.calendar),
                         )
                       else ...[
-                        ScheduleViewer(
-                          schedule:
-                              vm.editor.createSchedule(vm.selectedWeekday),
-                          selectedWeedkays: vm.selectedWeekday,
-                          onDeleteRoad: vm.deleteRoute,
-                          onEditRoad: (road) =>
-                              vm.addOrEditRoute(updatingRoad: road),
+                        ...vm.sortedSelectedWeekdays.map(
+                          (weekday) => Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AutonannySpacing.md,
+                            ),
+                            child: _DayRoutesPanel(
+                              day: weekday,
+                              roads: vm.routesForDay(weekday),
+                              onAddRoute: vm.selectedChildrenIds.isEmpty
+                                  ? null
+                                  : () => _showRouteFlow(weekday),
+                              onEditRoute: (road) => _showRouteFlow(
+                                weekday,
+                                updatingRoad: road,
+                              ),
+                              onDeleteRoute: vm.deleteRoute,
+                              routeChildrenBuilder: vm.routeChildrenForRoad,
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: AutonannySpacing.lg),
                         _TripsCounterBanner(roadsCount: vm.editor.roads.length),
                       ],
                     ],
@@ -194,6 +258,94 @@ class _GraphCreateState extends State<GraphCreate> {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _DayRoutesPanel extends StatelessWidget {
+  const _DayRoutesPanel({
+    required this.day,
+    required this.roads,
+    required this.onAddRoute,
+    required this.onEditRoute,
+    required this.onDeleteRoute,
+    required this.routeChildrenBuilder,
+  });
+
+  final NannyWeekday day;
+  final List<Road> roads;
+  final VoidCallback? onAddRoute;
+  final ValueChanged<Road> onEditRoute;
+  final ValueChanged<Road> onDeleteRoute;
+  final List<Child> Function(Road road) routeChildrenBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return AutonannyCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      day.fullName,
+                      style: AutonannyTypography.labelL(
+                        color: context.autonannyColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      'Маршруты для этого дня создаются и редактируются отдельно.',
+                      style: AutonannyTypography.bodyS(
+                        color: context.autonannyColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              AutonannyButton(
+                label: 'Маршрут',
+                size: AutonannyButtonSize.medium,
+                variant: AutonannyButtonVariant.secondary,
+                expand: false,
+                leading: const AutonannyIcon(AutonannyIcons.add),
+                onPressed: onAddRoute,
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          if (roads.isEmpty)
+            const AutonannyInlineBanner(
+              title: 'Маршрутов пока нет',
+              message:
+                  'Добавьте хотя бы один маршрут для этого дня, чтобы контракт был полным.',
+              tone: AutonannyBannerTone.info,
+              leading: AutonannyIcon(AutonannyIcons.route),
+            )
+          else
+            Column(
+              children: roads
+                  .map(
+                    (road) => Padding(
+                      padding:
+                          const EdgeInsets.only(bottom: AutonannySpacing.md),
+                      child: _RouteDraftCard(
+                        road: road,
+                        assignedChildren: routeChildrenBuilder(road),
+                        onEdit: () => onEditRoute(road),
+                        onDelete: () => onDeleteRoute(road),
+                      ),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+        ],
       ),
     );
   }
@@ -265,9 +417,9 @@ class _ChildrenSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AutonannySectionContainer(
-      title: 'Дети',
+      title: 'Дети контракта',
       subtitle:
-          'Выберите детей, которые будут участвовать в этом графике. Максимум 4 ребёнка.',
+          'Сначала выберите детей, которые относятся к этому контракту. Максимум 4 ребёнка.',
       child: vm.children.isEmpty
           ? const AutonannyInlineBanner(
               title: 'Нет профилей детей',
@@ -390,6 +542,312 @@ class _ChildSelectionTile extends StatelessWidget {
   }
 }
 
+class _RouteDraftCard extends StatelessWidget {
+  const _RouteDraftCard({
+    required this.road,
+    required this.assignedChildren,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final Road road;
+  final List<Child> assignedChildren;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final fromAddress = road.addresses.isEmpty
+        ? 'Точка отправления не указана'
+        : road.addresses.first.fromAddress.address;
+    final toAddress = road.addresses.isEmpty
+        ? 'Точка прибытия не указана'
+        : road.addresses.last.toAddress.address;
+    final tripTypeLabel = road.typeDrive.contains(DriveType.roundTrip)
+        ? 'Туда и обратно'
+        : 'В одну сторону';
+
+    return Container(
+      padding: const EdgeInsets.all(AutonannySpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: AutonannyRadii.brLg,
+        border: Border.all(color: colors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      road.title.isEmpty ? 'Маршрут без названия' : road.title,
+                      style: AutonannyTypography.labelL(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      '${road.startTime.formatTime()} - ${road.endTime.formatTime()}',
+                      style: AutonannyTypography.bodyS(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              Text(
+                tripTypeLabel,
+                style: AutonannyTypography.caption(
+                  color: colors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          Text(
+            fromAddress,
+            style: AutonannyTypography.bodyM(color: colors.textPrimary),
+          ),
+          const SizedBox(height: AutonannySpacing.xs),
+          Text(
+            toAddress,
+            style: AutonannyTypography.bodyS(color: colors.textSecondary),
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          Text(
+            'Дети маршрута',
+            style: AutonannyTypography.caption(color: colors.textTertiary),
+          ),
+          const SizedBox(height: AutonannySpacing.xs),
+          if (assignedChildren.isEmpty)
+            const AutonannyInlineBanner(
+              title: 'Дети не выбраны',
+              message:
+                  'Откройте редактирование маршрута и укажите, кто едет по этой поездке.',
+              tone: AutonannyBannerTone.danger,
+              leading: AutonannyIcon(AutonannyIcons.warning),
+            )
+          else
+            Wrap(
+              spacing: AutonannySpacing.sm,
+              runSpacing: AutonannySpacing.sm,
+              children: assignedChildren
+                  .map(
+                    (child) => _ChildToken(
+                      label:
+                          '${child.name} ${child.surname}'.trim(),
+                    ),
+                  )
+                  .toList(growable: false),
+            ),
+          const SizedBox(height: AutonannySpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: AutonannyButton(
+                  label: 'Изменить',
+                  variant: AutonannyButtonVariant.secondary,
+                  onPressed: onEdit,
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.sm),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onDelete,
+                  child: const Text('Удалить'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChildToken extends StatelessWidget {
+  const _ChildToken({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AutonannySpacing.md,
+        vertical: AutonannySpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: AutonannyRadii.brLg,
+      ),
+      child: Text(
+        label,
+        style: AutonannyTypography.caption(color: colors.textPrimary),
+      ),
+    );
+  }
+}
+
+class _RouteChildrenSheet extends StatefulWidget {
+  const _RouteChildrenSheet({
+    required this.children,
+    required this.initialSelectedIds,
+    required this.weekdayLabel,
+    required this.routeTitle,
+  });
+
+  final List<Child> children;
+  final List<int> initialSelectedIds;
+  final String weekdayLabel;
+  final String routeTitle;
+
+  @override
+  State<_RouteChildrenSheet> createState() => _RouteChildrenSheetState();
+}
+
+class _RouteChildrenSheetState extends State<_RouteChildrenSheet> {
+  late final Set<int> _selectedIds;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIds = widget.initialSelectedIds.toSet();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AutonannySpacing.xl,
+            AutonannySpacing.md,
+            AutonannySpacing.xl,
+            AutonannySpacing.xl,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.autonannyColors.borderSubtle,
+                    borderRadius: AutonannyRadii.brLg,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AutonannySpacing.lg),
+              Text(
+                'Дети для маршрута',
+                style: AutonannyTypography.h3(
+                  color: context.autonannyColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AutonannySpacing.xs),
+              Text(
+                '${widget.weekdayLabel} • ${widget.routeTitle}',
+                style: AutonannyTypography.bodyS(
+                  color: context.autonannyColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AutonannySpacing.lg),
+              if (_selectedIds.isEmpty)
+                const AutonannyInlineBanner(
+                  title: 'Нужно выбрать хотя бы одного ребёнка',
+                  message:
+                      'К маршруту можно привязать только детей, которые уже выбраны для контракта.',
+                  tone: AutonannyBannerTone.warning,
+                  leading: AutonannyIcon(AutonannyIcons.warning),
+                ),
+              if (_selectedIds.isEmpty)
+                const SizedBox(height: AutonannySpacing.md),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: widget.children
+                      .map(
+                        (child) => Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AutonannySpacing.sm,
+                          ),
+                          child: _ChildSelectionTile(
+                            child: child,
+                            isSelected: child.id != null &&
+                                _selectedIds.contains(child.id),
+                            onTap: child.id == null
+                                ? null
+                                : () {
+                                    setState(() {
+                                      if (_selectedIds.contains(child.id)) {
+                                        _selectedIds.remove(child.id);
+                                      } else {
+                                        _selectedIds.add(child.id!);
+                                      }
+                                    });
+                                  },
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
+              const SizedBox(height: AutonannySpacing.lg),
+              Row(
+                children: [
+                  Expanded(
+                    child: AutonannyButton(
+                      label: 'Отмена',
+                      variant: AutonannyButtonVariant.secondary,
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ),
+                  const SizedBox(width: AutonannySpacing.sm),
+                  Expanded(
+                    child: AutonannyButton(
+                      label: 'Сохранить',
+                      onPressed: _selectedIds.isEmpty
+                          ? null
+                          : () => Navigator.of(context).pop(
+                                widget.children
+                                    .where((child) =>
+                                        child.id != null &&
+                                        _selectedIds.contains(child.id))
+                                    .map((child) => child.id!)
+                                    .toList(growable: false),
+                              ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TariffSection extends StatelessWidget {
   const _TariffSection({required this.vm});
 
@@ -465,112 +923,37 @@ class _AdditionalServicesSection extends StatefulWidget {
 
 class _AdditionalServicesSectionState
     extends State<_AdditionalServicesSection> {
-  bool _expanded = false;
-
   @override
   Widget build(BuildContext context) {
-    return AutonannyCard(
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          childrenPadding: EdgeInsets.zero,
-          initiallyExpanded: _expanded,
-          onExpansionChanged: (value) => setState(() => _expanded = value),
-          title: Text(
-            'Дополнительные услуги',
-            style: AutonannyTypography.labelL(
-              color: context.autonannyColors.textPrimary,
+    return AdditionalServicesSelector(
+      subtitle:
+          'Выберите требования, которые будут учитывать при подборе водителя.',
+      options: widget.vm.params
+          .map(
+            (param) => AdditionalServiceOptionData(
+              id: '${param.id ?? param.title}',
+              title: param.title ?? 'Неизвестная услуга',
+              isSelected: widget.vm.editor.params.contains(param),
+              priceLabel: (param.amount != null && param.amount! > 0)
+                  ? '${param.amount!.round()} ₽'
+                  : null,
+              caption:
+                  param.count == null ? null : 'Количество: ${param.count}',
             ),
-          ),
-          subtitle: Text(
-            'Выберите требования, которые будут учитывать при подборе водителя.',
-            style: AutonannyTypography.bodyS(
-              color: context.autonannyColors.textSecondary,
-            ),
-          ),
-          trailing: RotatedBox(
-            quarterTurns: _expanded ? 3 : 1,
-            child: AutonannyIcon(
-              AutonannyIcons.chevronRight,
-              color: context.autonannyColors.textSecondary,
-            ),
-          ),
-          children: [
-            const SizedBox(height: AutonannySpacing.md),
-            if (widget.vm.params.isEmpty)
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: AutonannyInlineBanner(
-                  title: 'Дополнительные услуги пока недоступны',
-                  tone: AutonannyBannerTone.info,
-                  leading: AutonannyIcon(AutonannyIcons.info),
-                ),
-              )
-            else
-              Column(
-                children: widget.vm.params
-                    .map(
-                      (param) => _ServiceCheckboxTile(
-                        param: param,
-                        selected: widget.vm.editor.params.contains(param),
-                        onChanged: (value) {
-                          if (value) {
-                            widget.vm.addParam(param);
-                          } else {
-                            widget.vm.removeParam(param);
-                          }
-                        },
-                      ),
-                    )
-                    .toList(growable: false),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ServiceCheckboxTile extends StatelessWidget {
-  const _ServiceCheckboxTile({
-    required this.param,
-    required this.selected,
-    required this.onChanged,
-  });
-
-  final OtherParametr param;
-  final bool selected;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AutonannySpacing.sm),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => onChanged(!selected),
-          borderRadius: AutonannyRadii.brMd,
-          child: Row(
-            children: [
-              Checkbox(
-                value: selected,
-                onChanged: (value) => onChanged(value ?? false),
-                activeColor: context.autonannyColors.actionPrimary,
-              ),
-              Expanded(
-                child: Text(
-                  param.title ?? 'Неизвестная услуга',
-                  style: AutonannyTypography.bodyM(
-                    color: context.autonannyColors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+          )
+          .toList(growable: false),
+      onToggle: (optionId) {
+        final match = widget.vm.params.firstWhere(
+          (param) => '${param.id ?? param.title}' == optionId,
+        );
+        final isSelected = widget.vm.editor.params.contains(match);
+        if (isSelected) {
+          widget.vm.removeParam(match);
+        } else {
+          widget.vm.addParam(match);
+        }
+        setState(() {});
+      },
     );
   }
 }

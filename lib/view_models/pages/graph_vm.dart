@@ -255,7 +255,7 @@ class GraphVM extends ViewModelBase {
     update(() {});
   }
 
-  void scheduleSelected(Schedule schedule) async {
+  Future<void> scheduleSelected(Schedule schedule) async {
     update(() {
       selectedSchedule = schedule;
       driverContact = null; // Сбрасываем предыдущие контакты

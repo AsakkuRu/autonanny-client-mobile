@@ -3,8 +3,11 @@ import 'package:autonanny_ui_client/autonanny_ui_client.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dart';
 import 'package:nanny_client/view_models/pages/balance_vm.dart';
 import 'package:nanny_client/views/new_main/new_client_main_vm.dart';
+import 'package:nanny_core/constants.dart';
 import 'package:nanny_core/models/from_api/child_short.dart';
+import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
+import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/models/from_api/notification_item.dart'
     as api_notification;
 import 'package:nanny_core/models/from_api/user_cards.dart';
@@ -144,6 +147,226 @@ extension NotificationItemUiSdkMapper on api_notification.NotificationItem {
       'order' => AutonannyBannerTone.info,
       _ => AutonannyBannerTone.info,
     };
+  }
+}
+
+extension DriverContactUiSdkMapper on DriverContact {
+  AssignedDriverCardData get assignedDriverCardData {
+    final ratingParts = <String>[];
+    if (rating != null) {
+      ratingParts.add('Рейтинг ${rating!.toStringAsFixed(1)}');
+    }
+    if (reviewsCount != null && reviewsCount! > 0) {
+      ratingParts.add('$reviewsCount отзывов');
+    }
+
+    return AssignedDriverCardData(
+      name: fullName,
+      initials: _initials,
+      photoUrl: photo,
+      phoneLabel: phone,
+      ratingLabel: ratingParts.isEmpty ? null : ratingParts.join(' · '),
+      carLabel: _carLabel,
+      caption: experienceYears == null
+          ? null
+          : 'Опыт работы: $experienceYears ${_yearsLabel(experienceYears!)}',
+      primaryActionLabel: 'Написать',
+      secondaryActionLabel: 'Показать QR',
+    );
+  }
+
+  String get _initials {
+    final first = surname.trim().isEmpty ? '' : surname.trim().substring(0, 1);
+    final second = name.trim().isEmpty ? '' : name.trim().substring(0, 1);
+    final value = '$first$second'.toUpperCase();
+    return value.isEmpty ? 'A' : value;
+  }
+
+  String? get _carLabel {
+    final info = car?.fullInfo.trim() ?? '';
+    final colorAndNumber = car?.colorAndNumber.trim() ?? '';
+
+    if (info.isEmpty && colorAndNumber.isEmpty) {
+      return null;
+    }
+    if (info.isEmpty) {
+      return colorAndNumber;
+    }
+    if (colorAndNumber.isEmpty) {
+      return info;
+    }
+    return '$info · $colorAndNumber';
+  }
+
+  String _yearsLabel(int years) {
+    final mod10 = years % 10;
+    final mod100 = years % 100;
+    if (mod10 == 1 && mod100 != 11) {
+      return 'год';
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return 'года';
+    }
+    return 'лет';
+  }
+}
+
+extension ScheduleUiSdkMapper on Schedule {
+  ContractSummaryCardData contractSummaryCardData({
+    String? nextTripLabel,
+    String? statusLabelOverride,
+    AutonannyStatusVariant? statusVariantOverride,
+    bool isHighlighted = false,
+  }) {
+    return ContractSummaryCardData(
+      title: title.isEmpty ? _fallbackTitle : title,
+      statusLabel: statusLabelOverride ?? _statusLabel,
+      statusVariant: statusVariantOverride ?? _statusVariant,
+      scheduleLabel: weekdays.isEmpty
+          ? 'Дни поездок не выбраны'
+          : weekdays.map((weekday) => weekday.shortName).join(' • '),
+      isHighlighted: isHighlighted,
+      nextTripLabel: nextTripLabel,
+      childLabel: '$childrenCount ${_childrenLabel(childrenCount)}',
+      servicesLabel: _servicesLabel,
+      weeklyAmountLabel: _formatAmount(amountWeek),
+      monthlyAmountLabel: _formatAmount(amountMonth),
+      actionLabel: 'Открыть расписание',
+    );
+  }
+
+  String get _fallbackTitle {
+    final idLabel = id == null ? '' : ' #$id';
+    return 'Контракт$idLabel';
+  }
+
+  String get _statusLabel {
+    if (isPaused == true) {
+      return 'Приостановлен';
+    }
+    if (isActive == true) {
+      return 'Активен';
+    }
+    return 'На согласовании';
+  }
+
+  AutonannyStatusVariant get _statusVariant {
+    if (isPaused == true) {
+      return AutonannyStatusVariant.warning;
+    }
+    if (isActive == true) {
+      return AutonannyStatusVariant.success;
+    }
+    return AutonannyStatusVariant.neutral;
+  }
+
+  String get _servicesLabel {
+    final labels = otherParametrs
+        .map((service) => (service.title ?? '').trim())
+        .where((label) => label.isNotEmpty)
+        .toList(growable: false);
+
+    if (labels.isEmpty) {
+      return 'Без дополнительных услуг';
+    }
+
+    return labels.join(', ');
+  }
+
+  String _formatAmount(double? value) {
+    if (value == null || value <= 0) {
+      return '—';
+    }
+    return '~ ${value.round()} ₽';
+  }
+
+  String _childrenLabel(int count) {
+    final mod10 = count % 10;
+    final mod100 = count % 100;
+
+    if (mod10 == 1 && mod100 != 11) {
+      return 'ребёнок';
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return 'ребёнка';
+    }
+    return 'детей';
+  }
+
+  List<ContractDayPanelData> get contractDayPanelsData {
+    final roadsByDay = <NannyWeekday, List<Road>>{};
+
+    for (final road in roads) {
+      roadsByDay.putIfAbsent(road.weekDay, () => <Road>[]).add(road);
+    }
+
+    final days = roadsByDay.keys.toList(growable: false)
+      ..sort((left, right) => left.index.compareTo(right.index));
+
+    return days.map((day) {
+      final dayRoads = roadsByDay[day]!.toList(growable: false)
+        ..sort((left, right) {
+          final byHour = left.startTime.hour.compareTo(right.startTime.hour);
+          if (byHour != 0) {
+            return byHour;
+          }
+          return left.startTime.minute.compareTo(right.startTime.minute);
+        });
+
+      return ContractDayPanelData(
+        dayLabel: day.fullName,
+        summaryLabel: '${dayRoads.length} ${_routesLabel(dayRoads.length)}',
+        caption: day.shortName,
+        routes: dayRoads.map((road) {
+          final routeChildrenCount =
+              road.children?.where((childId) => childId > 0).length ?? 0;
+
+          return ContractRoutePreviewData(
+            title: road.title.trim().isEmpty
+                ? 'Маршрут ${road.startTime.formatTime()}'
+                : road.title.trim(),
+            timeLabel:
+                '${road.startTime.formatTime()} – ${road.endTime.formatTime()}',
+            routeLabel: _roadAddressesLabel(road),
+            childLabel: routeChildrenCount > 0
+                ? '$routeChildrenCount ${_childrenLabel(routeChildrenCount)}'
+                : null,
+          );
+        }).toList(growable: false),
+      );
+    }).toList(growable: false);
+  }
+
+  String _roadAddressesLabel(Road road) {
+    if (road.addresses.isEmpty) {
+      return 'Маршрут уточняется';
+    }
+
+    final first = road.addresses.first.fromAddress.address.trim();
+    final last = road.addresses.last.toAddress.address.trim();
+
+    if (first.isEmpty && last.isEmpty) {
+      return 'Маршрут уточняется';
+    }
+
+    if (first == last || last.isEmpty) {
+      return first.isEmpty ? 'Маршрут уточняется' : first;
+    }
+
+    return '$first -> $last';
+  }
+
+  String _routesLabel(int count) {
+    final mod10 = count % 10;
+    final mod100 = count % 100;
+
+    if (mod10 == 1 && mod100 != 11) {
+      return 'маршрут';
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return 'маршрута';
+    }
+    return 'маршрутов';
   }
 }
 

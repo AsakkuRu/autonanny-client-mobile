@@ -31,45 +31,25 @@ class _BalanceViewState extends State<BalanceView>
   Widget build(BuildContext context) {
     if (wantKeepAlive) super.build(context);
 
-    return Scaffold(
-      backgroundColor: NDT.screenBg,
-      appBar: NannyAppBar.gradient(
-        hasBackButton: false,
-        title: "Баланс",
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [NDT.primaryLight, NDT.primaryDark],
+    return AutonannyAppScaffold(
+      body: AutonannyGradientHeaderShell(
+        headerPadding: const EdgeInsets.fromLTRB(
+          AutonannySpacing.lg,
+          AutonannySpacing.md,
+          AutonannySpacing.lg,
+          AutonannySpacing.xl,
         ),
-        actions: [
-          TextButton.icon(
-            onPressed: vm.navigateToHistory,
-            icon: const Icon(Icons.history_rounded,
-                color: Colors.white, size: 18),
-            label: const Text(
-              "История",
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600),
-            ),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-            ),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async => vm.updateState(),
-        child: RequestLoader(
-          request: vm.getMoney,
-          completeView: (context, data) {
-            final money = data!;
-            final stats = vm.computeStats(money.history);
-            return SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        header: _buildHeader(),
+        body: RefreshIndicator(
+          onRefresh: () async => vm.updateState(),
+          child: RequestLoader(
+            request: vm.getMoney,
+            completeView: (context, data) {
+              final money = data!;
+              final stats = vm.computeStats(money.history);
+              return ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 96),
                 children: [
                   _buildWalletSection(context, money),
                   const SizedBox(height: NDT.sp16),
@@ -80,12 +60,37 @@ class _BalanceViewState extends State<BalanceView>
                   _buildRecentOperations(context, money.history),
                   const SizedBox(height: 32),
                 ],
+              );
+            },
+            errorView: (context, error) => Padding(
+              padding: const EdgeInsets.all(AutonannySpacing.xl),
+              child: AutonannyErrorState(
+                title: 'Не удалось загрузить баланс',
+                description: error.toString(),
+                actionLabel: 'Повторить',
+                onAction: vm.updateState,
               ),
-            );
-          },
-          errorView: (context, error) => ErrorView(errorText: error.toString()),
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          'Баланс',
+          style: AutonannyTypography.h2(color: Colors.white),
+        ),
+        _HeroActionChip(
+          icon: AutonannyIcons.calendar,
+          label: 'История',
+          onTap: vm.navigateToHistory,
+        ),
+      ],
     );
   }
 
@@ -104,14 +109,14 @@ class _BalanceViewState extends State<BalanceView>
           ),
           const SizedBox(height: NDT.sp12),
           AutonannyButton(
-            label: 'Автопополнение',
+            label: 'Автоплатежи',
             variant: AutonannyButtonVariant.secondary,
             leading: AutonannyIcon(
               AutonannyIcons.timer,
               size: 18,
               color: colors.actionPrimary,
             ),
-            onPressed: vm.showAutofillDialog,
+            onPressed: vm.navigateToAutopaySettings,
           ),
         ],
       ),
@@ -121,22 +126,6 @@ class _BalanceViewState extends State<BalanceView>
   // ─── Stats row ─────────────────────────────────────────────────────────────
 
   Widget _buildStatsRow(BuildContext context, BalanceStats stats) {
-    final months = [
-      'ЯНВ',
-      'ФЕВ',
-      'МАР',
-      'АПР',
-      'МАЙ',
-      'ИЮН',
-      'ИЮЛ',
-      'АВГ',
-      'СЕН',
-      'ОКТ',
-      'НОЯ',
-      'ДЕК'
-    ];
-    final monthName = months[DateTime.now().month - 1];
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: NDT.sp16),
       child: Container(
@@ -145,21 +134,21 @@ class _BalanceViewState extends State<BalanceView>
         child: Row(
           children: [
             _statItem(
-              label: monthName,
+              label: "СПИСАНО",
               value: "${_compact(stats.totalSpent)} ₽",
-              sub: "потрачено",
+              sub: "за загруженный период",
             ),
             _statDivider(),
             _statItem(
               label: "ПОЕЗДКИ",
               value: "${stats.tripsCount}",
-              sub: "в этом месяце",
+              sub: "в загруженной истории",
             ),
             _statDivider(),
             _statItem(
               label: "СРЕДНЯЯ",
               value: "${_compact(stats.avgPrice)} ₽",
-              sub: "за поездку",
+              sub: "по списаниям",
             ),
           ],
         ),
@@ -193,8 +182,9 @@ class _BalanceViewState extends State<BalanceView>
 
   String _compact(double v) {
     if (v == 0) return "0";
-    if (v >= 1000)
+    if (v >= 1000) {
       return "${(v / 1000).toStringAsFixed(1).replaceAll('.0', '')}к";
+    }
     return v.toStringAsFixed(0);
   }
 
@@ -288,7 +278,7 @@ class _BalanceViewState extends State<BalanceView>
               shrinkWrap: true,
               itemCount: recent.length,
               separatorBuilder: (_, __) =>
-                  Divider(height: 1, color: NDT.neutral100),
+                  const Divider(height: 1, color: NDT.neutral100),
               itemBuilder: (context, index) =>
                   _operationTile(recent[index], index),
             ),
@@ -327,8 +317,9 @@ class _BalanceViewState extends State<BalanceView>
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color:
-                        isDebit ? NDT.primary100 : NDT.success.withOpacity(0.1),
+                    color: isDebit
+                        ? NDT.primary100
+                        : NDT.success.withValues(alpha: 0.1),
                     borderRadius: NDT.brSm,
                   ),
                   child: Icon(
@@ -366,7 +357,7 @@ class _BalanceViewState extends State<BalanceView>
                 AnimatedRotation(
                   turns: isExpanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 250),
-                  child: Icon(
+                  child: const Icon(
                     Icons.keyboard_arrow_down_rounded,
                     size: 18,
                     color: NDT.neutral400,
@@ -444,7 +435,7 @@ class _BalanceViewState extends State<BalanceView>
     );
   }
 
-  Widget _detailDivider() => Divider(height: 1, color: NDT.neutral200);
+  Widget _detailDivider() => const Divider(height: 1, color: NDT.neutral200);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -482,4 +473,53 @@ class _BalanceViewState extends State<BalanceView>
 
   @override
   bool get wantKeepAlive => widget.persistState;
+}
+
+class _HeroActionChip extends StatelessWidget {
+  const _HeroActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final AutonannyIconAsset icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AutonannyRadii.brFull,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.md,
+            vertical: AutonannySpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0x26FFFFFF),
+            borderRadius: AutonannyRadii.brFull,
+            border: Border.all(color: const Color(0x40FFFFFF)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AutonannyIcon(
+                icon,
+                size: 14,
+                color: Colors.white,
+              ),
+              const SizedBox(width: AutonannySpacing.xs),
+              Text(
+                label,
+                style: AutonannyTypography.labelM(color: Colors.white),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

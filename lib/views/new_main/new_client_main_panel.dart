@@ -155,6 +155,8 @@ class _PanelContent extends StatelessWidget {
           _TariffBlock(vm: vm),
           const SizedBox(height: AutonannySpacing.xl),
           _ChildrenBlock(vm: vm, showToast: showToast),
+          const SizedBox(height: AutonannySpacing.xl),
+          _AdditionalServicesBlock(vm: vm),
           const SizedBox(height: AutonannySpacing.xxl),
           AutonannyButton(
             label: 'Найти автоняню',
@@ -604,6 +606,42 @@ class _ChildrenBlock extends StatelessWidget {
             ],
           ),
       ],
+    );
+  }
+}
+
+class _AdditionalServicesBlock extends StatelessWidget {
+  const _AdditionalServicesBlock({required this.vm});
+
+  final NewClientMainVM vm;
+
+  @override
+  Widget build(BuildContext context) {
+    return AdditionalServicesSelector(
+      subtitle:
+          'Эти требования будут отправлены вместе с разовой поездкой и учтены при подборе водителя.',
+      options: vm.additionalParams
+          .map(
+            (param) => AdditionalServiceOptionData(
+              id: '${param.id ?? param.title}',
+              title: param.title ?? 'Неизвестная услуга',
+              isSelected: vm.isAdditionalParamSelected(param),
+              priceLabel: (param.amount != null && param.amount! > 0)
+                  ? '${param.amount!.round()} ₽'
+                  : null,
+              caption:
+                  param.count == null ? null : 'Количество: ${param.count}',
+            ),
+          )
+          .toList(growable: false),
+      onToggle: (id) {
+        final param = vm.additionalParams
+            .where((item) => '${item.id ?? item.title}' == id)
+            .firstOrNull;
+        if (param != null) {
+          vm.toggleAdditionalParam(param);
+        }
+      },
     );
   }
 }

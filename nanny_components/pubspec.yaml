@@ -27,6 +27,9 @@ dependencies:
   nanny_core:
     path: ../nanny_core
 
+  autonanny_ui_core:
+    path: ../../packages/ui_core
+
   time_range_picker:
     path: ./flutter_time_range_picker
   # Обновлено под текущий Flutter/Dart стек (исправление Constant evaluation error в _fontWeightToFilenameWeightParts)

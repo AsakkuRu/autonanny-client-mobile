@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/map/drive_order_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
@@ -174,8 +175,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: NannyTheme.primary
-                                        .withOpacity(0.14),
+                                    color: NannyTheme.primary.withOpacity(0.14),
                                     blurRadius: 20,
                                     offset: const Offset(0, 8),
                                   ),
@@ -249,6 +249,36 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                   separatorBuilder: (_, __) => const SizedBox(width: 10),
                   itemCount: vm.tariffs.length,
                 ),
+              ),
+
+              const SizedBox(height: 20),
+
+              AdditionalServicesSelector(
+                subtitle:
+                    'Дополнительные требования будут отправлены вместе с заказом.',
+                options: vm.additionalParams
+                    .map(
+                      (param) => AdditionalServiceOptionData(
+                        id: '${param.id ?? param.title}',
+                        title: param.title ?? 'Неизвестная услуга',
+                        isSelected: vm.isAdditionalParamSelected(param),
+                        priceLabel: (param.amount != null && param.amount! > 0)
+                            ? '${param.amount!.round()} ₽'
+                            : null,
+                        caption: param.count == null
+                            ? null
+                            : 'Количество: ${param.count}',
+                      ),
+                    )
+                    .toList(growable: false),
+                onToggle: (id) {
+                  final param = vm.additionalParams
+                      .where((item) => '${item.id ?? item.title}' == id)
+                      .firstOrNull;
+                  if (param != null) {
+                    vm.toggleAdditionalParam(param);
+                  }
+                },
               ),
 
               const SizedBox(height: 16),

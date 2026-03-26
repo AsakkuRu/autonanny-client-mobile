@@ -683,24 +683,12 @@ class _HeroAvatar extends StatelessWidget {
             border: Border.all(color: const Color(0x33FFFFFF)),
           ),
           alignment: Alignment.center,
-          child: photoPath.isNotEmpty
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(26),
-                  child: Image.network(
-                    photoPath,
-                    fit: BoxFit.cover,
-                    width: 84,
-                    height: 84,
-                    errorBuilder: (_, __, ___) => AutonannyAvatar(
-                      initials: vm.userInitials,
-                      size: 72,
-                    ),
-                  ),
-                )
-              : AutonannyAvatar(
-                  initials: vm.userInitials,
-                  size: 72,
-                ),
+          child: AutonannyAvatar(
+            imageUrl: photoPath,
+            initials: vm.userInitials,
+            size: 84,
+            borderRadius: BorderRadius.circular(26),
+          ),
         ),
         Positioned(
           right: -2,

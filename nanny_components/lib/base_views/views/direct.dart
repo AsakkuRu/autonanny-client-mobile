@@ -1,9 +1,9 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/view_models/direct_vm.dart';
 import 'package:nanny_components/base_views/views/document_view.dart';
 import 'package:nanny_components/base_views/views/video_view.dart';
 import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_components/widgets/message_send_panel.dart';
 import 'package:nanny_core/models/from_api/chat_message.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -19,8 +19,6 @@ class DirectView extends StatefulWidget {
 
 class _DirectViewState extends State<DirectView> {
   late DirectVM vm;
-  static const double sideMargin = 100;
-  static const double margin = 20;
 
   @override
   void initState() {
@@ -32,7 +30,6 @@ class _DirectViewState extends State<DirectView> {
               vm.scrollController.position.maxScrollExtent &&
           !vm.isLoadingMore &&
           vm.hasMoreMessages) {
-        // Пользователь достиг верхней границы — подгружаем сообщения
         vm.loadMessages();
       }
     });
@@ -46,210 +43,179 @@ class _DirectViewState extends State<DirectView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFf7f7f7),
-      appBar: NannyAppBar(
-        title: widget.name ?? "Чат",
-        isTransparent: false,
-        color: NannyTheme.secondary,
+    return AutonannyAppScaffold(
+      appBar: AutonannyAppBar(
+        title: widget.name ?? 'Чат',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
+          tooltip: 'Назад',
+        ),
         actions: [
-          IconButton(
+          AutonannyIconButton(
+            icon: const AutonannyIcon(AutonannyIcons.edit),
+            variant: vm.isEditingMode
+                ? AutonannyIconButtonVariant.primary
+                : AutonannyIconButtonVariant.surface,
             onPressed: () {
-              setState(() {
-                vm.toggleEditingMode();
-              });
+              setState(vm.toggleEditingMode);
+              if (!vm.isEditingMode) {
+                _resetEditing();
+              }
             },
-            icon: Icon(
-              Icons.edit_rounded,
-              color: vm.isEditingMode ? NannyTheme.primary : Colors.black,
-            ),
-            splashRadius: 30,
+            tooltip: 'Редактировать сообщения',
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: RequestLoader(
-              request: vm.messagesRequest,
-              completeView: (context, data) {
-                vm.messages ??= data!.messages;
-
-                return Stack(
-                  children: [
-                    ListView.separated(
-                      controller: vm.scrollController,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shrinkWrap: true,
-                      reverse: true,
-                      itemCount: vm.messages!.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 20),
-                      itemBuilder: (context, index) => GestureDetector(
-                        onTap: () {
-                          if (vm.isEditingMode) {
-                            vm.startEditingMessage(vm.messages![index]);
-                          }
-                        },
-                        child: directPanel(
-                          vm.messages![index],
-                        ),
-                      ),
-                    ),
-                    if (vm.isLoadingMore)
-                      const Positioned(
-                        top: 10,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                              color: NannyTheme.primary),
-                        ),
-                      ),
-                  ],
-                );
-              },
-              errorView: (context, error) => ErrorView(
-                errorText: error.toString(),
-              ),
-            ),
-          ),
-          NannyBottomSheet(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 16),
-              child: MessageSendPanel(
-                  onPressed: vm.sendTextMessage,
-                  onAttachmentPressed: vm.attachImage,
-                  controller: vm.textController),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget directPanel(ChatMessage message) {
-    return Stack(
-      alignment: message.isMe ? Alignment.bottomRight : Alignment.bottomLeft,
-      children: [
-        Container(
-          margin: EdgeInsets.only(
-            left: message.isMe ? sideMargin : margin + 3.5,
-            right: message.isMe ? margin + 3.5 : sideMargin,
-            bottom: 8.5,
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 10),
-          decoration: BoxDecoration(
-            color: message.isMe ? NannyTheme.primary : NannyTheme.lightGreen,
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: [
-              BoxShadow(
-                offset: const Offset(0, 5),
-                blurRadius: 7,
-                color: const Color(0xFF171170).withOpacity(.11),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: decideMessageContent(message),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    '${message.edited ? '(ред.) ' : ''} ${DateFormat("HH:mm").format(
-                      DateTime.fromMillisecondsSinceEpoch(
-                        (message.timestampSend * 1000).toInt(),
-                      ),
-                    )}',
-                    style: TextStyle(
-                        color: message.isMe
-                            ? NannyTheme.secondary
-                            : const Color(0xFF2B2B2B),
-                        fontSize: 13,
-                        height: 1.3,
-                        fontWeight: FontWeight.w400,
-                        fontFamily: 'Nunito'),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            if (vm.isEditingMode)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AutonannySpacing.lg,
+                  0,
+                  AutonannySpacing.lg,
+                  AutonannySpacing.sm,
+                ),
+                child: AutonannyInlineBanner(
+                  title: 'Режим редактирования',
+                  message:
+                      'Нажмите на ваше сообщение, чтобы изменить текст, или завершите редактирование.',
+                  leading: const AutonannyIcon(AutonannyIcons.edit),
+                  trailing: AutonannyIconButton(
+                    size: 36,
+                    variant: AutonannyIconButtonVariant.ghost,
+                    icon: const AutonannyIcon(AutonannyIcons.close),
+                    onPressed: _resetEditing,
+                    tooltip: 'Закрыть',
                   ),
-                ],
+                ),
               ),
-            ],
-          ),
+            Expanded(
+              child: RequestLoader(
+                request: vm.messagesRequest,
+                completeView: (context, data) {
+                  final fetchedMessages = data?.messages ?? <ChatMessage>[];
+                  vm.messages ??= <ChatMessage>[];
+                  if (vm.messages!.isEmpty && fetchedMessages.isNotEmpty) {
+                    vm.messages!.addAll(fetchedMessages);
+                  }
+
+                  if ((vm.messages ?? const <ChatMessage>[]).isEmpty) {
+                    return const AutonannyEmptyState(
+                      title: 'Сообщений пока нет',
+                      description:
+                          'Напишите первым, чтобы начать диалог по поездке или контракту.',
+                      icon: AutonannyIcon(AutonannyIcons.chat),
+                    );
+                  }
+
+                  return Stack(
+                    children: [
+                      ListView.separated(
+                        controller: vm.scrollController,
+                        padding: const EdgeInsets.fromLTRB(
+                          AutonannySpacing.lg,
+                          AutonannySpacing.sm,
+                          AutonannySpacing.lg,
+                          AutonannySpacing.lg,
+                        ),
+                        reverse: true,
+                        itemCount: vm.messages!.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: AutonannySpacing.sm),
+                        itemBuilder: (context, index) {
+                          final message = vm.messages![index];
+                          return GestureDetector(
+                            onTap: () {
+                              if (vm.isEditingMode && message.isMe) {
+                                setState(() {
+                                  vm.startEditingMessage(message);
+                                });
+                              }
+                            },
+                            child: _MessageBubble(
+                              message: message,
+                              onOpenImage: _openImageView,
+                              onOpenPdf: _openPdfFile,
+                              onOpenVideo: (url) => vm.navigateToView(
+                                VideoView(url: url),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      if (vm.isLoadingMore)
+                        const Positioned(
+                          top: AutonannySpacing.sm,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+                errorView: (context, error) => AutonannyErrorState(
+                  title: 'Не удалось открыть чат',
+                  description: error.toString(),
+                  actionLabel: 'Повторить',
+                  onAction: () {
+                    setState(() {
+                      vm.messages = null;
+                      vm.messagesRequest = vm.loadMessages();
+                    });
+                  },
+                ),
+              ),
+            ),
+            _Composer(
+              vm: vm,
+              onChanged: () => setState(() {}),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
-  Widget decideMessageContent(ChatMessage message) {
-    const double messageFontSize = 16;
-    var textStyle = TextStyle(
-        color: message.isMe ? NannyTheme.secondary : const Color(0xFF2B2B2B),
-        fontSize: messageFontSize,
-        height: 1.35,
-        fontWeight: FontWeight.w400,
-        fontFamily: 'Nunito');
-
-    if (message.msg.split('.').last == "gif") message.msgType = 2;
-
-    return switch (message.msgType) {
-      1 => Text(message.msg, style: textStyle),
-      2 => GestureDetector(
-          onTap: () => _openImageView(message.msg),
-          child: NetImage(
-            radius: 20,
-            url: message.msg,
-            fitToShortest: false,
-          ),
-        ),
-      3 => GestureDetector(
-          onTap: () => vm.navigateToView(VideoView(url: message.msg)),
-          child: Container(
-            height: 200,
-            decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: NannyTheme.onSecondary),
-            child: const Center(
-                child: Icon(
-              Icons.play_circle_outline_rounded,
-              color: NannyTheme.secondary,
-              size: 50,
-            )),
-          ),
-        ),
-      4 => TextButton(
-          onPressed: () => _openPdfFile(message.msg),
-          child: Text(message.msg.split('/').last,
-              style: textStyle.copyWith(decoration: TextDecoration.underline)),
-        ),
-      _ => const Placeholder()
-    };
+  void _resetEditing() {
+    if (vm.isEditingMode) {
+      vm.toggleEditingMode();
+    }
+    vm.editingMessageId = null;
+    vm.textController.clear();
+    setState(() {});
   }
 
   void _openImageView(String url) {
     showDialog(
       context: context,
-      builder: (dContext) => Stack(
+      builder: (dialogContext) => Stack(
         fit: StackFit.expand,
         children: [
           InteractiveViewer(
-              maxScale: 5,
-              child: NetImage(
-                url: url,
-                fitToShortest: false,
-              )),
+            maxScale: 5,
+            child: NetImage(
+              url: url,
+              fitToShortest: false,
+            ),
+          ),
           Align(
             alignment: Alignment.topRight,
-            child: Material(
-              borderRadius:
-                  const BorderRadius.only(bottomLeft: Radius.circular(20)),
-              child: IconButton(
-                  onPressed: () => Navigator.pop(dContext),
-                  icon: const Icon(Icons.close)),
+            child: Padding(
+              padding: const EdgeInsets.all(AutonannySpacing.lg),
+              child: AutonannyIconButton(
+                icon: const AutonannyIcon(AutonannyIcons.close),
+                onPressed: () => Navigator.of(dialogContext).pop(),
+              ),
             ),
           ),
         ],
@@ -258,7 +224,238 @@ class _DirectViewState extends State<DirectView> {
   }
 
   void _openPdfFile(String url) {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (context) => DocumentView(url: url)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => DocumentView(url: url)),
+    );
+  }
+}
+
+class _MessageBubble extends StatelessWidget {
+  const _MessageBubble({
+    required this.message,
+    required this.onOpenImage,
+    required this.onOpenPdf,
+    required this.onOpenVideo,
+  });
+
+  final ChatMessage message;
+  final ValueChanged<String> onOpenImage;
+  final ValueChanged<String> onOpenPdf;
+  final ValueChanged<String> onOpenVideo;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final components = context.autonannyComponents;
+
+    return Align(
+      alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.lg,
+            vertical: AutonannySpacing.md,
+          ),
+          decoration: BoxDecoration(
+            color: message.isMe ? null : colors.surfaceElevated,
+            gradient: message.isMe ? components.primaryActionGradient : null,
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(24),
+              topRight: const Radius.circular(24),
+              bottomLeft: Radius.circular(message.isMe ? 24 : 8),
+              bottomRight: Radius.circular(message.isMe ? 8 : 24),
+            ),
+            border:
+                message.isMe ? null : Border.all(color: colors.borderSubtle),
+            boxShadow: AutonannyShadows.card,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _MessageContent(
+                message: message,
+                onOpenImage: onOpenImage,
+                onOpenPdf: onOpenPdf,
+                onOpenVideo: onOpenVideo,
+              ),
+              const SizedBox(height: AutonannySpacing.xs),
+              Text(
+                _timestampLabel(message),
+                style: AutonannyTypography.caption(
+                  color: message.isMe
+                      ? colors.textInverse.withValues(alpha: 0.84)
+                      : colors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _timestampLabel(ChatMessage message) {
+    final timestamp = DateFormat('HH:mm').format(
+      DateTime.fromMillisecondsSinceEpoch(
+        (message.timestampSend * 1000).toInt(),
+      ),
+    );
+    return message.edited ? '(ред.) $timestamp' : timestamp;
+  }
+}
+
+class _MessageContent extends StatelessWidget {
+  const _MessageContent({
+    required this.message,
+    required this.onOpenImage,
+    required this.onOpenPdf,
+    required this.onOpenVideo,
+  });
+
+  final ChatMessage message;
+  final ValueChanged<String> onOpenImage;
+  final ValueChanged<String> onOpenPdf;
+  final ValueChanged<String> onOpenVideo;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final textColor = message.isMe ? colors.textInverse : colors.textPrimary;
+    final textStyle = AutonannyTypography.bodyM(color: textColor);
+
+    if (message.msg.split('.').last == 'gif') {
+      message.msgType = 2;
+    }
+
+    switch (message.msgType) {
+      case 1:
+      case 5:
+        return Text(message.msg, style: textStyle);
+      case 2:
+        return GestureDetector(
+          onTap: () => onOpenImage(message.msg),
+          child: ClipRRect(
+            borderRadius: AutonannyRadii.brLg,
+            child: NetImage(
+              radius: 0,
+              url: message.msg,
+              fitToShortest: false,
+            ),
+          ),
+        );
+      case 3:
+        return GestureDetector(
+          onTap: () => onOpenVideo(message.msg),
+          child: Container(
+            height: 200,
+            decoration: BoxDecoration(
+              borderRadius: AutonannyRadii.brLg,
+              color: message.isMe
+                  ? Colors.white.withValues(alpha: 0.16)
+                  : colors.surfaceSecondary,
+            ),
+            child: Center(
+              child: Icon(
+                Icons.play_circle_outline_rounded,
+                color: textColor,
+                size: 52,
+              ),
+            ),
+          ),
+        );
+      case 4:
+        return InkWell(
+          onTap: () => onOpenPdf(message.msg),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AutonannyIcon(
+                AutonannyIcons.document,
+                size: 18,
+                color: textColor,
+              ),
+              const SizedBox(width: AutonannySpacing.sm),
+              Flexible(
+                child: Text(
+                  message.msg.split('/').last,
+                  style: textStyle.copyWith(
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      default:
+        return Text(message.msg, style: textStyle);
+    }
+  }
+}
+
+class _Composer extends StatelessWidget {
+  const _Composer({
+    required this.vm,
+    required this.onChanged,
+  });
+
+  final DirectVM vm;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        AutonannySpacing.md,
+        AutonannySpacing.sm,
+        AutonannySpacing.md,
+        MediaQuery.of(context).padding.bottom + AutonannySpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        border: Border(top: BorderSide(color: colors.borderSubtle)),
+        boxShadow: AutonannyShadows.card,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          AutonannyIconButton(
+            size: 44,
+            icon: const AutonannyIcon(AutonannyIcons.add),
+            onPressed: vm.attachImage,
+            tooltip: 'Прикрепить файл',
+          ),
+          const SizedBox(width: AutonannySpacing.sm),
+          Expanded(
+            child: AutonannyTextField(
+              controller: vm.textController,
+              hintText: vm.editingMessageId != null
+                  ? 'Измените сообщение'
+                  : 'Сообщение...',
+              maxLines: 4,
+              onChanged: (_) => onChanged(),
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.sm),
+          AutonannyIconButton(
+            size: 48,
+            variant: AutonannyIconButtonVariant.primary,
+            icon: const AutonannyIcon(AutonannyIcons.arrowRight),
+            onPressed: vm.textController.text.trim().isEmpty
+                ? null
+                : () async {
+                    await vm.sendTextMessage();
+                    onChanged();
+                  },
+            tooltip: 'Отправить',
+          ),
+        ],
+      ),
+    );
   }
 }

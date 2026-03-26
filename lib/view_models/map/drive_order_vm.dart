@@ -16,6 +16,7 @@ import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
+import 'package:nanny_core/models/from_api/other_parametr.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class DriveOrderVM extends ViewModelBase {
@@ -160,8 +161,23 @@ class DriveOrderVM extends ViewModelBase {
 
   List<DriveTariff> tariffs = [];
   DriveTariff? selectedTariff;
+  List<OtherParametr> additionalParams = [];
+  final Set<String> _selectedAdditionalParamKeys = {};
 
   bool get validDrive => addresses.length > 1 && selectedTariff != null;
+
+  bool isAdditionalParamSelected(OtherParametr param) =>
+      _selectedAdditionalParamKeys.contains(_additionalParamKey(param));
+
+  void toggleAdditionalParam(OtherParametr param) {
+    final key = _additionalParamKey(param);
+    if (_selectedAdditionalParamKeys.contains(key)) {
+      _selectedAdditionalParamKeys.remove(key);
+    } else {
+      _selectedAdditionalParamKeys.add(key);
+    }
+    update(() {});
+  }
 
   void calculatePrices() {
     // Debounce: отменяем предыдущий запрос, чтобы не спамить API
@@ -296,7 +312,7 @@ class DriveOrderVM extends ViewModelBase {
               description: '',
               typeDrive: DriveType.oneWay.id,
               idTariff: selectedTariff!.id,
-              otherParametrs: [])));
+              otherParametrs: selectedAdditionalParamsPayload)));
 
       if (!res.success || res.data == null) {
         if (res.errorMessage == 'У вас уже есть активная поездка') {
@@ -373,8 +389,22 @@ class DriveOrderVM extends ViewModelBase {
     if (!res.success) return false;
     tariffs = res.response!;
 
+    final paramsRes = await NannyStaticDataApi.getOtherParams();
+    if (paramsRes.success && paramsRes.response != null) {
+      additionalParams = paramsRes.response!;
+    }
+
     return true;
   }
+
+  List<Map<String, dynamic>> get selectedAdditionalParamsPayload =>
+      additionalParams
+          .where(isAdditionalParamSelected)
+          .map((param) => param.toGraphJson(1))
+          .toList(growable: false);
+
+  String _additionalParamKey(OtherParametr param) =>
+      '${param.id ?? param.title}';
 
   @override
   void dispose() {
