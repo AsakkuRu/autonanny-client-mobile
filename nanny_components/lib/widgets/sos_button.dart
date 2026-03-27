@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/sos_activate_request.dart';
-import 'package:nanny_core/constants.dart';
 import 'package:nanny_core/nanny_core.dart';
-import 'package:geolocator/geolocator.dart';
 
 class SOSButton extends StatefulWidget {
   final int? orderId;
@@ -73,37 +72,111 @@ class _SOSButtonState extends State<SOSButton> with SingleTickerProviderStateMix
   Future<void> _activateSOS() async {
     if (_isActivating) return;
 
-    // Подтверждающий диалог
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: 28),
-            const SizedBox(width: 12),
-            const Flexible(child: Text('Экстренный вызов')), // FIX-015
-          ],
-        ),
-        content: const Text(
-          'Вы уверены, что хотите активировать SOS?\n\n'
-          'Это отправит экстренное уведомление администраторам с вашими GPS-координатами.',
-          style: TextStyle(fontSize: 15),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Отмена'),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red[700],
-              foregroundColor: Colors.white,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              12,
+              20,
+              20 + MediaQuery.of(sheetContext).padding.bottom,
             ),
-            child: const Text('Активировать SOS'),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFEF2F2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.sos_rounded,
+                        color: Color(0xFFDC2626),
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Вызов SOS',
+                            style: AutonannyTypography.h2(
+                              color: sheetContext.autonannyColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Сигнал будет отправлен администратору и экстренным контактам по текущей поездке.',
+                            style: AutonannyTypography.bodyS(
+                              color:
+                                  sheetContext.autonannyColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const AutonannyInlineBanner(
+                  title: 'Используйте только в экстренной ситуации',
+                  message:
+                      'Мы отправим ваш текущий маршрут и GPS-координаты. Если ситуация угрожает жизни, сразу звоните в экстренные службы.',
+                  tone: AutonannyBannerTone.danger,
+                  leading: AutonannyIcon(AutonannyIcons.warning),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(true),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Подтвердить SOS'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(false),
+                    child: const Text('Отмена'),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
 
@@ -111,59 +184,133 @@ class _SOSButtonState extends State<SOSButton> with SingleTickerProviderStateMix
 
     setState(() => _isActivating = true);
 
-    // Получаем GPS координаты
-    final position = await _getCurrentLocation();
+    try {
+      final position = await _getCurrentLocation();
+      final request = SOSActivateRequest(
+        latitude: position?.latitude,
+        longitude: position?.longitude,
+        idOrder: widget.orderId,
+      );
 
-    // Отправляем SOS
-    final request = SOSActivateRequest(
-      latitude: position?.latitude,
-      longitude: position?.longitude,
-      idOrder: widget.orderId,
-    );
+      final result = await NannyUsersApi.activateSOS(request);
 
-    final result = await NannyUsersApi.activateSOS(request);
+      if (!mounted) return;
 
-    if (!mounted) return;
-
-    setState(() => _isActivating = false);
-
-    if (result.success) {
-      // Показываем успешное сообщение
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green[700], size: 28),
-              const SizedBox(width: 12),
-              const Text('SOS активирован'),
-            ],
-          ),
-          content: const Text(
-            'Экстренное уведомление отправлено.\n'
-            'Администраторы получили ваши координаты и свяжутся с вами в ближайшее время.',
-            style: TextStyle(fontSize: 15),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('OK'),
+      if (result.success) {
+        await showModalBottomSheet<void>(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (sheetContext) => SafeArea(
+            top: false,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFECFDF5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFF16A34A),
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'SOS активирован',
+                              style: AutonannyTypography.h2(
+                                color: sheetContext
+                                    .autonannyColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Мы отправили экстренное уведомление и ваши координаты. Поддержка уже получила сигнал.',
+                              style: AutonannyTypography.bodyS(
+                                color: sheetContext
+                                    .autonannyColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const AutonannyInlineBanner(
+                    title: 'Оставайтесь на связи',
+                    message:
+                        'Если это безопасно, дождитесь звонка поддержки и при необходимости используйте чат для связи с участниками поездки.',
+                    tone: AutonannyBannerTone.success,
+                    leading: AutonannyIcon(AutonannyIcons.checkCircle),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 52,
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      child: const Text('Понятно'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-      );
+          ),
+        );
 
-      widget.onSOSActivated?.call();
-    } else {
-      Logger().e(
-        "SOS activateSOS failed: baseUrl=${NannyConsts.baseUrl}, "
-        "errorMessage=${result.errorMessage}, statusCode=${result.statusCode}",
-      );
-      NannyDialogs.showMessageBox(
-        context,
-        "Ошибка",
-        result.errorMessage,
-      );
+        widget.onSOSActivated?.call();
+      } else {
+        Logger().e(
+          "SOS activateSOS failed: baseUrl=${NannyConsts.baseUrl}, "
+          "errorMessage=${result.errorMessage}, statusCode=${result.statusCode}",
+        );
+        NannyDialogs.showMessageBox(
+          context,
+          "Ошибка",
+          result.errorMessage.isNotEmpty
+              ? result.errorMessage
+              : "Не удалось отправить SOS. Проверьте интернет.",
+        );
+      }
+    } catch (e) {
+      Logger().e("SOS unexpected error: $e");
+      if (mounted) {
+        NannyDialogs.showMessageBox(
+          context,
+          "Ошибка",
+          "Не удалось отправить SOS. Проверьте подключение к интернету.",
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActivating = false);
     }
   }
 
@@ -175,7 +322,7 @@ class _SOSButtonState extends State<SOSButton> with SingleTickerProviderStateMix
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.red.withOpacity(0.3),
+              color: Colors.red.withValues(alpha: 0.3),
               blurRadius: 20,
               spreadRadius: 5,
             ),
@@ -201,12 +348,12 @@ class _SOSButtonState extends State<SOSButton> with SingleTickerProviderStateMix
                     strokeWidth: 2,
                   ),
                 )
-              : Row(
+              : const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.sos, size: 28),
-                    const SizedBox(width: 12),
-                    const Text(
+                    SizedBox(width: 12),
+                    Text(
                       'SOS',
                       style: TextStyle(
                         fontSize: 20,

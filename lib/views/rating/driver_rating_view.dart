@@ -31,6 +31,7 @@ class _DriverRatingViewState extends State<DriverRatingView> {
       driverName: widget.driverName,
       driverPhoto: widget.driverPhoto,
     );
+    vm.loadExistingRating();
   }
 
   @override
@@ -43,9 +44,21 @@ class _DriverRatingViewState extends State<DriverRatingView> {
   Widget build(BuildContext context) {
     final colors = context.autonannyColors;
 
+    if (vm.isInitializing) {
+      return const AutonannyAppScaffold(
+        appBar: AutonannyAppBar(title: 'Оценка поездки'),
+        body: SafeArea(
+          top: false,
+          child: AutonannyLoadingState(
+            label: 'Загружаем данные оценки.',
+          ),
+        ),
+      );
+    }
+
     return AutonannyAppScaffold(
       appBar: AutonannyAppBar(
-        title: 'Оцените поездку',
+        title: vm.hasExistingRating ? 'Изменить оценку' : 'Оцените поездку',
         leading: AutonannyIconButton(
           icon: const AutonannyIcon(AutonannyIcons.close),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -95,6 +108,16 @@ class _DriverRatingViewState extends State<DriverRatingView> {
                             : colors.textTertiary,
                       ),
                     ),
+                    if (vm.hasExistingRating) ...[
+                      const SizedBox(height: AutonannySpacing.sm),
+                      const AutonannyInlineBanner(
+                        title: 'Оценка уже сохранена',
+                        message:
+                            'Форма заполнена текущими данными. Вы можете изменить оценку и комментарий.',
+                        tone: AutonannyBannerTone.info,
+                        leading: AutonannyIcon(AutonannyIcons.info),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -127,9 +150,19 @@ class _DriverRatingViewState extends State<DriverRatingView> {
                   maxLines: 4,
                 ),
               ),
+              if (vm.error != null) ...[
+                const SizedBox(height: AutonannySpacing.lg),
+                AutonannyInlineBanner(
+                  title: 'Не удалось сохранить оценку',
+                  message: vm.error,
+                  tone: AutonannyBannerTone.danger,
+                  leading: const AutonannyIcon(AutonannyIcons.error),
+                ),
+              ],
               const SizedBox(height: AutonannySpacing.xl),
               AutonannyButton(
-                label: 'Отправить оценку',
+                label:
+                    vm.hasExistingRating ? 'Обновить оценку' : 'Отправить оценку',
                 onPressed: vm.rating > 0 ? vm.submitRating : null,
                 isLoading: vm.isSubmitting,
               ),

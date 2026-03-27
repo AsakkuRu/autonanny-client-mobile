@@ -10,6 +10,7 @@ import 'package:nanny_client/views/new_main/new_client_map_view.dart';
 import 'package:nanny_client/views/new_main/profile/client_profile_v2_view.dart';
 import 'package:nanny_client/views/pages/balance.dart';
 import 'package:nanny_client/views/pages/graph.dart';
+import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_components/base_views/views/pages/chats.dart';
 import 'package:nanny_components/base_views/views/welcome.dart';
@@ -60,6 +61,8 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
       ChatsView(
         persistState: false,
         onReturnFromChat: () => vm.refreshUnreadChatsCount(),
+        buildDriverRatingView: (driverId) =>
+            DriverRatingDetailsView(driverId: driverId),
       ),
       _NewProfileView(
         logoutView: WelcomeView(

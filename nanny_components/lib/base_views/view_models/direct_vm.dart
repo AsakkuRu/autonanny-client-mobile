@@ -40,7 +40,9 @@ class DirectVM extends ViewModelBase {
   // Stream Subscription
   StreamSubscription<Map<String, dynamic>>? _messageSub;
   StreamSubscription<Map<String, dynamic>>? _editedSub;
+  StreamSubscription<Map<String, dynamic>>? _connectedSub;
   bool _syncingReadState = false;
+  bool _reloadingFromRealtime = false;
 
   // Инициализация
   Future<ApiResponse<DirectChat>> _initDirect() async {
@@ -52,15 +54,34 @@ class DirectVM extends ViewModelBase {
   Future<void> _bindRealtime() async {
     await _messageSub?.cancel();
     await _editedSub?.cancel();
+    await _connectedSub?.cancel();
     _socket = UnifiedSocket.instance ?? await UnifiedSocket.connect();
     _messageSub =
         _socket?.on('chat.message_created').listen(chatStreamCallback);
     _editedSub = _socket?.on('chat.message_edited').listen(chatStreamCallback);
+    _connectedSub = _socket?.on('connected').listen((_) {
+      unawaited(_refreshMessagesFromRealtime());
+    });
   }
 
   // Загрузка сообщений
   Future<ApiResponse<DirectChat>> loadMessages() async {
-    if (isLoadingMore || !hasMoreMessages) return ApiResponse.empty();
+    return _loadMessages(reset: false);
+  }
+
+  Future<ApiResponse<DirectChat>> reloadMessages() async {
+    return _loadMessages(reset: true);
+  }
+
+  Future<ApiResponse<DirectChat>> _loadMessages({required bool reset}) async {
+    if (isLoadingMore) return ApiResponse.empty();
+    if (!reset && !hasMoreMessages) return ApiResponse.empty();
+
+    if (reset) {
+      hasMoreMessages = true;
+      offset = 0;
+      messages = <ChatMessage>[];
+    }
 
     isLoadingMore = true;
     update(() {});
@@ -75,7 +96,15 @@ class DirectVM extends ViewModelBase {
         hasMoreMessages = false;
       } else {
         messages ??= [];
-        messages!.addAll(newMessages);
+        final existingIds =
+            messages!.map((message) => message.id).whereType<int>().toSet();
+        final uniqueNewMessages = newMessages
+            .where(
+              (message) =>
+                  message.id == null || !existingIds.contains(message.id),
+            )
+            .toList(growable: false);
+        messages!.addAll(uniqueNewMessages);
         offset += newMessages.length;
       }
     }
@@ -85,11 +114,31 @@ class DirectVM extends ViewModelBase {
     return response;
   }
 
+  Future<void> _refreshMessagesFromRealtime() async {
+    if (_reloadingFromRealtime || isLoadingMore) {
+      return;
+    }
+    _reloadingFromRealtime = true;
+    try {
+      if (messages == null) {
+        messagesRequest = reloadMessages();
+        update(() {});
+        await messagesRequest;
+      } else {
+        await reloadMessages();
+      }
+      await _syncReadState();
+    } finally {
+      _reloadingFromRealtime = false;
+    }
+  }
+
   Future<void> _syncReadState() async {
     if (_syncingReadState) return;
     _syncingReadState = true;
     try {
       await NannyChatsApi.markChatRead(idChat);
+      NannyGlobals.chatUnreadRefreshController.add(null);
     } finally {
       _syncingReadState = false;
     }
@@ -132,7 +181,10 @@ class DirectVM extends ViewModelBase {
         timestampSend: 0,
         isMe: true);
 
-    await _sendMessage(message);
+    final sent = await _sendMessage(message);
+    if (!sent) {
+      return;
+    }
 
     textController.clear();
     editingMessageId = null;
@@ -140,21 +192,37 @@ class DirectVM extends ViewModelBase {
   }
 
   // Отправка сообщения
-  Future<void> _sendMessage(ChatMessage msg) async {
+  Future<bool> _sendMessage(ChatMessage msg) async {
+    ApiResponse<Map<String, dynamic>> result;
     if (msg.id != null) {
-      await NannyChatsApi.editMessage(
+      result = await NannyChatsApi.editMessage(
         chatId: msg.idChat,
         messageId: msg.id!,
         text: msg.msg,
       );
-      return;
+    } else {
+      result = await NannyChatsApi.sendMessage(
+        chatId: msg.idChat,
+        text: msg.msg,
+        msgType: msg.msgType,
+      );
     }
 
-    await NannyChatsApi.sendMessage(
-      chatId: msg.idChat,
-      text: msg.msg,
-      msgType: msg.msgType,
-    );
+    if (!result.success) {
+      if (context.mounted) {
+        NannyDialogs.showMessageBox(
+          context,
+          'Не удалось отправить сообщение',
+          result.errorMessage.isNotEmpty
+              ? result.errorMessage
+              : 'Проверьте подключение к интернету и попробуйте еще раз.',
+        );
+      }
+      return false;
+    }
+
+    NannyGlobals.chatUnreadRefreshController.add(null);
+    return true;
   }
 
   // Прикрепление изображения
@@ -170,13 +238,23 @@ class DirectVM extends ViewModelBase {
     if (!context.mounted) return;
     LoadScreen.showLoad(context, false);
 
-    if (!fileUpload.success) return;
+    if (!fileUpload.success) {
+      NannyDialogs.showMessageBox(
+        context,
+        'Не удалось загрузить файл',
+        fileUpload.errorMessage.isNotEmpty
+            ? fileUpload.errorMessage
+            : 'Проверьте подключение к интернету и попробуйте еще раз.',
+      );
+      return;
+    }
 
     await _sendMessage(ChatMessage(
-        idChat: idChat,
-        msg: fileUpload.response!.paths.first,
-        msgType: fileUpload.response!.types.first,
-        timestampSend: 0));
+      idChat: idChat,
+      msg: fileUpload.response!.paths.first,
+      msgType: fileUpload.response!.types.first,
+      timestampSend: 0,
+    ));
   }
 
   // Обработка входящих сообщений
@@ -199,7 +277,7 @@ class DirectVM extends ViewModelBase {
       final editedIndex =
           messages?.indexWhere((m) => m.id == editedMessageId) ?? -1;
       if (editedIndex == -1) {
-        unawaited(loadMessages());
+        unawaited(reloadMessages());
         return;
       }
 
@@ -252,6 +330,7 @@ class DirectVM extends ViewModelBase {
   void dispose() {
     _messageSub?.cancel();
     _editedSub?.cancel();
+    _connectedSub?.cancel();
     scrollController.dispose();
     textController.dispose();
   }

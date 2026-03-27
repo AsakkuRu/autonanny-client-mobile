@@ -84,7 +84,7 @@ class _GraphCreateState extends State<GraphCreate> {
           ),
           child: AutonannyButton(
             label: _isEditMode ? 'Обновить контракт' : 'Создать контракт',
-            onPressed: vm.confirm,
+            onPressed: vm.canSubmit ? vm.confirm : null,
             leading: const AutonannyIcon(
               AutonannyIcons.checkCircle,
               color: Colors.white,
@@ -98,7 +98,7 @@ class _GraphCreateState extends State<GraphCreate> {
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
               return const AutonannyLoadingState(
-                label: 'Подготавливаем график поездок.',
+                label: 'Подготавливаем контракт.',
               );
             }
 
@@ -106,7 +106,7 @@ class _GraphCreateState extends State<GraphCreate> {
               return AutonannyErrorState(
                 title: 'Не удалось загрузить данные',
                 description: snapshot.error?.toString() ??
-                    'Попробуйте открыть создание графика ещё раз.',
+                    'Попробуйте открыть создание контракта ещё раз.',
                 actionLabel: 'Повторить',
                 onAction: vm.reloadPage,
               );
@@ -137,7 +137,7 @@ class _GraphCreateState extends State<GraphCreate> {
                       ),
                       const SizedBox(height: AutonannySpacing.lg),
                       _SelectionField<GraphType>(
-                        title: 'Тип загруженности графика',
+                        title: 'Период контракта',
                         value: vm.editor.type,
                         items: GraphType.values
                             .map(
@@ -230,7 +230,7 @@ class _GraphCreateState extends State<GraphCreate> {
                 AutonannySectionContainer(
                   title: 'Тариф и доп. услуги',
                   subtitle:
-                      'Выберите категорию графика и дополнительные требования к поездкам.',
+                      'Выберите период контракта и дополнительные требования к поездкам.',
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -310,10 +310,10 @@ class _DayRoutesPanel extends StatelessWidget {
           const SizedBox(height: AutonannySpacing.lg),
           if (roads.isEmpty)
             const AutonannyInlineBanner(
-              title: 'Маршрутов пока нет',
+              title: 'День выбран, но маршрутов пока нет',
               message:
-                  'Добавьте хотя бы один маршрут для этого дня, чтобы контракт был полным.',
-              tone: AutonannyBannerTone.info,
+                  'Добавьте хотя бы один маршрут для этого дня, иначе контракт нельзя будет сохранить.',
+              tone: AutonannyBannerTone.warning,
               leading: AutonannyIcon(AutonannyIcons.route),
             )
           else
@@ -367,8 +367,8 @@ class _GraphCreateHero extends StatelessWidget {
                 const SizedBox(height: AutonannySpacing.xs),
                 Text(
                   isEditMode
-                      ? 'Настройте расписание и параметры регулярных поездок.'
-                      : 'Соберите недельный или долгосрочный график поездок для ребёнка.',
+                      ? 'Настройте расписание и параметры регулярных поездок по контракту.'
+                      : 'Соберите недельный или долгосрочный контракт с регулярными поездками для ребёнка.',
                   style: AutonannyTypography.bodyS(
                     color: colors.textInverse.withValues(alpha: 0.84),
                   ),
@@ -845,6 +845,15 @@ class _ContractDraftSummarySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (vm.readinessIssues.isNotEmpty) ...[
+            AutonannyInlineBanner(
+              title: 'Контракт еще не готов к сохранению',
+              message: vm.readinessIssues.join('\n'),
+              tone: AutonannyBannerTone.warning,
+              leading: const AutonannyIcon(AutonannyIcons.warning),
+            ),
+            const SizedBox(height: AutonannySpacing.md),
+          ],
           Row(
             children: [
               Expanded(

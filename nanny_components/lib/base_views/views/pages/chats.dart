@@ -12,11 +12,13 @@ class ChatsView extends StatefulWidget {
 
   /// Вызывается после возврата из чата (для сброса бейджа непрочитанных в нижнем баре)
   final VoidCallback? onReturnFromChat;
+  final Widget Function(int driverId)? buildDriverRatingView;
 
   const ChatsView({
     super.key,
     this.persistState = false,
     this.onReturnFromChat,
+    this.buildDriverRatingView,
   });
 
   @override
@@ -34,6 +36,7 @@ class _ChatsViewState extends State<ChatsView>
       context: context,
       update: setState,
       onReturnFromChat: widget.onReturnFromChat,
+      buildDriverRatingView: widget.buildDriverRatingView,
     );
   }
 

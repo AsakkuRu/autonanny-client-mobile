@@ -26,7 +26,7 @@ class GraphCreateVM extends ViewModelBase {
 
   TextEditingController nameController = TextEditingController();
   TextEditingController childController = TextEditingController();
-  List<NannyWeekday> selectedWeekday = [NannyWeekday.monday];
+  List<NannyWeekday> selectedWeekday = [];
 
   // FE-MVP-015: Список детей и выбранные дети
   List<Child> children = [];
@@ -229,6 +229,16 @@ class GraphCreateVM extends ViewModelBase {
   }
 
   List<int> initialRouteChildrenIds({Road? road}) {
+    return routeChildIds(
+      road: road,
+      fallbackToContractChildren: true,
+    );
+  }
+
+  List<int> routeChildIds({
+    Road? road,
+    required bool fallbackToContractChildren,
+  }) {
     final selectedIds = selectedChildrenIds.toSet();
     final routeChildren = road?.children
             ?.where((childId) => selectedIds.contains(childId))
@@ -237,14 +247,24 @@ class GraphCreateVM extends ViewModelBase {
     if (routeChildren.isNotEmpty) {
       return routeChildren;
     }
+    if (road?.children != null || !fallbackToContractChildren) {
+      return const <int>[];
+    }
     return List<int>.from(selectedChildrenIds);
   }
 
   List<Child> routeChildrenForRoad(Road road) {
-    final routeChildIds = initialRouteChildrenIds(road: road).toSet();
+    final routeChildIds = routeChildIdsForRoad(road).toSet();
     return selectedContractChildren
         .where((child) => child.id != null && routeChildIds.contains(child.id))
         .toList(growable: false);
+  }
+
+  List<int> routeChildIdsForRoad(Road road) {
+    return routeChildIds(
+      road: road,
+      fallbackToContractChildren: false,
+    );
   }
 
   int get selectedDaysCount => sortedSelectedWeekdays.length;
@@ -252,6 +272,67 @@ class GraphCreateVM extends ViewModelBase {
   int get routesCount => editor.roads.length;
 
   int get tripsPerMonth => routesCount * 4;
+
+  bool get hasContractTitle => editor.title.trim().isNotEmpty;
+
+  List<NannyWeekday> get weekdaysWithoutRoutes {
+    final usedDays =
+        editor.roads.map((road) => road.weekDay).toSet().cast<NannyWeekday>();
+    return sortedSelectedWeekdays
+        .where((weekday) => !usedDays.contains(weekday))
+        .toList(growable: false);
+  }
+
+  List<Road> get routesWithoutChildren {
+    return editor.roads
+        .where((road) => routeChildIdsForRoad(road).isEmpty)
+        .toList(growable: false);
+  }
+
+  bool get hasRouteChildrenIssues => routesWithoutChildren.isNotEmpty;
+
+  bool get canSubmit {
+    if (!hasContractTitle) return false;
+    if (selectedChildrenIds.isEmpty) return false;
+    if (selectedWeekday.isEmpty) return false;
+    if (editor.roads.isEmpty) return false;
+    if (weekdaysWithoutRoutes.isNotEmpty) return false;
+    if (routesWithoutChildren.isNotEmpty) return false;
+    if (tripsPerMonth < 4) return false;
+    return true;
+  }
+
+  List<String> get readinessIssues {
+    final issues = <String>[];
+    if (!hasContractTitle) {
+      issues.add('Введите название контракта.');
+    }
+    if (selectedChildrenIds.isEmpty) {
+      issues.add('Выберите хотя бы одного ребёнка.');
+    }
+    if (selectedWeekday.isEmpty) {
+      issues.add('Выберите дни поездок.');
+    }
+    if (editor.roads.isEmpty) {
+      issues.add('Добавьте хотя бы один маршрут.');
+    }
+    if (weekdaysWithoutRoutes.isNotEmpty) {
+      final dayLabels =
+          weekdaysWithoutRoutes.map((weekday) => weekday.shortName).join(', ');
+      issues.add('Для дней $dayLabels пока нет маршрутов.');
+    }
+    if (routesWithoutChildren.isNotEmpty) {
+      final dayLabels = routesWithoutChildren
+          .map((road) => road.weekDay.shortName)
+          .toSet()
+          .join(', ');
+      issues.add('Есть маршруты без выбранных детей: $dayLabels.');
+    }
+    if (tripsPerMonth > 0 && tripsPerMonth < 4) {
+      issues.add('Для контракта нужно минимум 4 поездки в месяц.');
+    }
+    return issues;
+  }
 
   double? get estimatedMonthlyAmount {
     if (editor.roads.isEmpty) {
@@ -348,13 +429,13 @@ class GraphCreateVM extends ViewModelBase {
         NannyDialogs.showMessageBox(
           context,
           "Ошибка",
-          "Введите название графика поездок",
+          "Введите название контракта",
         );
       } else if (editor.roads.isEmpty) {
         NannyDialogs.showMessageBox(
           context,
           "Ошибка",
-          "Добавьте хотя бы один маршрут в график",
+          "Добавьте хотя бы один маршрут в контракт",
         );
       } else {
         NannyDialogs.showMessageBox(
@@ -367,26 +448,20 @@ class GraphCreateVM extends ViewModelBase {
     }
 
     // Валидация: для всех выбранных дней должны быть заданы маршруты
-    final usedDays =
-        editor.roads.map((r) => r.weekDay).toSet().cast<NannyWeekday>();
-    final requiredDays = selectedWeekday.toSet().cast<NannyWeekday>();
-    final missingDays =
-        requiredDays.where((d) => !usedDays.contains(d)).toList();
+    final missingDays = weekdaysWithoutRoutes;
 
     if (missingDays.isNotEmpty) {
       final missingNames = missingDays.map((d) => d.shortName).join(", ");
       NannyDialogs.showMessageBox(
         context,
         "Ошибка",
-        "Для всех выбранных дней графика должны быть заданы маршруты.\n"
+        "Для всех выбранных дней контракта должны быть заданы маршруты.\n"
             "Сейчас нет маршрутов для: $missingNames.",
       );
       return;
     }
 
-    final routesWithoutChildren = editor.roads
-        .where((road) => initialRouteChildrenIds(road: road).isEmpty)
-        .toList(growable: false);
+    final routesWithoutChildren = this.routesWithoutChildren;
     if (routesWithoutChildren.isNotEmpty) {
       final daysWithoutChildren = routesWithoutChildren
           .map((road) => road.weekDay.shortName)
@@ -445,9 +520,11 @@ class GraphCreateVM extends ViewModelBase {
     LoadScreen.showLoad(context, false);
 
     await NannyDialogs.showMessageBox(context, "Успех",
-        "График успешно ${schedule == null ? "создан" : "обновлен"}!");
-    // При создании возвращаем id нового графика (или -1 как fallback "выбрать самый новый")
-    final resultToPop = schedule == null ? (createdId ?? -1) : null;
+        "Контракт успешно ${schedule == null ? "создан" : "обновлен"}!");
+    // Возвращаем id контракта, чтобы список мог снова сфокусироваться
+    // на актуальной сущности и при необходимости открыть ее детали.
+    final resultToPop =
+        schedule == null ? (createdId ?? -1) : schedule?.id ?? -1;
     if (!context.mounted) return;
     Navigator.of(context).pop(resultToPop);
   }

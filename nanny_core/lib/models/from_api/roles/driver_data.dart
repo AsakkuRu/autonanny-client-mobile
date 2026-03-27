@@ -7,6 +7,7 @@ class Driver {
       required this.driverLicense,
       required this.carData,
       required this.answers,
+      this.experienceYears,
       this.money = "",
       this.inn = "",
   });
@@ -20,6 +21,7 @@ class Driver {
   final DriverLicense? driverLicense;
   final CarData? carData;
   final Answers? answers;
+  final int? experienceYears;
 
   factory Driver.fromJson(Map<String, dynamic> json){ 
       return Driver(
@@ -30,6 +32,7 @@ class Driver {
           driverLicense: json["driverLicense"] == null ? null : DriverLicense.fromJson(json["driverLicense"]),
           carData: json["carData"] == null ? null : CarData.fromJson(json["carData"]),
           answers: json["answers"] == null ? null : Answers.fromJson(json["answers"]),
+          experienceYears: json["experienceYears"] ?? json["experience_years"],
           money: json['money'] ?? "",
           inn: json["inn_data"] ?? "Пусто"
       );
@@ -42,7 +45,8 @@ class Driver {
     refCode: "", 
     driverLicense: null, 
     carData: null, 
-    answers: null
+    answers: null,
+    experienceYears: null,
   );
 
   Map<String, dynamic> toJson() => {
@@ -53,6 +57,7 @@ class Driver {
       "driverLicense": driverLicense?.toJson(),
       "carData": carData?.toJson(),
       "answers": answers?.toJson(),
+      "experienceYears": experienceYears,
       "inn_data": inn
   };
 
@@ -64,6 +69,7 @@ class Driver {
     DriverLicense? driverLicense,
     CarData? carData,
     Answers? answers,
+    int? experienceYears,
     String? inn 
   }) {
     return Driver(
@@ -74,6 +80,7 @@ class Driver {
       driverLicense: driverLicense ?? this.driverLicense,
       carData: carData ?? this.carData,
       answers: answers ?? this.answers,
+      experienceYears: experienceYears ?? this.experienceYears,
       inn: inn ?? this.inn
     );
   }

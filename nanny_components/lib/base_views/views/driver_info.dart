@@ -4,10 +4,7 @@ import 'package:nanny_components/base_views/view_models/driver_info_vm.dart';
 import 'package:nanny_components/base_views/views/driver_orders.dart';
 import 'package:nanny_components/base_views/views/video_view.dart';
 import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_core/api/api_models/driver_user_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
-import 'package:nanny_core/models/from_api/roles/driver_data.dart';
-import 'package:nanny_core/models/from_api/user_info.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 /// Используется для просмотра данных профиля водителя.
@@ -19,6 +16,7 @@ class DriverInfoView extends StatefulWidget {
   final bool franchiseView;
   final bool viewingOrder;
   final ScheduleResponsesData? scheduleData;
+  final VoidCallback? onOpenRating;
 
   const DriverInfoView(
       {super.key,
@@ -26,13 +24,24 @@ class DriverInfoView extends StatefulWidget {
       this.hasPaymentButtons = false,
       this.franchiseView = false,
       this.viewingOrder = false,
-      this.scheduleData});
+      this.scheduleData,
+      this.onOpenRating});
 
   @override
   State<DriverInfoView> createState() => _DriverInfoViewState();
 }
 
 class _DriverInfoViewState extends State<DriverInfoView> {
+  static const List<String> _questionnaireLabels = [
+    'Опыт с детьми',
+    'Нестандартные ситуации',
+    'Почему выбрали эту работу',
+    'Дополнительная информация',
+    'Сильные стороны',
+    'Ограничения',
+    'Комментарии',
+  ];
+
   late DriverInfoVM vm;
 
   @override
@@ -61,6 +70,10 @@ class _DriverInfoViewState extends State<DriverInfoView> {
               // Используем реальные данные, полученные с бэкенда.
               final DriverUserTextData data = driverData!;
               data.userData = data.userData.asDriver();
+              final driverRoleData = data.userData.roleData;
+              final questionnaireAnswers =
+                  _buildQuestionnaireAnswers(driverRoleData?.answers);
+              final experienceYears = driverRoleData?.experienceYears;
 
               return Column(children: [
                 Padding(
@@ -109,6 +122,41 @@ class _DriverInfoViewState extends State<DriverInfoView> {
                                 ],
                               ),
                             ),
+                          if (widget.onOpenRating != null)
+                            TextButton(
+                              style: const ButtonStyle(
+                                padding: WidgetStatePropertyAll(
+                                  EdgeInsets.zero,
+                                ),
+                              ),
+                              onPressed: widget.onOpenRating,
+                              child: const Row(
+                                children: [
+                                  Icon(
+                                    Icons.star_outline_rounded,
+                                    color: Color(0xFF6D6D6D),
+                                  ),
+                                  SizedBox(width: 3),
+                                  Text(
+                                    "Отзывы и рейтинг",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w400,
+                                      height: 17.6 / 16,
+                                      color: Color(0xFF6D6D6D),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (experienceYears != null) ...[
+                            const SizedBox(height: 10),
+                            _metaBadge(
+                              icon: Icons.workspace_premium_outlined,
+                              label:
+                                  'Опыт работы: $experienceYears ${_yearWord(experienceYears)}',
+                            ),
+                          ],
                           //RichText(
                           //  text: TextSpan(
                           //    children: [
@@ -183,6 +231,25 @@ class _DriverInfoViewState extends State<DriverInfoView> {
                                         child: ListView(
                                             shrinkWrap: true,
                                             children: [
+                                          if (questionnaireAnswers.isNotEmpty) ...[
+                                            Text("Ключевая информация",
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium,
+                                                textAlign: TextAlign.center),
+                                            const SizedBox(height: 20),
+                                            ...questionnaireAnswers.map(
+                                              (answer) => Padding(
+                                                padding: const EdgeInsets.only(
+                                                    bottom: 10),
+                                                child: _questionAnswerPlate(
+                                                  title: answer.key,
+                                                  value: answer.value,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 20),
+                                          ],
                                           Text("Информация об авто",
                                               style: Theme.of(context)
                                                   .textTheme
@@ -375,7 +442,7 @@ class _DriverInfoViewState extends State<DriverInfoView> {
                                         ExpansionTile(
                                             title: infoText(
                                                 "Просмотр бухгалтерских отчетов"),
-                                            children: [])
+                                            children: const [])
                                       ]))))
               ]);
             },
@@ -400,7 +467,7 @@ class _DriverInfoViewState extends State<DriverInfoView> {
             BoxShadow(
               offset: const Offset(0, 4),
               blurRadius: 14,
-              color: const Color(0xFF021C3B).withOpacity(.1),
+              color: const Color(0xFF021C3B).withValues(alpha: .1),
             ),
           ]),
       child: Row(
@@ -426,5 +493,117 @@ class _DriverInfoViewState extends State<DriverInfoView> {
         ],
       ),
     );
+  }
+
+  List<MapEntry<String, String>> _buildQuestionnaireAnswers(Answers? answers) {
+    if (answers == null) {
+      return const [];
+    }
+
+    final values = <String?>[
+      answers.first,
+      answers.second,
+      answers.third,
+      answers.fourth,
+      answers.fifth,
+      answers.sixth,
+      answers.seventh,
+    ];
+
+    final result = <MapEntry<String, String>>[];
+    for (var i = 0; i < values.length; i++) {
+      final value = values[i]?.trim() ?? '';
+      if (value.isEmpty) {
+        continue;
+      }
+      result.add(MapEntry(_questionnaireLabels[i], value));
+    }
+    return result;
+  }
+
+  Widget _questionAnswerPlate({
+    required String title,
+    required String value,
+  }) {
+    return Container(
+      width: double.maxFinite,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: NannyTheme.secondary,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            offset: const Offset(0, 4),
+            blurRadius: 14,
+            color: const Color(0xFF021C3B).withValues(alpha: .08),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF6D6D6D),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              height: 1.35,
+              color: NannyTheme.onSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metaBadge({
+    required IconData icon,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F4FF),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: NannyTheme.primary),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: NannyTheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _yearWord(int count) {
+    final mod10 = count % 10;
+    final mod100 = count % 100;
+    if (mod10 == 1 && mod100 != 11) {
+      return 'год';
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return 'года';
+    }
+    return 'лет';
   }
 }

@@ -5,6 +5,7 @@ import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/graph_vm.dart';
 import 'package:nanny_client/views/pages/contract_details_view.dart';
 import 'package:nanny_components/base_views/views/pages/wallet.dart';
+import 'package:nanny_components/dialogs/nanny_dialogs.dart';
 import 'package:nanny_components/widgets/date_selector.dart';
 import 'package:nanny_components/widgets/driver_contact_card.dart';
 import 'package:nanny_components/widgets/schedule_viewer.dart';
@@ -85,7 +86,7 @@ class _GraphViewState extends State<GraphView>
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const AutonannyLoadingState(
-              label: 'Загружаем графики поездок.',
+              label: 'Загружаем контракты и расписание.',
             );
           }
 
@@ -93,13 +94,14 @@ class _GraphViewState extends State<GraphView>
             return AutonannyErrorState(
               title: 'Не удалось загрузить данные',
               description: snapshot.error?.toString() ??
-                  'Попробуйте открыть график поездок ещё раз.',
+                  'Попробуйте открыть контракты ещё раз.',
               actionLabel: 'Повторить',
               onAction: vm.reloadPage,
             );
           }
 
           _maybeHandleInitialDeepLink();
+          _maybeHandlePendingDetailsOpen();
 
           return SafeArea(
             child: Column(
@@ -114,7 +116,7 @@ class _GraphViewState extends State<GraphView>
                     ),
                     child: AutonannyInlineBanner(
                       title: 'Оффлайн-режим',
-                      message: 'Показываем кэшированные данные графиков.',
+                      message: 'Показываем кэшированные данные контрактов.',
                       tone: AutonannyBannerTone.warning,
                       leading: AutonannyIcon(AutonannyIcons.warning),
                     ),
@@ -184,6 +186,9 @@ class _GraphViewState extends State<GraphView>
           child: _GraphHeader(
             vm: vm,
             onPickSchedule: _openSchedulePicker,
+            onOpenDetails: vm.selectedSchedule == null
+                ? null
+                : () => _openContractDetails(vm.selectedSchedule!),
           ),
         ),
         Padding(
@@ -211,6 +216,13 @@ class _GraphViewState extends State<GraphView>
                   _PausedContractBanner(
                     schedule: vm.selectedSchedule!,
                     onResumed: vm.reloadPage,
+                    onManualResume:
+                        vm.selectedSchedule?.pauseInitiatedBy == 2 &&
+                                !_PausedContractBanner.isBalancePause(
+                                  vm.selectedSchedule?.pauseReason,
+                                )
+                            ? () => vm.resumeSchedulePause(vm.selectedSchedule!)
+                            : null,
                   ),
                 ],
                 if (vm.responses
@@ -229,11 +241,27 @@ class _GraphViewState extends State<GraphView>
                 ],
                 const SizedBox(height: AutonannySpacing.lg),
                 AutonannySectionContainer(
-                  title: 'Маршруты графика',
+                  title: 'Маршруты контракта',
                   subtitle: 'Маршруты отображаются для выбранного дня недели.',
-                  child: ScheduleViewer(
-                    schedule: vm.selectedSchedule,
-                    selectedWeedkays: vm.selectedWeekday,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!vm.hasRoutesForSelectedDay) ...[
+                        AutonannyInlineBanner(
+                          title: 'На выбранный день маршрутов нет',
+                          message: vm.selectedDayEmptyMessage,
+                          tone: AutonannyBannerTone.info,
+                          leading: const AutonannyIcon(
+                            AutonannyIcons.calendar,
+                          ),
+                        ),
+                        const SizedBox(height: AutonannySpacing.md),
+                      ],
+                      ScheduleViewer(
+                        schedule: vm.selectedSchedule,
+                        selectedWeedkays: vm.selectedWeekday,
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: AutonannySpacing.lg),
@@ -312,7 +340,7 @@ class _GraphViewState extends State<GraphView>
           AutonannyInlineBanner(
             title: 'Маршруты по контракту «${previewSchedule.title}»',
             message:
-                'Это read-only preview по дням, маршрутам и детям, привязанным к каждой поездке.',
+                'Здесь показана сводка по дням, маршрутам и детям, привязанным к каждой поездке.',
             tone: AutonannyBannerTone.info,
             leading: const AutonannyIcon(AutonannyIcons.calendar),
           ),
@@ -321,7 +349,7 @@ class _GraphViewState extends State<GraphView>
             const AutonannyInlineBanner(
               title: 'Маршруты пока не добавлены',
               message:
-                  'У этого контракта еще нет маршрутов для read-only preview.',
+                  'У этого контракта пока нет маршрутов для предварительного просмотра.',
               tone: AutonannyBannerTone.warning,
               leading: AutonannyIcon(AutonannyIcons.warning),
             )
@@ -390,6 +418,7 @@ class _GraphViewState extends State<GraphView>
           dayPanels: schedule.contractDayPanelsData(
             childNamesById: vm.contractChildNamesById,
           ),
+          contractChildren: vm.contractChildrenFor(schedule),
           driverContact:
               vm.selectedSchedule?.id == schedule.id ? vm.driverContact : null,
           responsesCount: responsesCount,
@@ -409,13 +438,39 @@ class _GraphViewState extends State<GraphView>
             }
             vm.toGraphEdit(schedule: schedule);
           },
+          onPauseContract: (dateFrom, dateUntil, reason) => vm.pauseSchedule(
+            schedule: schedule,
+            dateFrom: dateFrom,
+            dateUntil: dateUntil,
+            reason: reason,
+          ),
+          onCancelContract: () => vm.deleteSchedule(schedule),
+          onResumeContract: schedule.pauseInitiatedBy == 2 &&
+                  !_PausedContractBanner.isBalancePause(schedule.pauseReason)
+              ? () => vm.resumeSchedulePause(schedule)
+              : null,
+          onCallDriver: vm.driverContact?.phone.trim().isNotEmpty == true
+              ? vm.callAssignedDriver
+              : null,
+          onOpenDriverProfile:
+              vm.driverContact != null ? vm.openAssignedDriverProfile : null,
           onOpenChat: vm.driverContact != null ? vm.openDriverChat : null,
           onShowQr: vm.driverContact != null ? vm.showDriverQR : null,
         ),
       ),
     );
     if (resumed == true && mounted) {
+      final scheduleId = schedule.id;
       await vm.reloadPage();
+      if (!mounted || scheduleId == null) {
+        return;
+      }
+      for (final refreshedSchedule in vm.schedules) {
+        if (refreshedSchedule.id == scheduleId) {
+          unawaited(_openContractDetails(refreshedSchedule));
+          break;
+        }
+      }
     }
   }
 
@@ -454,6 +509,24 @@ class _GraphViewState extends State<GraphView>
         return;
       }
       unawaited(_openContractDetails(targetSchedule!));
+    });
+  }
+
+  void _maybeHandlePendingDetailsOpen() {
+    if (!vm.consumePendingDetailsOpen()) {
+      return;
+    }
+
+    final targetSchedule = vm.selectedSchedule;
+    if (targetSchedule == null) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_openContractDetails(targetSchedule));
     });
   }
 
@@ -524,14 +597,14 @@ class _GraphViewState extends State<GraphView>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Мои графики',
+                'Мои контракты',
                 style: AutonannyTypography.h3(
                   color: context.autonannyColors.textPrimary,
                 ),
               ),
               const SizedBox(height: AutonannySpacing.xs),
               Text(
-                'Выберите действующий график или создайте новый.',
+                'Выберите действующий контракт или создайте новый.',
                 style: AutonannyTypography.bodyS(
                   color: context.autonannyColors.textSecondary,
                 ),
@@ -568,9 +641,9 @@ class _GraphViewState extends State<GraphView>
                               ),
                             AutonannyIconButton(
                               icon: const AutonannyIcon(AutonannyIcons.close),
-                              onPressed: () {
+                              onPressed: () async {
                                 Navigator.of(sheetContext).pop();
-                                vm.deleteSchedule(schedule);
+                                await vm.deleteSchedule(schedule);
                               },
                               variant: AutonannyIconButtonVariant.ghost,
                               size: 36,
@@ -589,7 +662,7 @@ class _GraphViewState extends State<GraphView>
                 children: [
                   Expanded(
                     child: AutonannyButton(
-                      label: 'Новый график',
+                      label: 'Новый контракт',
                       leading: const AutonannyIcon(
                         AutonannyIcons.add,
                         color: Colors.white,
@@ -644,14 +717,14 @@ class _EmptyGraphState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const AutonannyEmptyState(
-              title: 'У вас пока нет графиков',
+              title: 'У вас пока нет контрактов',
               description:
-                  'Создайте первый график регулярных поездок, чтобы получить отклики водителей.',
+                  'Создайте первый контракт с регулярными поездками, чтобы получить отклики водителей.',
               icon: AutonannyIcon(AutonannyIcons.calendar, size: 36),
             ),
             const SizedBox(height: AutonannySpacing.lg),
             AutonannyButton(
-              label: 'Создать график',
+              label: 'Создать контракт',
               leading: const AutonannyIcon(
                 AutonannyIcons.add,
                 color: Colors.white,
@@ -706,10 +779,12 @@ class _GraphHeader extends StatelessWidget {
   const _GraphHeader({
     required this.vm,
     required this.onPickSchedule,
+    this.onOpenDetails,
   });
 
   final GraphVM vm;
   final Future<void> Function() onPickSchedule;
+  final VoidCallback? onOpenDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -733,7 +808,7 @@ class _GraphHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      schedule?.title ?? 'График не выбран',
+                      schedule?.title ?? 'Контракт не выбран',
                       style: AutonannyTypography.h2(
                         color: colors.textInverse,
                       ),
@@ -758,7 +833,7 @@ class _GraphHeader extends StatelessWidget {
                     ),
                     onPressed: onPickSchedule,
                     variant: AutonannyIconButtonVariant.primary,
-                    tooltip: 'Сменить график',
+                    tooltip: 'Сменить контракт',
                   ),
                   const SizedBox(height: AutonannySpacing.sm),
                   AutonannyIconButton(
@@ -768,7 +843,7 @@ class _GraphHeader extends StatelessWidget {
                     ),
                     onPressed: vm.toGraphCreate,
                     variant: AutonannyIconButtonVariant.primary,
-                    tooltip: 'Новый график',
+                    tooltip: 'Новый контракт',
                   ),
                 ],
               ),
@@ -781,7 +856,7 @@ class _GraphHeader extends StatelessWidget {
             children: [
               _InvertedChip(
                 icon: AutonannyIcons.calendar,
-                label: '${vm.schedules.length} графиков',
+                label: _contractsCountLabel(vm.schedules.length),
               ),
               _InvertedChip(
                 icon: AutonannyIcons.group,
@@ -798,6 +873,21 @@ class _GraphHeader extends StatelessWidget {
             const SizedBox(height: AutonannySpacing.lg),
             Row(
               children: [
+                if (onOpenDetails != null)
+                  Expanded(
+                    child: AutonannyButton(
+                      label: 'Детали контракта',
+                      variant: AutonannyButtonVariant.primary,
+                      expand: false,
+                      leading: const AutonannyIcon(
+                        AutonannyIcons.list,
+                        color: Colors.white,
+                      ),
+                      onPressed: onOpenDetails,
+                    ),
+                  ),
+                if (onOpenDetails != null)
+                  const SizedBox(width: AutonannySpacing.md),
                 Expanded(
                   child: AutonannyButton(
                     label: 'Редактировать',
@@ -880,7 +970,9 @@ class _ContractStatusSection extends StatelessWidget {
       ),
       child: vm.nextTripLabel == null
           ? Text(
-              'Выберите график и дождитесь откликов, чтобы продолжить.',
+              vm.selectedSchedule == null
+                  ? 'Выберите контракт и дождитесь откликов, чтобы продолжить.'
+                  : vm.selectedDayEmptyMessage,
               style: AutonannyTypography.bodyS(
                 color: context.autonannyColors.textSecondary,
               ),
@@ -927,14 +1019,29 @@ class _ContractStatusSection extends StatelessWidget {
   }
 }
 
+String _contractsCountLabel(int count) {
+  final mod10 = count % 10;
+  final mod100 = count % 100;
+
+  if (mod10 == 1 && mod100 != 11) {
+    return '$count контракт';
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return '$count контракта';
+  }
+  return '$count контрактов';
+}
+
 class _PausedContractBanner extends StatelessWidget {
   const _PausedContractBanner({
     required this.schedule,
     this.onResumed,
+    this.onManualResume,
   });
 
   final Schedule schedule;
   final Future<void> Function()? onResumed;
+  final Future<bool> Function()? onManualResume;
 
   @override
   Widget build(BuildContext context) {
@@ -947,8 +1054,8 @@ class _PausedContractBanner extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AutonannySectionContainer(
-          title: 'Контракт приостановлен водителем',
-          subtitle: 'Поездки по этому контракту временно не выполняются.',
+          title: _pauseTitle(schedule),
+          subtitle: _pauseSubtitle(schedule),
           trailing: const AutonannyBadge(label: 'На паузе'),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -992,6 +1099,23 @@ class _PausedContractBanner extends StatelessWidget {
                     expand: false,
                     onPressed: () => _openWalletTopUp(context),
                   ),
+                ),
+              ] else if (onManualResume != null) ...[
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyButton(
+                  label: 'Возобновить досрочно',
+                  variant: AutonannyButtonVariant.secondary,
+                  onPressed: () async {
+                    final resumed = await onManualResume!.call();
+                    if (!context.mounted || !resumed) {
+                      return;
+                    }
+                    await NannyDialogs.showMessageBox(
+                      context,
+                      'Контракт возобновлён',
+                      'Поездки по контракту снова активны.',
+                    );
+                  },
                 ),
               ],
             ],
@@ -1052,10 +1176,38 @@ class _PausedContractBanner extends StatelessWidget {
     }
   }
 
-  bool _isBalancePause(String? raw) {
+  static bool isBalancePause(String? raw) {
     return raw == 'insufficient_balance' ||
         raw == 'low_balance' ||
         raw == 'lack_of_funds';
+  }
+
+  bool _isBalancePause(String? raw) => isBalancePause(raw);
+
+  String _pauseTitle(Schedule schedule) {
+    switch (schedule.pauseInitiatedBy) {
+      case 1:
+        return 'Контракт приостановлен водителем';
+      case 2:
+        return 'Контракт поставлен на паузу';
+      case 3:
+        return 'Контракт приостановлен';
+      default:
+        return 'Контракт на паузе';
+    }
+  }
+
+  String _pauseSubtitle(Schedule schedule) {
+    switch (schedule.pauseInitiatedBy) {
+      case 1:
+        return 'Поездки по этому контракту временно не выполняются по решению водителя.';
+      case 2:
+        return 'Вы временно остановили поездки по этому контракту.';
+      case 3:
+        return 'Поездки временно остановлены, пока не будет решён вопрос с оплатой.';
+      default:
+        return 'Поездки по этому контракту временно не выполняются.';
+    }
   }
 
   Future<void> _openWalletTopUp(BuildContext context) async {
@@ -1074,10 +1226,10 @@ class _PausedContractBanner extends StatelessWidget {
 
     final scheduleId = schedule.id;
     if (scheduleId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Не удалось определить контракт для возобновления.'),
-        ),
+      await NannyDialogs.showMessageBox(
+        context,
+        'Ошибка',
+        'Не удалось определить контракт для возобновления.',
       );
       return;
     }
@@ -1087,16 +1239,13 @@ class _PausedContractBanner extends StatelessWidget {
       return;
     }
 
-    final messenger = ScaffoldMessenger.of(context);
     if (!resumeResult.success) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            resumeResult.errorMessage.isNotEmpty
-                ? resumeResult.errorMessage
-                : 'Не удалось возобновить контракт после пополнения.',
-          ),
-        ),
+      await NannyDialogs.showMessageBox(
+        context,
+        'Не удалось возобновить контракт',
+        resumeResult.errorMessage.isNotEmpty
+            ? resumeResult.errorMessage
+            : 'Не удалось возобновить контракт после пополнения.',
       );
       return;
     }
@@ -1106,14 +1255,12 @@ class _PausedContractBanner extends StatelessWidget {
       return;
     }
 
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          resumeResult.response?.isNotEmpty == true
-              ? 'Контракт возобновлён. Следующее списание: ${resumeResult.response}.'
-              : 'Контракт успешно возобновлён.',
-        ),
-      ),
+    await NannyDialogs.showMessageBox(
+      context,
+      'Контракт возобновлён',
+      resumeResult.response?.isNotEmpty == true
+          ? 'Следующее списание: ${resumeResult.response}.'
+          : 'Контракт успешно возобновлён.',
     );
   }
 }

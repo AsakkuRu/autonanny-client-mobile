@@ -5,6 +5,7 @@ import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/views/pages/graph_create.dart';
+import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/base_views/views/direct.dart';
 import 'package:nanny_components/base_views/views/driver_info.dart';
 import 'package:nanny_components/dialogs/driver_qr_dialog.dart';
@@ -35,11 +36,14 @@ class GraphVM extends ViewModelBase {
   DriverContact? driverContact;
   List<ScheduleResponsesData> responses = [];
 
-  /// ID графика для выбора при следующей загрузке (после создания нового).
+  /// ID контракта для выбора при следующей загрузке (после создания нового).
   int? _selectScheduleIdOnNextLoad;
 
-  /// При следующей загрузке выбрать самый новый график (fallback если id не получен).
+  /// При следующей загрузке выбрать самый новый контракт (fallback если id не получен).
   bool _selectNewestOnNextLoad = false;
+
+  /// После create/edit открыть детали выбранного контракта.
+  bool _openSelectedScheduleDetailsOnNextLoad = false;
 
   StreamSubscription<dynamic>? _scheduleUpdatesSub;
   StreamSubscription<dynamic>? _connectedSub;
@@ -111,11 +115,17 @@ class GraphVM extends ViewModelBase {
     _connectedSub = null;
   }
 
+  bool consumePendingDetailsOpen() {
+    final shouldOpen = _openSelectedScheduleDetailsOnNextLoad;
+    _openSelectedScheduleDetailsOnNextLoad = false;
+    return shouldOpen;
+  }
+
   List<NannyWeekday> selectedWeekday = [
     NannyWeekday.values[DateTime.now().weekday - 1]
   ];
 
-  // --- Вспомогательные геттеры для статуса графика и водителя ---
+  // --- Вспомогательные геттеры для статуса контракта и водителя ---
 
   List<ScheduleResponsesData> get _responsesForSelectedSchedule =>
       selectedSchedule == null
@@ -129,7 +139,7 @@ class GraphVM extends ViewModelBase {
   /// Короткий статус программы/контракта для родителя.
   String get contractStatusLabel {
     if (selectedSchedule == null) {
-      return 'График не выбран';
+      return 'Контракт не выбран';
     }
     if (hasDriver) {
       return 'Контракт подтверждён';
@@ -143,7 +153,7 @@ class GraphVM extends ViewModelBase {
   /// Дополнительное описание статуса.
   String get contractStatusDescription {
     if (selectedSchedule == null) {
-      return 'Выберите график, чтобы увидеть детали программы.';
+      return 'Выберите контракт, чтобы увидеть его детали.';
     }
     if (hasDriver) {
       return 'Вы выбрали автоняню, контракт активен. Перед поездкой будет доступен QR/PIN для верификации и чат с водителем.';
@@ -156,18 +166,38 @@ class GraphVM extends ViewModelBase {
 
   /// Краткая информация о ближайшей поездке по выбранному дню.
   String? get nextTripLabel {
-    if (selectedSchedule == null || selectedWeekday.isEmpty) return null;
-    final day = selectedWeekday.first;
-    final roadsForDay =
-        selectedSchedule!.roads.where((r) => r.weekDay == day).toList()
-          ..sort(
-            (a, b) => a.startTime.hour.compareTo(b.startTime.hour) != 0
-                ? a.startTime.hour.compareTo(b.startTime.hour)
-                : a.startTime.minute.compareTo(b.startTime.minute),
-          );
-    if (roadsForDay.isEmpty) return null;
-    final road = roadsForDay.first;
+    if (selectedDayRoads.isEmpty) return null;
+    final road = selectedDayRoads.first;
     return '${road.startTime.formatTime()} – ${road.endTime.formatTime()}';
+  }
+
+  NannyWeekday? get selectedDay =>
+      selectedWeekday.isEmpty ? null : selectedWeekday.first;
+
+  List<Road> get selectedDayRoads {
+    final day = selectedDay;
+    if (selectedSchedule == null || day == null) {
+      return const <Road>[];
+    }
+    final roadsForDay = selectedSchedule!.roads
+        .where((road) => road.weekDay == day)
+        .toList(growable: false);
+    return List<Road>.from(roadsForDay)
+      ..sort(
+        (a, b) => a.startTime.hour.compareTo(b.startTime.hour) != 0
+            ? a.startTime.hour.compareTo(b.startTime.hour)
+            : a.startTime.minute.compareTo(b.startTime.minute),
+      );
+  }
+
+  bool get hasRoutesForSelectedDay => selectedDayRoads.isNotEmpty;
+
+  String get selectedDayEmptyMessage {
+    final day = selectedDay;
+    if (day == null) {
+      return 'Выберите день, чтобы посмотреть маршруты контракта.';
+    }
+    return 'На ${day.fullName.toLowerCase()} по этому контракту поездки не запланированы. Переключите день или откройте детали контракта.';
   }
 
   Map<int, String> get contractChildNamesById {
@@ -178,16 +208,21 @@ class GraphVM extends ViewModelBase {
     };
   }
 
-  List<Child> get selectedScheduleChildren {
-    final selectedIds = selectedSchedule == null
-        ? <int>{}
-        : selectedSchedule!.roads
-            .expand((road) => road.children ?? const <int>[])
-            .toSet();
+  List<Child> contractChildrenFor(Schedule schedule) {
+    final selectedIds =
+        schedule.roads.expand((road) => road.children ?? const <int>[]).toSet();
 
     return children
         .where((child) => child.id != null && selectedIds.contains(child.id))
         .toList(growable: false);
+  }
+
+  List<Child> get selectedScheduleChildren {
+    final schedule = selectedSchedule;
+    if (schedule == null) {
+      return const <Child>[];
+    }
+    return contractChildrenFor(schedule);
   }
 
   List<int> initialRouteChildrenIds({Road? road}) {
@@ -230,7 +265,7 @@ class GraphVM extends ViewModelBase {
       context,
       selectedWeekday.first,
       road: editingRoad,
-      // В экране просмотра графика для уже созданного расписания
+      // В экране просмотра контракта для уже созданного расписания
       // работа ведётся с конкретным днём, поэтому информация о "всех днях"
       // нам здесь не нужна — используем только сформированный Road.
       allSelectedWeekdays: [selectedWeekday.first],
@@ -284,19 +319,30 @@ class GraphVM extends ViewModelBase {
     if (result is int) {
       if (result > 0) {
         _selectScheduleIdOnNextLoad = result;
+        _openSelectedScheduleDetailsOnNextLoad = true;
       } else if (result == -1) {
-        // Fallback: id не получен от бэкенда, выберем самый новый график
+        // Fallback: id не получен от бэкенда, выберем самый новый контракт
         _selectNewestOnNextLoad = true;
+        _openSelectedScheduleDetailsOnNextLoad = true;
       }
     }
     reloadPage();
   }
 
   void toGraphEdit({required Schedule schedule}) async {
-    // Сразу фиксируем этот график как выбранный,
+    // Сразу фиксируем этот контракт как выбранный,
     // чтобы после возврата и перезагрузки остаться на нём.
     scheduleSelected(schedule);
-    await navigateToView(GraphCreate(schedule: schedule));
+    final result = await Navigator.push<Object?>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GraphCreate(schedule: schedule),
+      ),
+    );
+    if (result is int && result > 0) {
+      _selectScheduleIdOnNextLoad = result;
+      _openSelectedScheduleDetailsOnNextLoad = true;
+    }
     reloadPage();
   }
 
@@ -328,25 +374,236 @@ class GraphVM extends ViewModelBase {
     }
   }
 
-  void deleteSchedule(Schedule schedule) async {
-    if (!await NannyDialogs.confirmAction(
-        context, "Удалить выбранный график?")) {
-      return;
+  Future<bool> deleteSchedule(Schedule schedule) async {
+    final scheduleId = schedule.id;
+    if (scheduleId == null) {
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        "Не удалось определить контракт для расторжения.",
+      );
+      return false;
     }
-    if (!context.mounted) return;
+
+    final nearestTripLabel = _nearestTripLabelFor(schedule);
+    final initialPrompt = nearestTripLabel == null
+        ? "Расторгнуть контракт? Все будущие поездки будут отменены. Если до ближайшей поездки осталось меньше 30 минут, может списаться 50% стоимости."
+        : "Расторгнуть контракт? Все будущие поездки будут отменены. Ближайшая поездка: $nearestTripLabel. Если до неё осталось меньше 30 минут, может списаться 50% стоимости.";
+
+    if (!await NannyDialogs.confirmAction(
+      context,
+      initialPrompt,
+      title: "Расторгнуть контракт",
+      confirmText: "Расторгнуть",
+      cancelText: "Не расторгать",
+    )) {
+      return false;
+    }
+    if (!context.mounted) return false;
 
     LoadScreen.showLoad(context, true);
+    final previewResult =
+        await NannyOrdersApi.requestScheduleCancellation(scheduleId);
+    if (context.mounted) {
+      LoadScreen.showLoad(context, false);
+    }
 
-    var result = await NannyOrdersApi.deleteScheduleById(schedule.id!);
+    if (previewResult.success) {
+      await reloadPage();
+      return true;
+    }
+
+    if (previewResult.requiresDebit) {
+      final debitAmount = previewResult.debitAmount ?? 0;
+      final debitPrompt = nearestTripLabel == null
+          ? "До ближайшей поездки осталось меньше 30 минут. При расторжении спишется штраф ${_formatMoney(debitAmount)} в пользу водителя."
+          : "До ближайшей поездки ($nearestTripLabel) осталось меньше 30 минут. При расторжении спишется штраф ${_formatMoney(debitAmount)} в пользу водителя.";
+
+      if (!context.mounted) {
+        return false;
+      }
+      final confirmDebit = await NannyDialogs.confirmAction(
+        context,
+        debitPrompt,
+        title: "Поздняя отмена контракта",
+        confirmText: "Подтвердить списание",
+        cancelText: "Не отменять",
+      );
+      if (!confirmDebit || !context.mounted) {
+        return false;
+      }
+
+      LoadScreen.showLoad(context, true);
+      final debitResult = await NannyOrdersApi.cancelScheduleWithDebit(
+        id: scheduleId,
+        debitAmount: debitAmount,
+      );
+      if (context.mounted) {
+        LoadScreen.showLoad(context, false);
+      }
+
+      if (!debitResult.success) {
+        if (context.mounted) {
+          NannyDialogs.showMessageBox(
+            context,
+            "Ошибка",
+            debitResult.errorMessage,
+          );
+        }
+        return false;
+      }
+
+      await reloadPage();
+      return true;
+    }
+
+    if (context.mounted) {
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        previewResult.message.isNotEmpty
+            ? previewResult.message
+            : "Не удалось расторгнуть контракт.",
+      );
+    }
+    return false;
+  }
+
+  Future<bool> resumeSchedulePause(Schedule schedule) async {
+    final scheduleId = schedule.id;
+    if (scheduleId == null) {
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        "Не удалось определить контракт для возобновления.",
+      );
+      return false;
+    }
+
+    final confirm = await NannyDialogs.confirmAction(
+      context,
+      "Возобновить контракт досрочно? После этого поездки снова появятся в расписании.",
+      title: "Возобновить контракт",
+      confirmText: "Возобновить",
+      cancelText: "Пока оставить на паузе",
+    );
+    if (!confirm || !context.mounted) {
+      return false;
+    }
+
+    LoadScreen.showLoad(context, true);
+    final result = await NannyUsersApi.resumeContract(scheduleId);
+    if (context.mounted) {
+      LoadScreen.showLoad(context, false);
+    }
+
     if (!result.success) {
       if (context.mounted) {
         NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
       }
+      return false;
     }
 
-    if (context.mounted) LoadScreen.showLoad(context, false);
+    await reloadPage();
+    return true;
+  }
+
+  Future<bool> pauseSchedule({
+    required Schedule schedule,
+    required String dateFrom,
+    required String dateUntil,
+    required String reason,
+  }) async {
+    final scheduleId = schedule.id;
+    if (scheduleId == null) {
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        "Не удалось определить контракт для приостановки.",
+      );
+      return false;
+    }
+
+    LoadScreen.showLoad(context, true);
+    final result = await NannyUsersApi.pauseContract(
+      scheduleId: scheduleId,
+      dateFrom: dateFrom,
+      dateUntil: dateUntil,
+      reason: reason,
+    );
+    if (context.mounted) {
+      LoadScreen.showLoad(context, false);
+    }
+
+    if (!result.success) {
+      if (context.mounted) {
+        NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
+      }
+      return false;
+    }
 
     await reloadPage();
+    return true;
+  }
+
+  String _formatMoney(double amount) {
+    final hasFraction = amount != amount.roundToDouble();
+    final normalized = hasFraction
+        ? amount
+            .toStringAsFixed(2)
+            .replaceAll(RegExp(r'0+$'), '')
+            .replaceAll(RegExp(r'\.$'), '')
+        : amount.round().toString();
+    return "$normalized ₽";
+  }
+
+  String? _nearestTripLabelFor(Schedule schedule) {
+    final nearestRoad = _nearestUpcomingRoad(schedule);
+    if (nearestRoad == null) {
+      return null;
+    }
+
+    final date = _nextOccurrenceFor(nearestRoad.weekDay, nearestRoad.startTime);
+    final weekday = nearestRoad.weekDay.shortName;
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return "$weekday, $day.$month ${nearestRoad.startTime.formatTime()}";
+  }
+
+  Road? _nearestUpcomingRoad(Schedule schedule) {
+    Road? nearestRoad;
+    DateTime? nearestDateTime;
+
+    for (final road in schedule.roads) {
+      final occurrence = _nextOccurrenceFor(road.weekDay, road.startTime);
+      if (nearestDateTime == null || occurrence.isBefore(nearestDateTime)) {
+        nearestDateTime = occurrence;
+        nearestRoad = road;
+      }
+    }
+
+    return nearestRoad;
+  }
+
+  DateTime _nextOccurrenceFor(NannyWeekday weekday, TimeOfDay startTime) {
+    final now = DateTime.now();
+    final todayIndex = now.weekday - 1;
+    final targetIndex = weekday.index;
+    final daysDifference = (targetIndex - todayIndex) % 7;
+
+    var candidate = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      startTime.hour,
+      startTime.minute,
+    ).add(Duration(days: daysDifference));
+
+    if (!candidate.isAfter(now)) {
+      candidate = candidate.add(const Duration(days: 7));
+    }
+
+    return candidate;
   }
 
   void tryDeleteRoad(Road road) async {
@@ -422,7 +679,7 @@ class GraphVM extends ViewModelBase {
       NannyDialogs.showMessageBox(
         context,
         "Ошибка",
-        "Выберите расписание",
+        "Выберите контракт",
       );
       return;
     }
@@ -450,12 +707,59 @@ class GraphVM extends ViewModelBase {
     await navigateToView(DirectView(idChat: chatId, name: driverName));
   }
 
+  Future<void> openAssignedDriverProfile() async {
+    final driver = driverContact;
+    if (driver == null) {
+      return;
+    }
+    await navigateToView(
+      DriverInfoView(
+        id: driver.id,
+        onOpenRating: () => navigateToView(
+          DriverRatingDetailsView(
+            driverId: driver.id,
+            driverName: driver.fullName,
+            driverPhoto: driver.photo,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> callAssignedDriver() async {
+    final driver = driverContact;
+    final rawPhone = driver?.phone.trim();
+    if (rawPhone == null || rawPhone.isEmpty) {
+      await NannyDialogs.showMessageBox(
+        context,
+        "Телефон недоступен",
+        "Номер водителя пока не удалось загрузить. Попробуйте позже.",
+      );
+      return;
+    }
+
+    final normalizedPhone = rawPhone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final launched = await launchUrl(Uri(scheme: 'tel', path: normalizedPhone));
+    if (!context.mounted || launched) {
+      return;
+    }
+
+    await NannyDialogs.showMessageBox(
+      context,
+      "Не удалось открыть набор номера",
+      "Попробуйте еще раз или свяжитесь с водителем через чат.",
+    );
+  }
+
   // Открытие профиля водителя по отклику
   void openDriverFromResponse(ScheduleResponsesData response) async {
     await navigateToView(DriverInfoView(
       id: response.idDriver,
       viewingOrder: true,
       scheduleData: response,
+      onOpenRating: () => navigateToView(
+        DriverRatingDetailsView(driverId: response.idDriver),
+      ),
     ));
   }
 
@@ -511,7 +815,7 @@ class GraphVM extends ViewModelBase {
       }
 
       // Сохраняем выбор пользователя: если до перезагрузки
-      // был выбран конкретный график, пытаемся найти его в
+      // был выбран конкретный контракт, пытаемся найти его в
       // обновлённом списке. При создании нового — выбираем по id или самый новый.
       if (previouslySelectedId != null) {
         selectedSchedule = schedules.firstWhere(
@@ -545,7 +849,7 @@ class GraphVM extends ViewModelBase {
       _updateSpentsFromSelectedSchedule();
 
       // При первом открытии экрана сразу подтягиваем контакт водителя
-      // для автоматически выбранного графика, чтобы статус был корректным.
+      // для автоматически выбранного контракта, чтобы статус был корректным.
       if (selectedSchedule != null) {
         await loadDriverContact();
       }
@@ -583,7 +887,7 @@ class GraphVM extends ViewModelBase {
         _updateSpentsFromSelectedSchedule();
 
         // То же поведение в оффлайн-режиме: пытаемся загрузить контакт
-        // по автоматически выбранному графику (если есть сеть).
+        // по автоматически выбранному контракту (если есть сеть).
         if (selectedSchedule != null) {
           await loadDriverContact();
         }

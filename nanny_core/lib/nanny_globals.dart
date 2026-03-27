@@ -13,4 +13,8 @@ class NannyGlobals {
   /// Событие переключения на вкладку «Расписание». Вызывать при выборе этой вкладки.
   static final StreamController<void> scheduleTabSelectedController =
       StreamController<void>.broadcast();
+
+  /// Локальный сигнал для refresh unread-бейджей после read-sync в чате.
+  static final StreamController<void> chatUnreadRefreshController =
+      StreamController<void>.broadcast();
 }

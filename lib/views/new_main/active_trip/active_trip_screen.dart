@@ -5,6 +5,7 @@ import 'package:nanny_client/ui_sdk/mappers/client_ui_sdk_mappers.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dart';
+import 'package:nanny_client/views/rating/driver_rating_view.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/dialogs/driver_qr_dialog.dart';
 import 'package:nanny_components/new_design/nd_primary_button.dart';
@@ -12,6 +13,7 @@ import 'package:nanny_components/styles/new_design_app.dart';
 import 'package:nanny_components/widgets/map/full_screen_map_address_picker.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_core/api/google_map_api.dart';
+import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
@@ -32,6 +34,8 @@ class ActiveTripScreen extends StatefulWidget {
 class _ActiveTripScreenState extends State<ActiveTripScreen> {
   late ActiveTripVM vm;
   bool _isQrDialogOpen = false;
+  int _handledRouteChangeResultVersion = 0;
+  int _handledTerminalResultVersion = 0;
 
   @override
   void initState() {
@@ -76,6 +80,8 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
             ),
           );
         }
+        _maybeShowTerminalResultSheet();
+        _maybeShowRouteChangeResultSheet();
         return Scaffold(
           backgroundColor: context.autonannyColors.surfaceSecondary,
           body: Stack(
@@ -103,6 +109,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                   onCancelPressed: _showCancelDialog,
                   onChangeRoutePressed: _showChangeRouteSheet,
                   onDonePressed: () => Navigator.of(context).pop(),
+                  onOpenDriverRating: _openDriverRating,
                   onShowQRPressed: _showMeetingCodeQR,
                 ),
               ),
@@ -110,6 +117,126 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
           ),
         );
       },
+    );
+  }
+
+  void _maybeShowTerminalResultSheet() {
+    final currentVersion = vm.terminalResultVersion;
+    if (currentVersion == 0 ||
+        currentVersion == _handledTerminalResultVersion) {
+      return;
+    }
+    _handledTerminalResultVersion = currentVersion;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final result = vm.terminalResult;
+      if (result == null) {
+        return;
+      }
+      _showTerminalResultSheet(result);
+    });
+  }
+
+  Future<void> _showTerminalResultSheet(ActiveTripTerminalResult result) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (ctx) => PopScope(
+        canPop: false,
+        child: _TripActionSheet(
+          title: result.title,
+          subtitle: _formatTripRouteLabel(vm.addresses),
+          leadingIcon: result.statusId == 11
+              ? Icons.check_circle_rounded
+              : result.noDriversFound
+                  ? Icons.search_off_rounded
+                  : Icons.info_outline_rounded,
+          leadingColor: result.statusId == 11
+              ? NDT.success
+              : result.noDriversFound
+                  ? NDT.warning
+                  : NDT.danger,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AutonannyInlineBanner(
+                title: result.title,
+                message: result.message,
+                tone: result.statusId == 11
+                    ? AutonannyBannerTone.success
+                    : result.noDriversFound
+                        ? AutonannyBannerTone.warning
+                        : AutonannyBannerTone.info,
+                leading: AutonannyIcon(
+                  result.statusId == 11
+                      ? AutonannyIcons.checkCircle
+                      : result.noDriversFound
+                          ? AutonannyIcons.warning
+                          : AutonannyIcons.info,
+                ),
+              ),
+              const SizedBox(height: AutonannySpacing.lg),
+              AutonannySectionContainer(
+                title: 'Что дальше',
+                child: Column(
+                  children: [
+                    _TripActionInfoRow(
+                      label: 'Статус',
+                      value: result.title,
+                      valueColor: result.statusId == 11 ? NDT.success : null,
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        vertical: AutonannySpacing.md,
+                      ),
+                      child: Divider(height: 1),
+                    ),
+                    _TripActionInfoRow(
+                      label: 'Следующий шаг',
+                      value: result.supportsDriverRating && vm.orderId != null
+                          ? 'Можно сразу оставить оценку водителю'
+                          : 'Экран поездки можно безопасно закрыть',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AutonannySpacing.lg),
+              if (result.supportsDriverRating && vm.orderId != null) ...[
+                SizedBox(
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: () async {
+                      Navigator.of(ctx).pop();
+                      await _openDriverRating();
+                      if (!mounted) return;
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Оценить водителя'),
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.sm),
+              ],
+              SizedBox(
+                height: 52,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    Navigator.of(context).pop();
+                  },
+                  child: Text(
+                    result.supportsDriverRating ? 'Позже' : 'Закрыть',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -284,6 +411,19 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                         : 'Без дополнительного удержания',
                     valueColor: vm.isArrived ? NDT.danger : null,
                   ),
+                  if (vm.hasPaidWaiting) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        vertical: AutonannySpacing.md,
+                      ),
+                      child: Divider(height: 1),
+                    ),
+                    _TripActionInfoRow(
+                      label: 'Платное ожидание',
+                      value: vm.waitingChargeLabel,
+                      valueColor: NDT.warning,
+                    ),
+                  ],
                   const Padding(
                     padding: EdgeInsets.symmetric(
                       vertical: AutonannySpacing.md,
@@ -296,6 +436,18 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                         ? 'Переводится водителю'
                         : 'Отмена без компенсации',
                   ),
+                  if (vm.hasPaidWaiting) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        vertical: AutonannySpacing.md,
+                      ),
+                      child: Divider(height: 1),
+                    ),
+                    _TripActionInfoRow(
+                      label: 'Сумма на сейчас',
+                      value: vm.currentTripTotalLabel,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -329,8 +481,142 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     );
     if (approve != true) return;
     final cancelled = await vm.cancelSearchOrTrip();
-    if (cancelled && mounted) {
+    if (cancelled != null && mounted) {
+      await _showCancellationResultSheet(cancelled);
+      if (!mounted) return;
       Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _showCancellationResultSheet(
+    OrderCancellationResult result,
+  ) async {
+    final hasPenalty = result.hasPenalty;
+    final penaltyLabel = hasPenalty
+        ? '${result.penalty.toStringAsFixed(result.penalty.truncateToDouble() == result.penalty ? 0 : 2)} ₽'
+        : null;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _TripActionSheet(
+        title: hasPenalty ? 'Поездка отменена со штрафом' : 'Поездка отменена',
+        subtitle: _formatTripRouteLabel(vm.addresses),
+        leadingIcon: hasPenalty
+            ? Icons.warning_amber_rounded
+            : Icons.check_circle_rounded,
+        leadingColor: hasPenalty ? NDT.danger : NDT.success,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AutonannyInlineBanner(
+              title: hasPenalty
+                  ? 'Списан штраф за позднюю отмену'
+                  : 'Водитель уже уведомлен',
+              message: hasPenalty
+                  ? 'Поездка была отменена после прибытия водителя. С баланса будет удержано $penaltyLabel.'
+                  : 'Активная поездка закрыта, водитель получил уведомление об отмене.',
+              tone: hasPenalty
+                  ? AutonannyBannerTone.danger
+                  : AutonannyBannerTone.success,
+              leading: AutonannyIcon(
+                hasPenalty
+                    ? AutonannyIcons.warning
+                    : AutonannyIcons.checkCircle,
+              ),
+            ),
+            const SizedBox(height: AutonannySpacing.lg),
+            AutonannySectionContainer(
+              title: 'Итог',
+              child: Column(
+                children: [
+                  _TripActionInfoRow(
+                    label: 'Статус',
+                    value: hasPenalty ? 'Отменена со штрафом' : 'Отменена',
+                    valueColor: hasPenalty ? NDT.danger : null,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: AutonannySpacing.md,
+                    ),
+                    child: Divider(height: 1),
+                  ),
+                  _TripActionInfoRow(
+                    label: hasPenalty ? 'Списание' : 'Сообщение',
+                    value: hasPenalty
+                        ? penaltyLabel!
+                        : 'Без дополнительных списаний',
+                    valueColor: hasPenalty ? NDT.danger : null,
+                  ),
+                  if (vm.hasPaidWaiting) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        vertical: AutonannySpacing.md,
+                      ),
+                      child: Divider(height: 1),
+                    ),
+                    _TripActionInfoRow(
+                      label: 'Платное ожидание',
+                      value: vm.waitingChargeLabel,
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        vertical: AutonannySpacing.md,
+                      ),
+                      child: Divider(height: 1),
+                    ),
+                    _TripActionInfoRow(
+                      label: 'Сумма на момент отмены',
+                      value: vm.currentTripTotalLabel,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (result.message.trim().isNotEmpty) ...[
+              const SizedBox(height: AutonannySpacing.md),
+              Text(
+                result.message.trim(),
+                style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: AutonannySpacing.lg),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Понятно'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openDriverRating() async {
+    final activeOrderId = vm.orderId;
+    if (activeOrderId == null) {
+      await NannyDialogs.showMessageBox(
+        context,
+        'Оценка пока недоступна',
+        'Не удалось определить завершенную поездку. Попробуйте открыть оценку из истории поездок.',
+      );
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DriverRatingView(
+          orderId: activeOrderId,
+          driverName: vm.driverContact?.fullName,
+          driverPhoto: vm.driverContact?.photo,
+        ),
+      ),
+    );
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -430,12 +716,171 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       vm.buildRouteChangePayload(selected),
     );
     if (!mounted) return;
-    NannyDialogs.showMessageBox(
-      context,
-      ok ? 'Готово' : 'Ошибка',
-      ok
-          ? 'Изменение маршрута отправлено водителю.'
-          : 'Не удалось отправить изменение маршрута.',
+    await _showRouteChangeResultSheet(
+      success: ok,
+      destinationLabel: selected.address,
+    );
+  }
+
+  Future<void> _showRouteChangeResultSheet({
+    required bool success,
+    required String destinationLabel,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _TripActionSheet(
+        title: success ? 'Маршрут обновляется' : 'Не удалось изменить маршрут',
+        subtitle: _formatTripRouteLabel(vm.addresses),
+        leadingIcon:
+            success ? Icons.alt_route_rounded : Icons.error_outline_rounded,
+        leadingColor: success ? NDT.primary : NDT.danger,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AutonannyInlineBanner(
+              title:
+                  success ? 'Запрос отправлен водителю' : 'Запрос не отправлен',
+              message: success
+                  ? 'Водитель получит новый адрес и сможет принять обновленный маршрут.'
+                  : 'Маршрут остался без изменений. Проверьте подключение к интернету и попробуйте еще раз.',
+              tone: success
+                  ? AutonannyBannerTone.info
+                  : AutonannyBannerTone.danger,
+              leading: AutonannyIcon(
+                success ? AutonannyIcons.info : AutonannyIcons.error,
+              ),
+            ),
+            const SizedBox(height: AutonannySpacing.lg),
+            AutonannySectionContainer(
+              title: success ? 'Новая точка маршрута' : 'Что произошло',
+              child: Column(
+                children: [
+                  _TripActionInfoRow(
+                    label: success ? 'Новый адрес' : 'Статус',
+                    value:
+                        success ? destinationLabel : 'Маршрут не был обновлен',
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: AutonannySpacing.md,
+                    ),
+                    child: Divider(height: 1),
+                  ),
+                  _TripActionInfoRow(
+                    label: 'Дальше',
+                    value: success
+                        ? (vm.routeChangeStatus.isNotEmpty
+                            ? vm.routeChangeStatus
+                            : 'Ожидайте подтверждения от водителя')
+                        : 'Можно повторить запрос с карты или через поиск',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AutonannySpacing.lg),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Понятно'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _maybeShowRouteChangeResultSheet() {
+    final currentVersion = vm.routeChangeResultVersion;
+    if (currentVersion == 0 ||
+        currentVersion == _handledRouteChangeResultVersion) {
+      return;
+    }
+    _handledRouteChangeResultVersion = currentVersion;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final accepted = vm.lastRouteChangeAccepted;
+      if (accepted == null) {
+        return;
+      }
+      _showDriverRouteChangeDecisionSheet(
+        accepted: accepted,
+        destinationLabel: vm.lastRouteChangeDestination ?? 'Маршрут',
+      );
+    });
+  }
+
+  Future<void> _showDriverRouteChangeDecisionSheet({
+    required bool accepted,
+    required String destinationLabel,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _TripActionSheet(
+        title: accepted ? 'Маршрут обновлен' : 'Водитель отклонил изменение',
+        subtitle: _formatTripRouteLabel(vm.addresses),
+        leadingIcon:
+            accepted ? Icons.check_circle_rounded : Icons.block_rounded,
+        leadingColor: accepted ? NDT.success : NDT.danger,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AutonannyInlineBanner(
+              title: accepted
+                  ? 'Водитель подтвердил новый маршрут'
+                  : 'Поездка остается на прежнем маршруте',
+              message: accepted
+                  ? 'Новый адрес принят водителем и уже добавлен в активную поездку.'
+                  : 'Водитель не подтвердил изменение. Вы можете попробовать отправить новый маршрут повторно.',
+              tone: accepted
+                  ? AutonannyBannerTone.success
+                  : AutonannyBannerTone.warning,
+              leading: AutonannyIcon(
+                accepted ? AutonannyIcons.checkCircle : AutonannyIcons.warning,
+              ),
+            ),
+            const SizedBox(height: AutonannySpacing.lg),
+            AutonannySectionContainer(
+              title: accepted ? 'Новый адрес' : 'Статус маршрута',
+              child: Column(
+                children: [
+                  _TripActionInfoRow(
+                    label: accepted ? 'Точка назначения' : 'Решение водителя',
+                    value: accepted ? destinationLabel : 'Изменение отклонено',
+                    valueColor: accepted ? null : NDT.danger,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: AutonannySpacing.md,
+                    ),
+                    child: Divider(height: 1),
+                  ),
+                  _TripActionInfoRow(
+                    label: 'Дальше',
+                    value: accepted
+                        ? 'Продолжайте поездку по обновленному маршруту'
+                        : 'Можно отправить другой адрес или оставить текущий путь',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AutonannySpacing.lg),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Понятно'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -643,6 +1088,7 @@ class _TripSheet extends StatefulWidget {
     required this.onCancelPressed,
     required this.onChangeRoutePressed,
     required this.onDonePressed,
+    required this.onOpenDriverRating,
     required this.onShowQRPressed,
   });
 
@@ -650,6 +1096,7 @@ class _TripSheet extends StatefulWidget {
   final VoidCallback onCancelPressed;
   final VoidCallback onChangeRoutePressed;
   final VoidCallback onDonePressed;
+  final VoidCallback onOpenDriverRating;
   final VoidCallback onShowQRPressed;
 
   @override
@@ -701,6 +1148,10 @@ class _TripSheetState extends State<_TripSheet> {
               _statusBlocks(),
               if (vm.driverContact != null) ...[
                 _driverCard(),
+                if (vm.driverContact?.phone.trim().isNotEmpty == true) ...[
+                  const SizedBox(height: 12),
+                  _driverCallButton(),
+                ],
                 if (vm.driverId != null) ...[
                   const SizedBox(height: 12),
                   _driverRatingButton(),
@@ -725,6 +1176,7 @@ class _TripSheetState extends State<_TripSheet> {
                   style: NDT.bodyM.copyWith(color: NDT.neutral500),
                 ),
                 const SizedBox(height: 12),
+                NdPrimaryButton(label: 'Закрыть', onTap: widget.onDonePressed),
               ],
               if (vm.connectionTimedOut) ...[
                 Text(
@@ -740,13 +1192,30 @@ class _TripSheetState extends State<_TripSheet> {
                 ),
                 const SizedBox(height: 12),
                 NdPrimaryButton(label: 'Закрыть', onTap: widget.onDonePressed),
-              ] else if (vm.isFinished) ...[
+              ] else if (vm.statusId == 3 && !vm.noDriversFound) ...[
                 Text(
-                  'Детали поездки сохранены в истории. Оценить поездку можно в разделе истории.',
+                  'Поездка уже отменена и больше не активна.',
                   style: NDT.bodyM.copyWith(color: NDT.neutral500),
                 ),
                 const SizedBox(height: 12),
                 NdPrimaryButton(label: 'Закрыть', onTap: widget.onDonePressed),
+              ] else if (vm.isFinished) ...[
+                Text(
+                  'Поездка завершена. Вы можете сразу оценить водителя или вернуться к этому позже в истории.',
+                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                ),
+                const SizedBox(height: 12),
+                if (vm.orderId != null) ...[
+                  NdPrimaryButton(
+                    label: 'Оценить водителя',
+                    onTap: widget.onOpenDriverRating,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                OutlinedButton(
+                  onPressed: widget.onDonePressed,
+                  child: const Text('Закрыть'),
+                ),
               ] else ...[
                 if (vm.isArrived) const SizedBox(height: 24),
                 _tripActionsSection(),
@@ -867,6 +1336,9 @@ class _TripSheetState extends State<_TripSheet> {
 
   Widget _tripActionsSection() {
     final vm = widget.vm;
+    if (vm.isTerminalState) {
+      return const SizedBox.shrink();
+    }
     final hasCancelAction = !vm.isInProgress;
     final hasRouteAction = vm.statusId != 15;
 
@@ -939,47 +1411,99 @@ class _TripSheetState extends State<_TripSheet> {
         border: Border.all(
           color: vm.isWithinFreeWaitingWindow
               ? const Color(0x33F59E0B)
-              : NDT.neutral200,
+              : const Color(0x66F59E0B),
         ),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  vm.waitingStatusTitle,
-                  style: NDT.h3.copyWith(color: NDT.neutral900),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      vm.waitingStatusTitle,
+                      style: NDT.h3.copyWith(color: NDT.neutral900),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      vm.waitingStatusHint,
+                      style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  vm.waitingStatusHint,
-                  style: NDT.bodyS.copyWith(color: NDT.neutral500),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    vm.waitingTimerLabel,
+                    style: NDT.h2.copyWith(color: NDT.neutral900),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    vm.isWithinFreeWaitingWindow
+                        ? 'ожидание идет'
+                        : vm.waitingRateLabel,
+                    style: NDT.caption.copyWith(
+                      color: vm.isWithinFreeWaitingWindow
+                          ? const Color(0xFF92400E)
+                          : const Color(0xFFB45309),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (vm.hasPaidWaiting) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _waitingMetricTile(
+                    label: 'Доплата',
+                    value: vm.waitingChargeLabel,
+                    accentColor: const Color(0xFFB45309),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _waitingMetricTile(
+                    label: 'Текущая сумма',
+                    value: vm.currentTripTotalLabel,
+                    accentColor: NDT.neutral900,
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                vm.waitingTimerLabel,
-                style: NDT.h2.copyWith(color: NDT.neutral900),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                vm.isWithinFreeWaitingWindow
-                    ? 'ожидание идет'
-                    : 'дольше 10 мин',
-                style: NDT.caption.copyWith(
-                  color: vm.isWithinFreeWaitingWindow
-                      ? const Color(0xFF92400E)
-                      : NDT.neutral500,
-                ),
-              ),
-            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _waitingMetricTile({
+    required String label,
+    required String value,
+    required Color accentColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: NDT.brMd,
+        border: Border.all(color: NDT.neutral200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: NDT.caption.copyWith(color: NDT.neutral500)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: NDT.h3.copyWith(color: accentColor),
           ),
         ],
       ),
@@ -1107,21 +1631,65 @@ class _TripSheetState extends State<_TripSheet> {
       child: Column(
         children: [
           for (var i = 0; i < children.length; i++) ...[
-            AutonannyListRow(
-              padding: EdgeInsets.zero,
-              leading: AutonannyAvatar(
-                imageUrl: children[i].photoUrl,
-                initials: children[i].initials,
-                size: 44,
-              ),
-              title: children[i].fullName.isNotEmpty
-                  ? children[i].fullName
-                  : 'Ребенок ${i + 1}',
-              subtitle: widget.vm.isInProgress
-                  ? 'Поездка активна'
-                  : widget.vm.isArrived
-                      ? 'Ожидает посадку'
-                      : 'Пассажир поездки',
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AutonannyListRow(
+                  padding: EdgeInsets.zero,
+                  leading: AutonannyAvatar(
+                    imageUrl: children[i].photoUrl,
+                    initials: children[i].initials,
+                    size: 44,
+                  ),
+                  title: children[i].fullName.isNotEmpty
+                      ? children[i].fullName
+                      : 'Ребенок ${i + 1}',
+                  subtitle: widget.vm.isInProgress
+                      ? 'Поездка активна'
+                      : widget.vm.isArrived
+                          ? 'Ожидает посадку'
+                          : 'Пассажир поездки',
+                ),
+                if (_childContextBadges(children[i]).isNotEmpty ||
+                    _childContextNotes(children[i]).isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 56,
+                      top: AutonannySpacing.sm,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_childContextBadges(children[i]).isNotEmpty)
+                          Wrap(
+                            spacing: AutonannySpacing.sm,
+                            runSpacing: AutonannySpacing.sm,
+                            children: _childContextBadges(children[i])
+                                .map(
+                                  (badge) => AutonannyBadge(label: badge),
+                                )
+                                .toList(growable: false),
+                          ),
+                        if (_childContextNotes(children[i]).isNotEmpty) ...[
+                          const SizedBox(height: AutonannySpacing.sm),
+                          ..._childContextNotes(children[i]).map(
+                            (note) => Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AutonannySpacing.xs,
+                              ),
+                              child: Text(
+                                note.$1,
+                                style: AutonannyTypography.bodyS(
+                                  color: note.$2,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
             ),
             if (i != children.length - 1)
               const Padding(
@@ -1132,6 +1700,26 @@ class _TripSheetState extends State<_TripSheet> {
         ],
       ),
     );
+  }
+
+  List<String> _childContextBadges(_TripChildSummary child) {
+    return [
+      if (child.age != null) '${child.age} лет',
+      if (child.schoolClass != null && child.schoolClass!.isNotEmpty)
+        child.schoolClass!,
+      if (child.emergencyContactsCount > 0)
+        'Контактов: ${child.emergencyContactsCount}',
+    ];
+  }
+
+  List<(String, Color)> _childContextNotes(_TripChildSummary child) {
+    final colors = context.autonannyColors;
+    return [
+      if (child.allergiesWarning != null && child.allergiesWarning!.isNotEmpty)
+        ('Аллергии: ${child.allergiesWarning}', colors.statusDanger),
+      if (child.characterNotes != null && child.characterNotes!.isNotEmpty)
+        (child.characterNotes!, colors.textSecondary),
+    ];
   }
 
   Widget _servicesCard() {
@@ -1222,6 +1810,17 @@ class _TripSheetState extends State<_TripSheet> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _driverCallButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: AutonannyButton(
+        label: 'Позвонить водителю',
+        variant: AutonannyButtonVariant.secondary,
+        onPressed: widget.vm.callAssignedDriver,
       ),
     );
   }
@@ -1616,12 +2215,22 @@ class _TripChildSummary {
     required this.name,
     required this.surname,
     this.photoUrl,
+    this.age,
+    this.schoolClass,
+    this.characterNotes,
+    this.allergiesWarning,
+    this.emergencyContactsCount = 0,
   });
 
   final int? id;
   final String name;
   final String surname;
   final String? photoUrl;
+  final int? age;
+  final String? schoolClass;
+  final String? characterNotes;
+  final String? allergiesWarning;
+  final int emergencyContactsCount;
 
   String get fullName => '$name $surname'.trim();
 
@@ -1652,6 +2261,12 @@ List<_TripChildSummary> _extractTripChildren(
           surname: (child['surname'] ?? '').toString(),
           photoUrl:
               (child['photo_url'] ?? child['photo_path'] ?? '').toString(),
+          age: (child['age'] as num?)?.toInt(),
+          schoolClass: child['school_class']?.toString(),
+          characterNotes: child['character_notes']?.toString(),
+          allergiesWarning: child['allergies_warning']?.toString(),
+          emergencyContactsCount:
+              (child['emergency_contacts_count'] as num?)?.toInt() ?? 0,
         ),
       )
       .where((child) =>

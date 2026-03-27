@@ -461,6 +461,27 @@ class DriveOrderVM extends ViewModelBase {
         .toList(growable: false);
   }
 
+  double get selectedAdditionalServicesTotal {
+    final childCount = _selectedChildIds.isEmpty ? 1 : _selectedChildIds.length;
+    return additionalParams
+        .where(isAdditionalParamSelected)
+        .fold<double>(
+          0,
+          (sum, param) => sum + ((param.amount ?? 0) * childCount),
+        );
+  }
+
+  double? get totalEstimatedPrice {
+    final baseAmount = selectedTariff?.amount;
+    final extrasAmount = selectedAdditionalServicesTotal;
+
+    if ((baseAmount == null || baseAmount <= 0) && extrasAmount <= 0) {
+      return null;
+    }
+
+    return (baseAmount ?? 0) + extrasAmount;
+  }
+
   String _additionalParamKey(OtherParametr param) =>
       '${param.id ?? param.title}';
 

@@ -16,6 +16,7 @@ class ChatsVM extends ViewModelBase {
     required super.update,
     this.updateList,
     this.onReturnFromChat,
+    this.buildDriverRatingView,
   }) {
     unawaited(_bindRealtimeUpdates());
   }
@@ -25,16 +26,24 @@ class ChatsVM extends ViewModelBase {
 
   /// Вызывается после возврата из чата (для сброса бейджа непрочитанных в нижнем баре)
   VoidCallback? onReturnFromChat;
+  Widget Function(int driverId)? buildDriverRatingView;
   bool chatsSelected = false;
   String query = "";
 
   StreamSubscription<Map<String, dynamic>>? sub;
+  StreamSubscription<void>? _localRefreshSub;
+  bool _refreshingFromRealtime = false;
 
   Future<void> _bindRealtimeUpdates() async {
     await sub?.cancel();
+    await _localRefreshSub?.cancel();
     final socket = UnifiedSocket.instance ?? await UnifiedSocket.connect();
     sub = socket.events.listen((msg) {
       final event = msg['event']?.toString();
+      if (event == 'connected') {
+        unawaited(_refreshFromRealtime());
+        return;
+      }
       if (event == 'chat.message_created' ||
           event == 'chat.message_edited' ||
           event == 'chat.unread_changed' ||
@@ -42,6 +51,20 @@ class ChatsVM extends ViewModelBase {
         updateList?.call();
       }
     });
+    _localRefreshSub =
+        NannyGlobals.chatUnreadRefreshController.stream.listen((_) {
+      updateList?.call();
+    });
+  }
+
+  Future<void> _refreshFromRealtime() async {
+    if (_refreshingFromRealtime) return;
+    _refreshingFromRealtime = true;
+    try {
+      updateList?.call();
+    } finally {
+      _refreshingFromRealtime = false;
+    }
   }
 
   void chatsSwitch({required bool switchToChats}) => update(() {
@@ -80,6 +103,7 @@ class ChatsVM extends ViewModelBase {
 
   void dispose() {
     sub?.cancel();
+    _localRefreshSub?.cancel();
   }
 
   void checkScheduleRequest(ScheduleResponsesData data) async {
@@ -87,6 +111,9 @@ class ChatsVM extends ViewModelBase {
       id: data.idDriver,
       viewingOrder: true,
       scheduleData: data,
+      onOpenRating: buildDriverRatingView == null
+          ? null
+          : () => navigateToView(buildDriverRatingView!(data.idDriver)),
     ));
 
     update(() {});

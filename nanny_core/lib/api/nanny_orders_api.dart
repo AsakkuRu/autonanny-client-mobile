@@ -8,6 +8,7 @@ import 'package:nanny_core/models/from_api/drive_and_map/route_deviation.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/shared_ride.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
 import 'package:nanny_core/models/from_api/driver_rating.dart';
+import 'package:nanny_core/models/from_api/rating/driver_order_rating.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 /// Ответ API получения кода встречи для графика (родитель).
@@ -29,6 +30,32 @@ class MeetingCodeForOrder {
     this.idScheduleRoad,
     this.verificationScope,
   });
+}
+
+class ScheduleCancellationResult {
+  const ScheduleCancellationResult({
+    required this.success,
+    this.requiresDebit = false,
+    this.debitAmount,
+    this.message = '',
+  });
+
+  final bool success;
+  final bool requiresDebit;
+  final double? debitAmount;
+  final String message;
+}
+
+class OrderCancellationResult {
+  const OrderCancellationResult({
+    required this.message,
+    this.penalty = 0,
+  });
+
+  final String message;
+  final double penalty;
+
+  bool get hasPenalty => penalty > 0;
 }
 
 class NannyOrdersApi {
@@ -93,6 +120,87 @@ class NannyOrdersApi {
     return RequestBuilder<Schedule>().create(
         dioRequest: DioRequest.dio.delete("/orders/schedule/$id"),
         errorCodeMsgs: {404: "Расписание не найдено!"});
+  }
+
+  static Future<ScheduleCancellationResult> requestScheduleCancellation(
+    int id,
+  ) async {
+    try {
+      final response = await DioRequest.dio.delete(
+        "/orders/schedule/$id",
+        options: Options(
+          extra: {
+            'allowStatusCodes': [202],
+          },
+        ),
+      );
+
+      final data = response.data;
+      final message = data is Map
+          ? (data['message']?.toString() ?? '')
+          : 'Контракт расторгнут';
+
+      if (response.statusCode == 200) {
+        return ScheduleCancellationResult(
+          success: true,
+          message: message.isEmpty ? 'Контракт расторгнут' : message,
+        );
+      }
+
+      if (response.statusCode == 202) {
+        final rawDebitAmount = data is Map ? data['debit_amount'] : null;
+        final debitAmount = rawDebitAmount is num
+            ? rawDebitAmount.toDouble()
+            : double.tryParse(rawDebitAmount?.toString() ?? '');
+
+        return ScheduleCancellationResult(
+          success: false,
+          requiresDebit: true,
+          debitAmount: debitAmount,
+          message: message,
+        );
+      }
+
+      return ScheduleCancellationResult(
+        success: false,
+        message: message.isEmpty ? 'Не удалось расторгнуть контракт' : message,
+      );
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final message = data is Map
+          ? (data['message']?.toString() ??
+              data['error']?.toString() ??
+              data['detail']?.toString())
+          : null;
+
+      return ScheduleCancellationResult(
+        success: false,
+        message: message ?? 'Не удалось расторгнуть контракт',
+      );
+    } catch (_) {
+      return const ScheduleCancellationResult(
+        success: false,
+        message: 'Отсутствует подключение к интернету',
+      );
+    }
+  }
+
+  static Future<ApiResponse<void>> cancelScheduleWithDebit({
+    required int id,
+    required double debitAmount,
+  }) {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.delete(
+        "/orders/schedule_cancel_with_debit/$id",
+        queryParameters: {
+          'debit_amount': debitAmount.toStringAsFixed(2),
+        },
+      ),
+      errorCodeMsgs: {
+        404: "Расписание не найдено!",
+        409: "Недостаточно средств для списания штрафа",
+      },
+    );
   }
 
   static Future<ApiResponse<void>> updateScheduleById(Schedule schedule) {
@@ -235,8 +343,9 @@ class NannyOrdersApi {
     String? status,
   }) async {
     final queryParams = <String, dynamic>{};
-    if (startDate != null)
+    if (startDate != null) {
       queryParams['start_date'] = startDate.toIso8601String();
+    }
     if (endDate != null) queryParams['end_date'] = endDate.toIso8601String();
     if (status != null) queryParams['status'] = status;
 
@@ -273,7 +382,30 @@ class NannyOrdersApi {
       ),
       errorCodeMsgs: {
         404: 'Заказ не найден',
-        400: 'Оценка уже поставлена',
+        400: 'Не удалось сохранить оценку',
+      },
+    );
+  }
+
+  static Future<ApiResponse<DriverOrderRatingData?>> getMyDriverRating(
+    int orderId,
+  ) async {
+    return RequestBuilder<DriverOrderRatingData?>().create(
+      dioRequest: DioRequest.dio.get('/orders/my_rating/$orderId'),
+      onSuccess: (response) {
+        if (response.data['has_rating'] != true) {
+          return null;
+        }
+
+        final rawRating = response.data['rating'];
+        if (rawRating is! Map<String, dynamic>) {
+          return null;
+        }
+
+        return DriverOrderRatingData.fromJson(rawRating);
+      },
+      errorCodeMsgs: {
+        404: 'Заказ не найден',
       },
     );
   }
@@ -378,11 +510,31 @@ class NannyOrdersApi {
     );
   }
 
-  static Future<ApiResponse<void>> cancelOrder({required int orderId}) async {
-    return RequestBuilder<void>().create(
+  static Future<ApiResponse<OrderCancellationResult>> cancelOrder({
+    required int orderId,
+  }) async {
+    return RequestBuilder<OrderCancellationResult>().create(
       dioRequest: DioRequest.dio.post(
         '/orders/one-time/$orderId/cancel',
       ),
+      onSuccess: (response) {
+        final data = response.data;
+        if (data is! Map) {
+          return const OrderCancellationResult(
+            message: 'Поездка отменена',
+          );
+        }
+        final rawPenalty = data['penalty'];
+        final penalty = rawPenalty is num
+            ? rawPenalty.toDouble()
+            : double.tryParse(rawPenalty?.toString() ?? '') ?? 0;
+        final message = data['message']?.toString().trim();
+        return OrderCancellationResult(
+          message:
+              message == null || message.isEmpty ? 'Поездка отменена' : message,
+          penalty: penalty,
+        );
+      },
       errorCodeMsgs: {
         404: 'Заказ не найден',
         403: 'Нет доступа к этому заказу',

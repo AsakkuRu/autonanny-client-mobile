@@ -25,6 +25,7 @@ class HomeVM extends ViewModelBase {
   final VoidCallback? onRealtimeReady;
   UnifiedSocket? _socket;
   final List<StreamSubscription<Map<String, dynamic>>> _rootRealtimeSubs = [];
+  StreamSubscription<void>? _localUnreadRefreshSub;
 
   void indexChanged(int index) {
     update(() => currentIndex = index);
@@ -55,6 +56,11 @@ class HomeVM extends ViewModelBase {
     }
 
     refreshUnreadChatsCount();
+    _localUnreadRefreshSub?.cancel();
+    _localUnreadRefreshSub =
+        NannyGlobals.chatUnreadRefreshController.stream.listen((_) {
+      refreshUnreadChatsCount();
+    });
 
     if (Platform.isAndroid || Platform.isIOS) {
       FirebaseMessagingHandler.checkInitialMessage();
@@ -89,5 +95,6 @@ class HomeVM extends ViewModelBase {
       sub.cancel();
     }
     _rootRealtimeSubs.clear();
+    _localUnreadRefreshSub?.cancel();
   }
 }

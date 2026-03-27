@@ -40,7 +40,7 @@ extension NewClientMainVmUiSdkMapper on NewClientMainVM {
               .where((address) => address.isNotEmpty)
               .toList(growable: false),
         ),
-        priceLabel: _priceLabel(selectedTariff?.amount),
+        priceLabel: _priceLabel(totalEstimatedPrice),
         tariffLabel: selectedTariff?.displayTitle ?? 'Тариф не выбран',
         servicesLabel: _selectedServicesLabel(
           additionalParams.where(isAdditionalParamSelected).toList(),
@@ -52,7 +52,11 @@ extension NewClientMainVmUiSdkMapper on NewClientMainVM {
             distance > 0 ? '${distance.toStringAsFixed(1)} км' : null,
         durationLabel:
             duration > 0 ? '${duration.toStringAsFixed(0)} мин' : null,
-        caption: 'Проверьте параметры разовой поездки перед отправкой заказа.',
+        caption: _buildTripRequestCaption(
+          baseCaption:
+              'Проверьте параметры разовой поездки перед отправкой заказа.',
+          additionalServicesTotal: selectedAdditionalServicesTotal,
+        ),
       );
 }
 
@@ -74,7 +78,7 @@ extension DriveOrderVmUiSdkMapper on DriveOrderVM {
               .where((address) => address.isNotEmpty)
               .toList(growable: false),
         ),
-        priceLabel: _priceLabel(selectedTariff?.amount),
+        priceLabel: _priceLabel(totalEstimatedPrice),
         tariffLabel: selectedTariff?.displayTitle ?? 'Тариф не выбран',
         servicesLabel: _selectedServicesLabel(
           additionalParams.where(isAdditionalParamSelected).toList(),
@@ -86,8 +90,11 @@ extension DriveOrderVmUiSdkMapper on DriveOrderVM {
             distance > 0 ? '${distance.toStringAsFixed(1)} км' : null,
         durationLabel:
             duration > 0 ? '${duration.toStringAsFixed(0)} мин' : null,
-        caption:
-            'Сводка собирается из текущего маршрута, выбранного тарифа и детей поездки.',
+        caption: _buildTripRequestCaption(
+          baseCaption:
+              'Сводка собирается из текущего маршрута, выбранного тарифа и детей поездки.',
+          additionalServicesTotal: selectedAdditionalServicesTotal,
+        ),
       );
 }
 
@@ -185,6 +192,17 @@ String _selectedServicesLabel(List<OtherParametr> params) {
   }
 
   return labels.join(', ');
+}
+
+String _buildTripRequestCaption({
+  required String baseCaption,
+  required double additionalServicesTotal,
+}) {
+  if (additionalServicesTotal <= 0) {
+    return baseCaption;
+  }
+
+  return '$baseCaption В итоговую сумму уже включены доп. услуги на ${additionalServicesTotal.round()} ₽.';
 }
 
 extension BalanceVmUiSdkMapper on BalanceVM {

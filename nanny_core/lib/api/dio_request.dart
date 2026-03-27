@@ -200,9 +200,24 @@ class ErrorInterceptor extends Interceptor {
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
     final status = response.statusCode;
-    if (status != 200) {
+    final extraAllowed = response.requestOptions.extra['allowStatusCodes'];
+    final allowedStatusCodes = <int>{200, 201};
+    if (extraAllowed is Iterable) {
+      for (final code in extraAllowed) {
+        if (code is int) {
+          allowedStatusCodes.add(code);
+        } else if (code is String) {
+          final parsed = int.tryParse(code);
+          if (parsed != null) {
+            allowedStatusCodes.add(parsed);
+          }
+        }
+      }
+    }
+
+    if (status == null || !allowedStatusCodes.contains(status)) {
       throw DioException.badResponse(
-        statusCode: status!,
+        statusCode: status ?? 0,
         requestOptions: response.requestOptions,
         response: response,
       );

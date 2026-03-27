@@ -167,6 +167,44 @@ class NannyUsersApi {
     );
   }
 
+  static Future<ApiResponse<void>> pauseContract({
+    required int scheduleId,
+    required String dateFrom,
+    required String dateUntil,
+    String? reason,
+  }) {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.post(
+        '/users/contract_pause',
+        data: {
+          'id_schedule': scheduleId,
+          'date_from': dateFrom,
+          'date_until': dateUntil,
+          if (reason != null && reason.isNotEmpty) 'reason': reason,
+        },
+      ),
+      errorCodeMsgs: {
+        400: 'Не удалось приостановить контракт',
+        404: 'Контракт не найден',
+      },
+    );
+  }
+
+  static Future<ApiResponse<void>> resumeContract(int scheduleId) {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.post(
+        '/users/contract_resume',
+        data: {
+          'id_schedule': scheduleId,
+        },
+      ),
+      errorCodeMsgs: {
+        400: 'Не удалось возобновить контракт',
+        404: 'Контракт не найден',
+      },
+    );
+  }
+
   static Future<ApiResponse<List<NotificationItem>>> getNotifications({
     int offset = 0,
     int limit = 50,

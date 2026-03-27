@@ -170,7 +170,7 @@ class _DirectViewState extends State<DirectView> {
                   onAction: () {
                     setState(() {
                       vm.messages = null;
-                      vm.messagesRequest = vm.loadMessages();
+                      vm.messagesRequest = vm.reloadMessages();
                     });
                   },
                 ),

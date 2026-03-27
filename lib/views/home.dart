@@ -12,6 +12,7 @@ import 'package:nanny_client/views/support/support_chat_view.dart';
 import 'package:nanny_client/views/support/complaint_view.dart';
 import 'package:nanny_client/views/history/trip_export_view.dart';
 import 'package:nanny_client/views/history/spending_analytics_view.dart';
+import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_client/views/support/faq_view.dart';
 import 'package:nanny_client/views/referral/referral_view.dart';
 import 'package:nanny_client/views/map/shared_ride_view.dart';
@@ -41,8 +42,11 @@ class _HomeViewState extends State<HomeView> {
       const GraphView(persistState: true),
       const BalanceView(persistState: true),
       ChatsView(
-          persistState: false,
-          onReturnFromChat: () => vm.refreshUnreadChatsCount()),
+        persistState: false,
+        onReturnFromChat: () => vm.refreshUnreadChatsCount(),
+        buildDriverRatingView: (driverId) =>
+            DriverRatingDetailsView(driverId: driverId),
+      ),
       _ClientProfileView(
         persistState: true,
         logoutView: WelcomeView(

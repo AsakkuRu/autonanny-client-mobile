@@ -31,6 +31,7 @@ class Schedule {
     this.pauseFrom,
     this.pauseUntil,
     this.pauseReason,
+    this.pauseInitiatedBy,
   });
 
   final int? id;
@@ -53,6 +54,7 @@ class Schedule {
   final String? pauseFrom;
   final String? pauseUntil;
   final String? pauseReason;
+  final int? pauseInitiatedBy;
 
   factory Schedule.fromJson(Map<String, dynamic> json) {
     final rawRoads = json["roads"];
@@ -90,6 +92,7 @@ class Schedule {
       pauseFrom: json["pause_from"] as String?,
       pauseUntil: json["pause_until"] as String?,
       pauseReason: json["pause_reason"] as String?,
+      pauseInitiatedBy: json["pause_initiated_by"] as int?,
     );
   }
 

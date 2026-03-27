@@ -29,6 +29,12 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
     _loadFuture = vm.loadRequest;
   }
 
+  @override
+  void dispose() {
+    vm.dispose();
+    super.dispose();
+  }
+
   Future<void> _refresh() async {
     final future = _reload();
     setState(() => _loadFuture = future);
@@ -224,12 +230,18 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
         );
         return;
       case 'wallet_operation':
+        final searchQuery =
+            item.payload?['search_query']?.toString() ??
+                _buildWalletSearchQuery(
+                  scheduleId: scheduleId,
+                  orderId: orderId,
+                );
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => TransactionsHistoryView(
               initialTransactionType:
                   item.payload?['transaction_type']?.toString(),
-              initialSearchQuery: item.payload?['search_query']?.toString(),
+              initialSearchQuery: searchQuery,
             ),
           ),
         );
@@ -304,6 +316,19 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
       default:
         return null;
     }
+  }
+
+  String? _buildWalletSearchQuery({
+    required int? scheduleId,
+    required int? orderId,
+  }) {
+    if (orderId != null) {
+      return '#$orderId';
+    }
+    if (scheduleId != null) {
+      return '#$scheduleId';
+    }
+    return null;
   }
 
   String _formatDate(DateTime date) {

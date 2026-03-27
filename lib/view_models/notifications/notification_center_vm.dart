@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
+import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/api/nanny_users_api.dart';
 import 'package:nanny_core/models/from_api/notification_item.dart';
 
@@ -7,12 +10,16 @@ class NotificationCenterVM extends ViewModelBase {
   NotificationCenterVM({
     required super.context,
     required super.update,
-  });
+  }) {
+    unawaited(_bindRealtimeUpdates());
+  }
 
   List<NotificationItem> notifications = [];
   String selectedFilter = 'all';
   bool isLoading = false;
   String? errorMessage;
+  StreamSubscription<Map<String, dynamic>>? _realtimeSub;
+  bool _reloadingFromRealtime = false;
 
   final List<Map<String, String>> filters = const [
     {'key': 'all', 'label': 'Все'},
@@ -81,5 +88,71 @@ class NotificationCenterVM extends ViewModelBase {
 
   Future<bool> refresh() async {
     return loadPage();
+  }
+
+  Future<void> _bindRealtimeUpdates() async {
+    await _realtimeSub?.cancel();
+    final socket = UnifiedSocket.instance ?? await UnifiedSocket.connect();
+    _realtimeSub = socket.events.listen((msg) {
+      final event = msg['event']?.toString();
+      if (event == 'connected') {
+        unawaited(_refreshFromRealtime());
+        return;
+      }
+      if (event != 'history_notification.created') {
+        return;
+      }
+
+      final data = msg['data'];
+      if (data is! Map) {
+        unawaited(_refreshFromRealtime());
+        return;
+      }
+
+      final rawNotification = data['notification'];
+      if (rawNotification is! Map) {
+        unawaited(_refreshFromRealtime());
+        return;
+      }
+
+      _mergeRealtimeNotification(
+        Map<String, dynamic>.from(rawNotification),
+      );
+    });
+  }
+
+  Future<void> _refreshFromRealtime() async {
+    if (_reloadingFromRealtime || isLoading) {
+      return;
+    }
+    _reloadingFromRealtime = true;
+    try {
+      await refresh();
+    } finally {
+      _reloadingFromRealtime = false;
+    }
+  }
+
+  void _mergeRealtimeNotification(Map<String, dynamic> rawNotification) {
+    final item = NotificationItem.fromJson(rawNotification);
+    if (item.id == 0) {
+      unawaited(_refreshFromRealtime());
+      return;
+    }
+
+    final existingIndex = notifications.indexWhere((n) => n.id == item.id);
+    update(() {
+      if (existingIndex == -1) {
+        notifications = [item, ...notifications];
+        return;
+      }
+      notifications[existingIndex] = item;
+    });
+  }
+
+  @override
+  void dispose() {
+    _realtimeSub?.cancel();
+    super.dispose();
   }
 }
