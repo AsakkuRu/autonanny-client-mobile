@@ -40,10 +40,12 @@ class DirectVM extends ViewModelBase {
   // Stream Subscription
   StreamSubscription<Map<String, dynamic>>? _messageSub;
   StreamSubscription<Map<String, dynamic>>? _editedSub;
+  bool _syncingReadState = false;
 
   // Инициализация
   Future<ApiResponse<DirectChat>> _initDirect() async {
     await _bindRealtime();
+    unawaited(_syncReadState());
     return loadMessages();
   }
 
@@ -81,6 +83,16 @@ class DirectVM extends ViewModelBase {
     isLoadingMore = false;
     update(() {});
     return response;
+  }
+
+  Future<void> _syncReadState() async {
+    if (_syncingReadState) return;
+    _syncingReadState = true;
+    try {
+      await NannyChatsApi.markChatRead(idChat);
+    } finally {
+      _syncingReadState = false;
+    }
   }
 
   // Переключение режима редактирования
@@ -227,6 +239,10 @@ class DirectVM extends ViewModelBase {
       // Добавить новое сообщение
       messages ??= [];
       messages?.insert(0, msg);
+    }
+
+    if (!msg.isMe) {
+      unawaited(_syncReadState());
     }
 
     update(() {});

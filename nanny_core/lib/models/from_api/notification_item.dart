@@ -19,14 +19,15 @@ class NotificationItem {
   });
 
   factory NotificationItem.fromJson(Map<String, dynamic> json) {
+    final rawPayload = json['payload'];
     return NotificationItem(
       id: json['id'] as int? ?? 0,
-      type: json['type'] as String? ?? 'general',
+      type: json['type'] as String? ?? 'system',
       title: json['title'] as String? ?? '',
       body: json['body'] as String? ?? '',
       createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
       isRead: json['is_read'] as bool? ?? false,
-      payload: json['payload'] as Map<String, dynamic>?,
+      payload: rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : null,
     );
   }
 
@@ -83,6 +84,19 @@ class NotificationItem {
       ),
       NotificationItem(
         id: 4,
+        type: 'message',
+        title: 'Новое сообщение от водителя',
+        body: 'Петров Пётр написал вам по поездке. Откройте чат, чтобы ответить.',
+        createdAt: now.subtract(const Duration(days: 2)),
+        isRead: false,
+        payload: {
+          'target': 'chat',
+          'chat_id': 13,
+          'chat_name': 'Петров Пётр',
+        },
+      ),
+      NotificationItem(
+        id: 5,
         type: 'system',
         title: 'Обновление приложения',
         body: 'Доступна новая версия АвтоНяни с улучшениями.',

@@ -4,6 +4,7 @@ import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/base_views/views/pages/wallet.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
+import 'package:nanny_core/nanny_core.dart';
 
 class ContractDetailsView extends StatelessWidget {
   const ContractDetailsView({
@@ -277,8 +278,8 @@ class _PausedContractBanner extends StatelessWidget {
         raw == 'lack_of_funds';
   }
 
-  void _openWalletTopUp(BuildContext context) {
-    Navigator.of(context).push(
+  Future<void> _openWalletTopUp(BuildContext context) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const WalletView(
           title: 'Пополнение баланса',
@@ -286,6 +287,50 @@ class _PausedContractBanner extends StatelessWidget {
         ),
       ),
     );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final scheduleId = schedule.id;
+    if (scheduleId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Не удалось определить контракт для возобновления.'),
+        ),
+      );
+      return;
+    }
+
+    final resumeResult = await NannyUsersApi.resumePaymentSchedule(scheduleId);
+    if (!context.mounted) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    if (!resumeResult.success) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            resumeResult.errorMessage.isNotEmpty
+                ? resumeResult.errorMessage
+                : 'Не удалось возобновить контракт после пополнения.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          resumeResult.response?.isNotEmpty == true
+              ? 'Контракт возобновлён. Следующее списание: ${resumeResult.response}.'
+              : 'Контракт успешно возобновлён.',
+        ),
+      ),
+    );
+    Navigator.of(context).pop(true);
   }
 }
 

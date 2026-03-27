@@ -12,6 +12,7 @@ import 'package:nanny_core/constants.dart';
 import 'package:nanny_core/api/request_builder.dart';
 import 'package:nanny_core/models/from_api/check_3ds_data.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
+import 'package:nanny_core/models/from_api/notification_item.dart';
 import 'package:nanny_core/models/from_api/payment_init_data.dart';
 import 'package:nanny_core/models/from_api/sbp_init_data.dart';
 import 'package:nanny_core/models/from_api/transaction.dart';
@@ -150,6 +151,56 @@ class NannyUsersApi {
       ),
       onSuccess: (response) =>
           TransactionListResponse.fromJson(response.data),
+    );
+  }
+
+  static Future<ApiResponse<String?>> resumePaymentSchedule(int scheduleId) async {
+    return RequestBuilder<String?>().create(
+      dioRequest: DioRequest.dio.post(
+        '/users/payment_schedule/resume/$scheduleId',
+      ),
+      onSuccess: (response) => response.data['next_payment_date']?.toString(),
+      errorCodeMsgs: {
+        400: 'Не удалось возобновить автоплатеж по контракту',
+        404: 'Контракт или расписание платежей не найдено',
+      },
+    );
+  }
+
+  static Future<ApiResponse<List<NotificationItem>>> getNotifications({
+    int offset = 0,
+    int limit = 50,
+  }) async {
+    return RequestBuilder<List<NotificationItem>>().create(
+      dioRequest: DioRequest.dio.get(
+        '/users/notifications',
+        queryParameters: {
+          'offset': offset,
+          'limit': limit,
+        },
+      ),
+      onSuccess: (response) {
+        final rawItems = response.data['notifications'];
+        if (rawItems is! List) {
+          return <NotificationItem>[];
+        }
+        return rawItems
+            .whereType<Map>()
+            .map((item) => NotificationItem.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      },
+    );
+  }
+
+  static Future<ApiResponse<void>> markNotificationRead(int id) async {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.post('/users/notifications/$id/read'),
+    );
+  }
+
+  static Future<ApiResponse<void>> markAllNotificationsRead() async {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.post('/users/notifications/read_all'),
     );
   }
 

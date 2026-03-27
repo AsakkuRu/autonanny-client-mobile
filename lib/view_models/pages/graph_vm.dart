@@ -21,7 +21,8 @@ class GraphVM extends ViewModelBase {
   GraphVM({
     required super.context,
     required super.update,
-  });
+    int? initialScheduleId,
+  }) : _selectScheduleIdOnNextLoad = initialScheduleId;
 
   String spentsInWeek = "~ 0 ₽";
   String spentsInMonth = "~ 0 ₽";

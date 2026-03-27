@@ -34,6 +34,16 @@ class NannyChatsApi {
     );
   }
 
+  static Future<ApiResponse<void>> markChatRead(int chatId) async {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.post("/chats/$chatId/read"),
+      errorCodeMsgs: {
+        403: "Нет доступа к чату",
+        404: "Чат не найден",
+      },
+    );
+  }
+
   static Future<ApiResponse<Map<String, dynamic>>> sendMessage({
     required int chatId,
     required String text,

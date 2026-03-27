@@ -16,9 +16,13 @@ class GraphView extends StatefulWidget {
   const GraphView({
     super.key,
     this.persistState = false,
+    this.initialScheduleId,
+    this.openInitialScheduleDetails = false,
   });
 
   final bool persistState;
+  final int? initialScheduleId;
+  final bool openInitialScheduleDetails;
 
   @override
   State<GraphView> createState() => _GraphViewState();
@@ -31,11 +35,17 @@ class _GraphViewState extends State<GraphView>
   StreamSubscription<void>? _tabSelectedSub;
   int _selectedTabIndex = 0;
   int? _selectedContractPreviewId;
+  bool _initialDeepLinkHandled = false;
 
   @override
   void initState() {
     super.initState();
-    vm = GraphVM(context: context, update: setState);
+    _selectedContractPreviewId = widget.initialScheduleId;
+    vm = GraphVM(
+      context: context,
+      update: setState,
+      initialScheduleId: widget.initialScheduleId,
+    );
     vm.startScheduleUpdatesListener();
     _fallbackRefreshTimer = Timer.periodic(const Duration(seconds: 25), (_) {
       if (!mounted) {
@@ -88,6 +98,8 @@ class _GraphViewState extends State<GraphView>
               onAction: vm.reloadPage,
             );
           }
+
+          _maybeHandleInitialDeepLink();
 
           return SafeArea(
             child: Column(
@@ -196,7 +208,10 @@ class _GraphViewState extends State<GraphView>
                 _ContractStatusSection(vm: vm),
                 if (vm.selectedSchedule?.isPaused == true) ...[
                   const SizedBox(height: AutonannySpacing.lg),
-                  _PausedContractBanner(schedule: vm.selectedSchedule!),
+                  _PausedContractBanner(
+                    schedule: vm.selectedSchedule!,
+                    onResumed: vm.reloadPage,
+                  ),
                 ],
                 if (vm.responses
                     .where((r) => r.idSchedule == vm.selectedSchedule?.id)
@@ -363,7 +378,7 @@ class _GraphViewState extends State<GraphView>
         .where((response) => response.idSchedule == schedule.id)
         .length;
 
-    await Navigator.of(context).push(
+    final resumed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => ContractDetailsView(
           schedule: schedule,
@@ -399,6 +414,47 @@ class _GraphViewState extends State<GraphView>
         ),
       ),
     );
+    if (resumed == true && mounted) {
+      await vm.reloadPage();
+    }
+  }
+
+  void _maybeHandleInitialDeepLink() {
+    if (_initialDeepLinkHandled) {
+      return;
+    }
+
+    final targetScheduleId = widget.initialScheduleId;
+    if (targetScheduleId == null) {
+      _initialDeepLinkHandled = true;
+      return;
+    }
+
+    Schedule? targetSchedule;
+    for (final schedule in vm.schedules) {
+      if (schedule.id == targetScheduleId) {
+        targetSchedule = schedule;
+        break;
+      }
+    }
+
+    if (targetSchedule == null) {
+      _initialDeepLinkHandled = true;
+      return;
+    }
+
+    if (!widget.openInitialScheduleDetails) {
+      _initialDeepLinkHandled = true;
+      return;
+    }
+
+    _initialDeepLinkHandled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      unawaited(_openContractDetails(targetSchedule!));
+    });
   }
 
   String? _nextTripLabelFor(Schedule schedule) {
@@ -872,9 +928,13 @@ class _ContractStatusSection extends StatelessWidget {
 }
 
 class _PausedContractBanner extends StatelessWidget {
-  const _PausedContractBanner({required this.schedule});
+  const _PausedContractBanner({
+    required this.schedule,
+    this.onResumed,
+  });
 
   final Schedule schedule;
+  final Future<void> Function()? onResumed;
 
   @override
   Widget build(BuildContext context) {
@@ -998,12 +1058,60 @@ class _PausedContractBanner extends StatelessWidget {
         raw == 'lack_of_funds';
   }
 
-  void _openWalletTopUp(BuildContext context) {
-    Navigator.of(context).push(
+  Future<void> _openWalletTopUp(BuildContext context) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const WalletView(
           title: 'Пополнение баланса',
           subtitle: 'Выберите способ пополнения',
+        ),
+      ),
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final scheduleId = schedule.id;
+    if (scheduleId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Не удалось определить контракт для возобновления.'),
+        ),
+      );
+      return;
+    }
+
+    final resumeResult = await NannyUsersApi.resumePaymentSchedule(scheduleId);
+    if (!context.mounted) {
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    if (!resumeResult.success) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            resumeResult.errorMessage.isNotEmpty
+                ? resumeResult.errorMessage
+                : 'Не удалось возобновить контракт после пополнения.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    await onResumed?.call();
+    if (!context.mounted) {
+      return;
+    }
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          resumeResult.response?.isNotEmpty == true
+              ? 'Контракт возобновлён. Следующее списание: ${resumeResult.response}.'
+              : 'Контракт успешно возобновлён.',
         ),
       ),
     );
