@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
+import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/base_views/views/pages/wallet.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
@@ -50,10 +51,33 @@ class ContractDetailsView extends StatelessWidget {
           ],
           const SizedBox(height: AutonannySpacing.lg),
           if (driverContact != null)
-            AssignedDriverCard(
-              data: driverContact!.assignedDriverCardData,
-              onPrimaryAction: onOpenChat,
-              onSecondaryAction: onShowQr,
+            Column(
+              children: [
+                AssignedDriverCard(
+                  data: driverContact!.assignedDriverCardData,
+                  onPrimaryAction: onOpenChat,
+                  onSecondaryAction: onShowQr,
+                ),
+                const SizedBox(height: AutonannySpacing.md),
+                SizedBox(
+                  width: double.infinity,
+                  child: AutonannyButton(
+                    label: 'Отзывы и рейтинг',
+                    variant: AutonannyButtonVariant.secondary,
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DriverRatingDetailsView(
+                            driverId: driverContact!.id,
+                            driverName: driverContact!.fullName,
+                            driverPhoto: driverContact!.photo,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             )
           else
             AutonannyInlineBanner(

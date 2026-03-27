@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/map/drive_order_vm.dart';
+import 'package:nanny_client/views/pages/child_edit.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 
@@ -35,6 +36,14 @@ class _DriveOrderViewState extends State<DriveOrderView> {
   void dispose() {
     vm.dispose();
     super.dispose();
+  }
+
+  Future<void> _openAddChild() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ChildEditView()),
+    );
+    await vm.reloadChildren();
   }
 
   @override
@@ -73,7 +82,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: NannyTheme.shadow.withOpacity(0.08),
+                      color: NannyTheme.shadow.withValues(alpha: 0.08),
                       blurRadius: 24,
                       offset: const Offset(0, 8),
                     ),
@@ -96,7 +105,8 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: NannyTheme.primary.withOpacity(0.08),
+                                color:
+                                    NannyTheme.primary.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
@@ -163,7 +173,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? NannyTheme.primary.withOpacity(0.08)
+                              ? NannyTheme.primary.withValues(alpha: 0.08)
                               : Colors.white,
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(
@@ -175,7 +185,8 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color: NannyTheme.primary.withOpacity(0.14),
+                                    color: NannyTheme.primary
+                                        .withValues(alpha: 0.14),
                                     blurRadius: 20,
                                     offset: const Offset(0, 8),
                                   ),
@@ -298,7 +309,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                       width: 28,
                       height: 28,
                       decoration: BoxDecoration(
-                        color: NannyTheme.primary.withOpacity(0.08),
+                        color: NannyTheme.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: const Icon(
@@ -345,7 +356,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Выберите детей на следующем шаге',
+                            'Выберите детей для этой разовой поездки',
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
@@ -355,9 +366,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                       ),
                     ),
                     OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/children');
-                      },
+                      onPressed: _openAddChild,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: NannyTheme.primary,
                         side: const BorderSide(color: NannyTheme.primary),
@@ -378,6 +387,31 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+              if (vm.children.isEmpty)
+                const AutonannyInlineBanner(
+                  title: 'Добавьте детей для поездки',
+                  message:
+                      'После добавления профиля ребёнка можно будет выбрать участников разовой поездки.',
+                  tone: AutonannyBannerTone.warning,
+                  leading: AutonannyIcon(AutonannyIcons.child),
+                )
+              else
+                ChildSelector(
+                  data: vm.childSelectorData,
+                  onChildTap: (id) {
+                    final child = vm.children
+                        .where((item) => '${item.id}' == id)
+                        .firstOrNull;
+                    if (child != null) {
+                      vm.toggleChild(child);
+                    }
+                  },
+                ),
+
+              const SizedBox(height: 20),
+
+              TripRequestSummary(data: vm.tripRequestSummaryData),
 
               const SizedBox(height: 20),
 

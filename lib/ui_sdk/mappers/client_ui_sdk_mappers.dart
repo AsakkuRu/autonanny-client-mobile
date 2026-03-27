@@ -1,5 +1,6 @@
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:autonanny_ui_client/autonanny_ui_client.dart';
+import 'package:nanny_client/view_models/map/drive_order_vm.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dart';
 import 'package:nanny_client/view_models/pages/balance_vm.dart';
 import 'package:nanny_client/views/new_main/new_client_main_vm.dart';
@@ -10,6 +11,7 @@ import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/models/from_api/notification_item.dart'
     as api_notification;
+import 'package:nanny_core/models/from_api/other_parametr.dart';
 import 'package:nanny_core/models/from_api/user_cards.dart';
 import 'package:nanny_core/models/from_api/user_money.dart';
 
@@ -29,6 +31,63 @@ extension NewClientMainVmUiSdkMapper on NewClientMainVM {
               ),
             )
             .toList(growable: false),
+      );
+
+  TripRequestSummaryData get tripRequestSummaryData => TripRequestSummaryData(
+        routeLabel: _routeLabel(
+          addresses
+              .map((address) => address.address.trim())
+              .where((address) => address.isNotEmpty)
+              .toList(growable: false),
+        ),
+        priceLabel: _priceLabel(selectedTariff?.amount),
+        tariffLabel: selectedTariff?.displayTitle ?? 'Тариф не выбран',
+        servicesLabel: _selectedServicesLabel(
+          additionalParams.where(isAdditionalParamSelected).toList(),
+        ),
+        childLabel: selectedChildren.isEmpty
+            ? 'Дети не выбраны'
+            : selectedChildren.map((child) => child.fullName).join(', '),
+        distanceLabel:
+            distance > 0 ? '${distance.toStringAsFixed(1)} км' : null,
+        durationLabel:
+            duration > 0 ? '${duration.toStringAsFixed(0)} мин' : null,
+        caption: 'Проверьте параметры разовой поездки перед отправкой заказа.',
+      );
+}
+
+extension DriveOrderVmUiSdkMapper on DriveOrderVM {
+  ChildSelectorData get childSelectorData => ChildSelectorData(
+        children: children
+            .map(
+              (child) => child.toUiSdkChildOption(
+                isSelected: isChildSelected(child),
+              ),
+            )
+            .toList(growable: false),
+      );
+
+  TripRequestSummaryData get tripRequestSummaryData => TripRequestSummaryData(
+        routeLabel: _routeLabel(
+          addresses
+              .map((address) => address.address.trim())
+              .where((address) => address.isNotEmpty)
+              .toList(growable: false),
+        ),
+        priceLabel: _priceLabel(selectedTariff?.amount),
+        tariffLabel: selectedTariff?.displayTitle ?? 'Тариф не выбран',
+        servicesLabel: _selectedServicesLabel(
+          additionalParams.where(isAdditionalParamSelected).toList(),
+        ),
+        childLabel: selectedChildren.isEmpty
+            ? 'Дети не выбраны'
+            : selectedChildren.map((child) => child.fullName).join(', '),
+        distanceLabel:
+            distance > 0 ? '${distance.toStringAsFixed(1)} км' : null,
+        durationLabel:
+            duration > 0 ? '${duration.toStringAsFixed(0)} мин' : null,
+        caption:
+            'Сводка собирается из текущего маршрута, выбранного тарифа и детей поездки.',
       );
 }
 
@@ -86,6 +145,46 @@ extension ChildShortUiSdkMapper on ChildShort {
     final value = buffer.toString();
     return value.isEmpty ? 'A' : value;
   }
+}
+
+String _routeLabel(List<String> addresses) {
+  if (addresses.isEmpty) {
+    return 'Маршрут уточняется';
+  }
+  if (addresses.length == 1) {
+    return addresses.first;
+  }
+
+  final first = addresses.first;
+  final last = addresses.last;
+  final middleCount = addresses.length - 2;
+
+  if (middleCount <= 0) {
+    return '$first -> $last';
+  }
+
+  return '$first -> $last · +$middleCount точк.';
+}
+
+String _priceLabel(double? amount) {
+  if (amount == null || amount <= 0) {
+    return 'Стоимость уточняется';
+  }
+
+  return '~ ${amount.round()} ₽';
+}
+
+String _selectedServicesLabel(List<OtherParametr> params) {
+  final labels = params
+      .map((param) => (param.title ?? '').trim())
+      .where((label) => label.isNotEmpty)
+      .toList(growable: false);
+
+  if (labels.isEmpty) {
+    return 'Без дополнительных услуг';
+  }
+
+  return labels.join(', ');
 }
 
 extension BalanceVmUiSdkMapper on BalanceVM {
@@ -293,7 +392,9 @@ extension ScheduleUiSdkMapper on Schedule {
     return 'детей';
   }
 
-  List<ContractDayPanelData> get contractDayPanelsData {
+  List<ContractDayPanelData> contractDayPanelsData({
+    Map<int, String> childNamesById = const {},
+  }) {
     final roadsByDay = <NannyWeekday, List<Road>>{};
 
     for (final road in roads) {
@@ -331,6 +432,10 @@ extension ScheduleUiSdkMapper on Schedule {
             childLabel: routeChildrenCount > 0
                 ? '$routeChildrenCount ${_childrenLabel(routeChildrenCount)}'
                 : null,
+            assignedChildren: (road.children ?? const <int>[])
+                .map((childId) => childNamesById[childId]?.trim() ?? '')
+                .where((childName) => childName.isNotEmpty)
+                .toList(growable: false),
           );
         }).toList(growable: false),
       );

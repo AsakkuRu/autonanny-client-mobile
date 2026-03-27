@@ -2,7 +2,6 @@
 
 import 'dart:async';
 import 'dart:math';
-import 'dart:developer' as dev;
 
 import 'package:flutter/material.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_resolver.dart';
@@ -13,11 +12,14 @@ import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/onetime_drive_request.dart';
 import 'package:nanny_core/api/google_map_api.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
+import 'package:nanny_core/models/from_api/child_short.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 import 'package:nanny_core/models/from_api/other_parametr.dart';
 import 'package:nanny_core/nanny_core.dart';
+
+const int _kMaxDriveOrderChildren = 4;
 
 class DriveOrderVM extends ViewModelBase {
   DriveOrderVM({
@@ -36,7 +38,7 @@ class DriveOrderVM extends ViewModelBase {
               initAddress.formattedAddress,
             ),
             location: initAddress.geometry?.location ??
-                NannyMapUtils.position2LatLng(curLoc!),
+                NannyMapUtils.position2LatLng(curLoc),
           ),
         ];
       });
@@ -101,7 +103,7 @@ class DriveOrderVM extends ViewModelBase {
         desiredAccuracy: LocationAccuracy.high,
       );
       LocationService.curLoc = v;
-      print('current location $v');
+      Logger().i('DriveOrderVM current location: $v');
 
       update(() {
         addresses = [
@@ -114,7 +116,7 @@ class DriveOrderVM extends ViewModelBase {
       });
       _syncMarkersWithAddresses();
     } catch (e) {
-      print('Error getting location: $e');
+      Logger().e('DriveOrderVM location init error: $e');
     }
   }
 
@@ -161,13 +163,54 @@ class DriveOrderVM extends ViewModelBase {
 
   List<DriveTariff> tariffs = [];
   DriveTariff? selectedTariff;
+  List<ChildShort> children = [];
+  final Set<int> _selectedChildIds = {};
   List<OtherParametr> additionalParams = [];
   final Set<String> _selectedAdditionalParamKeys = {};
 
-  bool get validDrive => addresses.length > 1 && selectedTariff != null;
+  bool get validDrive =>
+      addresses.length > 1 &&
+      selectedTariff != null &&
+      _selectedChildIds.isNotEmpty;
+
+  List<ChildShort> get selectedChildren =>
+      children.where((child) => _selectedChildIds.contains(child.id)).toList();
 
   bool isAdditionalParamSelected(OtherParametr param) =>
       _selectedAdditionalParamKeys.contains(_additionalParamKey(param));
+
+  bool isChildSelected(ChildShort child) =>
+      _selectedChildIds.contains(child.id);
+
+  void toggleChild(ChildShort child) {
+    if (_selectedChildIds.contains(child.id)) {
+      _selectedChildIds.remove(child.id);
+      update(() {});
+      return;
+    }
+
+    if (_selectedChildIds.length >= _kMaxDriveOrderChildren) {
+      NannyDialogs.showMessageBox(
+        context,
+        'Ограничение',
+        'Можно выбрать не более $_kMaxDriveOrderChildren детей',
+      );
+      return;
+    }
+
+    _selectedChildIds.add(child.id);
+    update(() {});
+  }
+
+  Future<void> reloadChildren() async {
+    final res = await NannyChildrenApi.getChildrenShort();
+    if (res.success && res.response != null) {
+      children = res.response!;
+      final validIds = children.map((child) => child.id).toSet();
+      _selectedChildIds.removeWhere((id) => !validIds.contains(id));
+      update(() {});
+    }
+  }
 
   void toggleAdditionalParam(OtherParametr param) {
     final key = _additionalParamKey(param);
@@ -278,6 +321,7 @@ class DriveOrderVM extends ViewModelBase {
 
   void searchForDrivers() async {
     if (await _redirectToActiveTripIfNeeded()) return;
+    if (!context.mounted) return;
 
     if (addresses.length < 2) {
       NannyDialogs.showMessageBox(
@@ -286,6 +330,11 @@ class DriveOrderVM extends ViewModelBase {
     }
     if (selectedTariff == null) {
       NannyDialogs.showMessageBox(context, 'Ошибка', 'Выберите тариф');
+      return;
+    }
+    if (_selectedChildIds.isEmpty) {
+      NannyDialogs.showMessageBox(
+          context, 'Ошибка', 'Выберите хотя бы одного ребёнка');
       return;
     }
     if (LocationService.curLoc == null) {
@@ -312,7 +361,8 @@ class DriveOrderVM extends ViewModelBase {
               description: '',
               typeDrive: DriveType.oneWay.id,
               idTariff: selectedTariff!.id,
-              otherParametrs: selectedAdditionalParamsPayload)));
+              otherParametrs: selectedAdditionalParamsPayload,
+              childrenIds: _selectedChildIds.toList())));
 
       if (!res.success || res.data == null) {
         if (res.errorMessage == 'У вас уже есть активная поездка') {
@@ -328,6 +378,7 @@ class DriveOrderVM extends ViewModelBase {
           statusId: 4,
         ),
       );
+      if (!context.mounted) return;
       Navigator.push(
           context,
           MaterialPageRoute(
@@ -389,6 +440,11 @@ class DriveOrderVM extends ViewModelBase {
     if (!res.success) return false;
     tariffs = res.response!;
 
+    final childrenRes = await NannyChildrenApi.getChildrenShort();
+    if (childrenRes.success && childrenRes.response != null) {
+      children = childrenRes.response!;
+    }
+
     final paramsRes = await NannyStaticDataApi.getOtherParams();
     if (paramsRes.success && paramsRes.response != null) {
       additionalParams = paramsRes.response!;
@@ -397,16 +453,17 @@ class DriveOrderVM extends ViewModelBase {
     return true;
   }
 
-  List<Map<String, dynamic>> get selectedAdditionalParamsPayload =>
-      additionalParams
-          .where(isAdditionalParamSelected)
-          .map((param) => param.toGraphJson(1))
-          .toList(growable: false);
+  List<Map<String, dynamic>> get selectedAdditionalParamsPayload {
+    final childCount = _selectedChildIds.isEmpty ? 1 : _selectedChildIds.length;
+    return additionalParams
+        .where(isAdditionalParamSelected)
+        .map((param) => param.toGraphJson(childCount))
+        .toList(growable: false);
+  }
 
   String _additionalParamKey(OtherParametr param) =>
       '${param.id ?? param.title}';
 
-  @override
   void dispose() {
     _mapTapSub?.cancel();
     _priceDebounce?.cancel();

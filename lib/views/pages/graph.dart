@@ -251,7 +251,10 @@ class _GraphViewState extends State<GraphView>
 
   Widget _buildContractsTab() {
     final previewSchedule = _previewSchedule;
-    final previewPanels = previewSchedule?.contractDayPanelsData ?? const [];
+    final previewPanels = previewSchedule?.contractDayPanelsData(
+          childNamesById: vm.contractChildNamesById,
+        ) ??
+        const [];
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(
@@ -294,7 +297,7 @@ class _GraphViewState extends State<GraphView>
           AutonannyInlineBanner(
             title: 'Маршруты по контракту «${previewSchedule.title}»',
             message:
-                'Это read-only preview по дням. Полный detail screen будет следующим шагом этого epic.',
+                'Это read-only preview по дням, маршрутам и детям, привязанным к каждой поездке.',
             tone: AutonannyBannerTone.info,
             leading: const AutonannyIcon(AutonannyIcons.calendar),
           ),
@@ -369,7 +372,9 @@ class _GraphViewState extends State<GraphView>
             statusLabelOverride: _contractStatusLabelFor(schedule),
             statusVariantOverride: _contractStatusVariantFor(schedule),
           ),
-          dayPanels: schedule.contractDayPanelsData,
+          dayPanels: schedule.contractDayPanelsData(
+            childNamesById: vm.contractChildNamesById,
+          ),
           driverContact:
               vm.selectedSchedule?.id == schedule.id ? vm.driverContact : null,
           responsesCount: responsesCount,

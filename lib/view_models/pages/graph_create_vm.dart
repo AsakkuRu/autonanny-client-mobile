@@ -247,6 +247,50 @@ class GraphCreateVM extends ViewModelBase {
         .toList(growable: false);
   }
 
+  int get selectedDaysCount => sortedSelectedWeekdays.length;
+
+  int get routesCount => editor.roads.length;
+
+  int get tripsPerMonth => routesCount * 4;
+
+  double? get estimatedMonthlyAmount {
+    if (editor.roads.isEmpty) {
+      return null;
+    }
+
+    final amounts = editor.roads
+        .map((road) => road.amount)
+        .whereType<double>()
+        .toList(growable: false);
+
+    if (amounts.length != editor.roads.length) {
+      return null;
+    }
+
+    return amounts.fold<double>(0, (sum, amount) => sum + amount);
+  }
+
+  double? get estimatedWeeklyAmount {
+    final monthly = estimatedMonthlyAmount;
+    if (monthly == null) {
+      return null;
+    }
+    return monthly / 4;
+  }
+
+  String get selectedServicesLabel {
+    final labels = editor.params
+        .map((param) => (param.title ?? '').trim())
+        .where((label) => label.isNotEmpty)
+        .toList(growable: false);
+
+    if (labels.isEmpty) {
+      return 'Без дополнительных услуг';
+    }
+
+    return labels.join(', ');
+  }
+
   void saveRoute({
     required Road route,
     required NannyWeekday weekday,

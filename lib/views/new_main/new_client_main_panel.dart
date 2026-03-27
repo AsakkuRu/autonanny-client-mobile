@@ -157,6 +157,8 @@ class _PanelContent extends StatelessWidget {
           _ChildrenBlock(vm: vm, showToast: showToast),
           const SizedBox(height: AutonannySpacing.xl),
           _AdditionalServicesBlock(vm: vm),
+          const SizedBox(height: AutonannySpacing.xl),
+          TripRequestSummary(data: vm.tripRequestSummaryData),
           const SizedBox(height: AutonannySpacing.xxl),
           AutonannyButton(
             label: 'Найти автоняню',

@@ -273,8 +273,8 @@ class RouteSheetVM extends ViewModelBase {
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF7ED),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFFF7ED),
                           borderRadius: NDT.brMd,
                         ),
                         child: Text(
@@ -331,7 +331,7 @@ class RouteSheetVM extends ViewModelBase {
   }
 
   void cancel() => Navigator.pop(context);
-  void confirm() async {
+  void confirm({List<int>? selectedChildIds}) async {
     if (roadName.isEmpty ||
         fromController.text.isEmpty ||
         toController.text.isEmpty ||
@@ -370,6 +370,7 @@ class RouteSheetVM extends ViewModelBase {
 
     final resultRoad = Road(
         id: road?.id,
+        amount: estimatedPrice ?? road?.amount,
         weekDay: selectedWeekdayForRoute,
         startTime: timeRange!.startTime,
         endTime: timeRange!.endTime,
@@ -390,6 +391,7 @@ class RouteSheetVM extends ViewModelBase {
         road: resultRoad,
         applyToAllSelectedDays: applyToAllSelectedDays,
         targetWeekdays: targetDays,
+        childIds: selectedChildIds,
       ),
     );
   }

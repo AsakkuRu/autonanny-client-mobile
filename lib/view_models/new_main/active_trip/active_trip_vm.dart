@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:nanny_components/base_views/views/direct.dart';
+import 'package:nanny_components/base_views/views/driver_info.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
@@ -9,6 +11,7 @@ import 'package:nanny_core/api/api_models/sos_activate_request.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
+import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:nanny_core/services/notification_service.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -54,10 +57,12 @@ class ActiveTripVM extends ViewModelBase {
   bool meetingVerified = false;
   int waitingSeconds = 0;
   String statusText = 'Ищем водителя...';
+  DriverContact? driverContact;
   Map<String, dynamic>? driverLocation;
   List<Map<String, dynamic>> nearbyDrivers = [];
   List<Map<String, dynamic>> addresses = [];
   List<Map<String, dynamic>> children = [];
+  List<String> serviceTitles = [];
   String routeChangeStatus = '';
   Set<Polyline> routePolylines = {};
 
@@ -482,6 +487,37 @@ class ActiveTripVM extends ViewModelBase {
         .toList(growable: false);
   }
 
+  List<String> _extractServiceTitles(Map data) {
+    final raw = data['other_params'] ?? data['other_parameters'];
+    if (raw is! List) {
+      return serviceTitles;
+    }
+
+    final titles = <String>[];
+    for (final item in raw.whereType<Map>()) {
+      final map = Map<String, dynamic>.from(item);
+      final title = (map['name'] ?? map['title'] ?? '').toString().trim();
+      if (title.isEmpty || titles.contains(title)) {
+        continue;
+      }
+      titles.add(title);
+    }
+    return List.unmodifiable(titles);
+  }
+
+  DriverContact? _extractDriverContact(Map data) {
+    final raw = data['driver'];
+    if (raw is! Map) {
+      return driverContact;
+    }
+
+    try {
+      return DriverContact.fromJson(Map<String, dynamic>.from(raw));
+    } catch (_) {
+      return driverContact;
+    }
+  }
+
   String? _extractAwaitingSince(Map data) {
     final raw = data['awaiting_since'];
     if (raw == null) return awaitingSince;
@@ -762,6 +798,42 @@ class ActiveTripVM extends ViewModelBase {
     }
   }
 
+  Future<void> openAssignedDriverProfile() async {
+    if (driverId == null) {
+      if (context.mounted) {
+        await NannyDialogs.showMessageBox(
+          context,
+          'Профиль недоступен',
+          'Информация о водителе еще загружается. Попробуйте снова через пару секунд.',
+        );
+      }
+      return;
+    }
+
+    await navigateToView(DriverInfoView(id: driverId!));
+  }
+
+  Future<void> openAssignedDriverChat() async {
+    if (chatId == null) {
+      if (context.mounted) {
+        await NannyDialogs.showMessageBox(
+          context,
+          'Чат недоступен',
+          'Чат с водителем пока не создан или еще не синхронизировался.',
+        );
+      }
+      return;
+    }
+
+    final driverName = driverContact?.fullName.trim();
+    await navigateToView(
+      DirectView(
+        idChat: chatId!,
+        name: driverName == null || driverName.isEmpty ? 'Водитель' : driverName,
+      ),
+    );
+  }
+
   Future<void> _persistSession() async {
     if (token == null || token!.isEmpty) return;
     await ActiveTripSessionStore.save(
@@ -818,10 +890,13 @@ class ActiveTripVM extends ViewModelBase {
     token = (activeOrder['token'] ?? token ?? '').toString();
     orderId = _toInt(activeOrder['id_order']) ?? orderId;
     scheduleRoadId = _toInt(activeOrder['id_schedule_road']) ?? scheduleRoadId;
+    driverId = _toInt(activeOrder['id_driver']) ?? driverId;
     statusId = _toInt(activeOrder['id_status']) ?? statusId;
     chatId = _toInt(activeOrder['id_chat']) ?? chatId;
+    driverContact = _extractDriverContact(activeOrder);
     addresses = _extractAddresses(activeOrder);
     children = _extractChildren(activeOrder);
+    serviceTitles = _extractServiceTitles(activeOrder);
     awaitingSince = _extractAwaitingSince(activeOrder);
     meetingVerified = _extractMeetingVerified(activeOrder);
     _syncWaitingTimer();

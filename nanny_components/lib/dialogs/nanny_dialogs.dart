@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/views/route_sheet.dart';
+import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -133,7 +134,7 @@ class NannyDialogs {
                                 ),
                               child,
                               Padding(
-                                padding: EdgeInsets.only(top: 10),
+                                padding: const EdgeInsets.only(top: 10),
                                 child: Wrap(
                                   alignment: WrapAlignment.center,
                                   runAlignment: WrapAlignment.center,
@@ -278,7 +279,9 @@ class NannyDialogs {
       {Road? road,
       int? tariffId,
       List<NannyWeekday>? allSelectedWeekdays,
-      bool applyToAllDaysDefault = true}) async {
+      bool applyToAllDaysDefault = true,
+      List<Child>? availableChildren,
+      List<int>? initialSelectedChildIds}) async {
     return await showModalBottomSheet(
       context: context,
       enableDrag: false,
@@ -295,6 +298,8 @@ class NannyDialogs {
           tariffId: tariffId,
           allSelectedWeekdays: allSelectedWeekdays,
           applyToAllDaysDefault: applyToAllDaysDefault,
+          availableChildren: availableChildren,
+          initialSelectedChildIds: initialSelectedChildIds,
         ),
       ),
     );
@@ -331,9 +336,9 @@ class NannyDialogs {
                       alignment: Alignment.center,
                       child: Column(
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 20),
-                            child: const Icon(
+                          const Padding(
+                            padding: EdgeInsets.only(top: 20),
+                            child: Icon(
                               Icons.account_balance_wallet_outlined,
                               size: 60,
                               color: Color(0xFFFF6B6B),
@@ -353,8 +358,7 @@ class NannyDialogs {
                           ),
                           const SizedBox(height: 20),
                           Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 20),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
                             child: Text(
                               'Ваш текущий баланс: ${currentBalance.toStringAsFixed(2)} ₽\n\nДля создания расписания поездок необходимо иметь положительный баланс. Пополните баланс, чтобы продолжить.',
                               textAlign: TextAlign.center,
@@ -373,8 +377,7 @@ class NannyDialogs {
                             runSpacing: 10,
                             children: [
                               ElevatedButton(
-                                onPressed: () =>
-                                    Navigator.pop(dContext, true),
+                                onPressed: () => Navigator.pop(dContext, true),
                                 style: ButtonStyle(
                                   shape: WidgetStatePropertyAll(
                                     RoundedRectangleBorder(
@@ -382,17 +385,14 @@ class NannyDialogs {
                                     ),
                                   ),
                                   minimumSize: WidgetStatePropertyAll(
-                                    Size(
-                                        MediaQuery.of(context).size.width -
-                                            80,
+                                    Size(MediaQuery.of(context).size.width - 80,
                                         60),
                                   ),
                                 ),
                                 child: const Text('Пополнить баланс'),
                               ),
                               ElevatedButton(
-                                onPressed: () =>
-                                    Navigator.pop(dContext, false),
+                                onPressed: () => Navigator.pop(dContext, false),
                                 style: ButtonStyle(
                                   backgroundColor: WidgetStatePropertyAll(
                                     Colors.grey[300],
@@ -406,9 +406,7 @@ class NannyDialogs {
                                     ),
                                   ),
                                   minimumSize: WidgetStatePropertyAll(
-                                    Size(
-                                        MediaQuery.of(context).size.width -
-                                            80,
+                                    Size(MediaQuery.of(context).size.width - 80,
                                         60),
                                   ),
                                 ),

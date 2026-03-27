@@ -26,7 +26,7 @@ class DriverRatingDetailsVM extends ViewModelBase {
     if (result.success && result.response != null) {
       rating = result.response;
     } else {
-      rating = _generateMockRating();
+      rating = null;
     }
 
     update(() => isLoading = false);
@@ -35,39 +35,5 @@ class DriverRatingDetailsVM extends ViewModelBase {
 
   Future<void> refresh() async {
     await loadPage();
-  }
-
-  DriverRating _generateMockRating() {
-    return DriverRating(
-      driverId: driverId,
-      averageRating: 4.8,
-      totalReviews: 47,
-      reviews: [
-        DriverReview(
-          id: 1,
-          rating: 5,
-          text: 'Отличный водитель! Очень аккуратно везёт, ребёнок доволен.',
-          criteria: ['Пунктуальность', 'Безопасное вождение', 'Вежливость'],
-          date: DateTime.now().subtract(const Duration(days: 2)),
-          authorName: 'Анна М.',
-        ),
-        DriverReview(
-          id: 2,
-          rating: 5,
-          text: 'Всегда вовремя, машина чистая.',
-          criteria: ['Пунктуальность', 'Чистый автомобиль'],
-          date: DateTime.now().subtract(const Duration(days: 5)),
-          authorName: 'Елена К.',
-        ),
-        DriverReview(
-          id: 3,
-          rating: 4,
-          text: null,
-          criteria: ['Безопасное вождение'],
-          date: DateTime.now().subtract(const Duration(days: 10)),
-          authorName: 'Сергей П.',
-        ),
-      ],
-    );
   }
 }

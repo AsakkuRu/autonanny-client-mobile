@@ -9,6 +9,8 @@ class TripHistory {
   final double? price;
   final String status;
   final int? rating;
+  final String? ratingReview;
+  final List<String> ratingCriteria;
   final int? durationMinutes;
   final double? distanceKm;
 
@@ -23,6 +25,8 @@ class TripHistory {
     this.price,
     required this.status,
     this.rating,
+    this.ratingReview,
+    this.ratingCriteria = const [],
     this.durationMinutes,
     this.distanceKm,
   });
@@ -39,6 +43,11 @@ class TripHistory {
       price: (json['price'] ?? json['amount'])?.toDouble(),
       status: json['status'] ?? 'completed',
       rating: json['rating'],
+      ratingReview: json['rating_review'] as String?,
+      ratingCriteria: (json['rating_criteria'] as List?)
+              ?.map((item) => item.toString())
+              .toList(growable: false) ??
+          const [],
       durationMinutes: json['duration_minutes'] ?? json['duration'],
       distanceKm: json['distance_km']?.toDouble() ?? json['distance']?.toDouble(),
     );

@@ -1,6 +1,7 @@
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/views/route_sheet.dart';
+import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -117,6 +118,8 @@ class NannyDialogs {
     int? tariffId,
     List<NannyWeekday>? allSelectedWeekdays,
     bool applyToAllDaysDefault = true,
+    List<Child>? availableChildren,
+    List<int>? initialSelectedChildIds,
   }) async {
     return showModalBottomSheet<RouteSheetResult>(
       context: context,
@@ -135,6 +138,8 @@ class NannyDialogs {
           tariffId: tariffId,
           allSelectedWeekdays: allSelectedWeekdays,
           applyToAllDaysDefault: applyToAllDaysDefault,
+          availableChildren: availableChildren,
+          initialSelectedChildIds: initialSelectedChildIds,
         ),
       ),
     );

@@ -9,6 +9,7 @@ import 'package:nanny_components/base_views/views/direct.dart';
 import 'package:nanny_components/base_views/views/driver_info.dart';
 import 'package:nanny_components/dialogs/driver_qr_dialog.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
+import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
@@ -28,6 +29,7 @@ class GraphVM extends ViewModelBase {
   bool isOffline = false;
 
   List<Schedule> schedules = [];
+  List<Child> children = [];
   Schedule? selectedSchedule;
   DriverContact? driverContact;
   List<ScheduleResponsesData> responses = [];
@@ -167,6 +169,44 @@ class GraphVM extends ViewModelBase {
     return '${road.startTime.formatTime()} – ${road.endTime.formatTime()}';
   }
 
+  Map<int, String> get contractChildNamesById {
+    return {
+      for (final child in children)
+        if (child.id != null)
+          child.id!: '${child.name} ${child.surname}'.trim(),
+    };
+  }
+
+  List<Child> get selectedScheduleChildren {
+    final selectedIds = selectedSchedule == null
+        ? <int>{}
+        : selectedSchedule!.roads
+            .expand((road) => road.children ?? const <int>[])
+            .toSet();
+
+    return children
+        .where((child) => child.id != null && selectedIds.contains(child.id))
+        .toList(growable: false);
+  }
+
+  List<int> initialRouteChildrenIds({Road? road}) {
+    final scheduleChildrenIds = selectedScheduleChildren
+        .map((child) => child.id)
+        .whereType<int>()
+        .toSet();
+
+    final routeChildren = road?.children
+            ?.where((childId) => scheduleChildrenIds.contains(childId))
+            .toList(growable: false) ??
+        const <int>[];
+
+    if (routeChildren.isNotEmpty) {
+      return routeChildren;
+    }
+
+    return scheduleChildrenIds.toList(growable: false);
+  }
+
   void _updateSpentsFromSelectedSchedule() {
     final schedule = selectedSchedule;
     if (schedule == null ||
@@ -183,6 +223,7 @@ class GraphVM extends ViewModelBase {
 
   Future<void> createOrEditRoute({Road? editingRoad}) async {
     if (selectedSchedule == null) return;
+    final availableChildren = selectedScheduleChildren;
 
     final result = await NannyDialogs.showRouteCreateOrEditSheet(
       context,
@@ -193,10 +234,19 @@ class GraphVM extends ViewModelBase {
       // нам здесь не нужна — используем только сформированный Road.
       allSelectedWeekdays: [selectedWeekday.first],
       applyToAllDaysDefault: false,
+      availableChildren: availableChildren.isEmpty ? null : availableChildren,
+      initialSelectedChildIds: editingRoad == null
+          ? null
+          : initialRouteChildrenIds(road: editingRoad),
     );
 
     if (result == null) return;
-    final road = result.road;
+    final road = availableChildren.isEmpty
+        ? result.road
+        : result.road.copyWith(
+            children:
+                result.childIds ?? initialRouteChildrenIds(road: editingRoad),
+          );
 
     if (!context.mounted) return;
 
@@ -453,6 +503,11 @@ class GraphVM extends ViewModelBase {
     if (scheduleResult.success) {
       isOffline = false;
       schedules = scheduleResult.response!;
+
+      final childrenResult = await NannyChildrenApi.getChildren();
+      if (childrenResult.success && childrenResult.response != null) {
+        children = childrenResult.response!;
+      }
 
       // Сохраняем выбор пользователя: если до перезагрузки
       // был выбран конкретный график, пытаемся найти его в

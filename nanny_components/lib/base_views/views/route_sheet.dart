@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/view_models/route_sheet_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -8,11 +9,13 @@ class RouteSheetResult {
   final Road road;
   final bool applyToAllSelectedDays;
   final List<NannyWeekday>? targetWeekdays;
+  final List<int>? childIds;
 
   RouteSheetResult({
     required this.road,
     required this.applyToAllSelectedDays,
     this.targetWeekdays,
+    this.childIds,
   });
 }
 
@@ -22,6 +25,8 @@ class RouteSheetView extends StatefulWidget {
   final int? tariffId;
   final List<NannyWeekday>? allSelectedWeekdays;
   final bool applyToAllDaysDefault;
+  final List<Child>? availableChildren;
+  final List<int>? initialSelectedChildIds;
 
   const RouteSheetView({
     super.key,
@@ -30,6 +35,8 @@ class RouteSheetView extends StatefulWidget {
     this.tariffId,
     this.allSelectedWeekdays,
     this.applyToAllDaysDefault = true,
+    this.availableChildren,
+    this.initialSelectedChildIds,
   });
 
   @override
@@ -38,6 +45,7 @@ class RouteSheetView extends StatefulWidget {
 
 class _RouteSheetViewState extends State<RouteSheetView> {
   late RouteSheetVM vm;
+  late final Set<int> _selectedChildIds;
 
   @override
   void initState() {
@@ -50,10 +58,20 @@ class _RouteSheetViewState extends State<RouteSheetView> {
         tariffId: widget.tariffId,
         allSelectedWeekdays: widget.allSelectedWeekdays,
         applyToAllDaysDefault: widget.applyToAllDaysDefault);
+    _selectedChildIds = (widget.initialSelectedChildIds ??
+            widget.availableChildren
+                ?.map((child) => child.id)
+                .whereType<int>()
+                .toList(growable: false) ??
+            const <int>[])
+        .toSet();
   }
 
   @override
   Widget build(BuildContext context) {
+    final sheetTitle =
+        widget.road == null ? "Новый маршрут" : "Редактирование маршрута";
+
     return BottomSheet(
       onClosing: () {},
       shape: const RoundedRectangleBorder(
@@ -76,12 +94,12 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                       onPressed: vm.cancel,
                       child: const Text("Отменить"),
                     ),
-                    const Text(
-                      "Новый маршрут",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                    Text(
+                      sheetTitle,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     TextButton(
-                      onPressed: vm.confirm,
+                      onPressed: _confirm,
                       child: const Text("Готово"),
                     ),
                   ],
@@ -333,6 +351,14 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                         ],
                       ),
                     ),
+                    if (widget.availableChildren != null) ...[
+                      const SizedBox(height: 20),
+                      _RouteChildrenSelectorSection(
+                        children: widget.availableChildren!,
+                        selectedChildIds: _selectedChildIds,
+                        onToggle: _toggleChild,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -341,6 +367,29 @@ class _RouteSheetViewState extends State<RouteSheetView> {
         ),
       ),
     );
+  }
+
+  void _toggleChild(int childId) {
+    setState(() {
+      if (_selectedChildIds.contains(childId)) {
+        _selectedChildIds.remove(childId);
+      } else {
+        _selectedChildIds.add(childId);
+      }
+    });
+  }
+
+  void _confirm() {
+    if (widget.availableChildren != null && _selectedChildIds.isEmpty) {
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        "Выберите хотя бы одного ребёнка для маршрута",
+      );
+      return;
+    }
+
+    vm.confirm(selectedChildIds: _selectedChildIds.toList(growable: false));
   }
 }
 
@@ -368,6 +417,94 @@ class _TimePreviewCard extends StatelessWidget {
           Text(label, style: NDT.caption.copyWith(color: NDT.neutral500)),
           const SizedBox(height: 4),
           Text(value, style: NDT.h3.copyWith(color: NDT.primary)),
+        ],
+      ),
+    );
+  }
+}
+
+class _RouteChildrenSelectorSection extends StatelessWidget {
+  const _RouteChildrenSelectorSection({
+    required this.children,
+    required this.selectedChildIds,
+    required this.onToggle,
+  });
+
+  final List<Child> children;
+  final Set<int> selectedChildIds;
+  final ValueChanged<int> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F8FF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: const Color(0xFFE0E0E0),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Дети маршрута",
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "Выберите, кто поедет именно по этому маршруту. Доступны только дети, уже добавленные в контракт.",
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF757575),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (children.isEmpty)
+            const Text(
+              "Сначала добавьте детей в контракт.",
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF757575),
+              ),
+            )
+          else
+            ...children.map(
+              (child) {
+                final childId = child.id;
+                final fullName = '${child.surname} ${child.name}'.trim();
+                final subtitle = child.birthday == null
+                    ? null
+                    : 'Возраст: ${DateTime.now().year - child.birthday!.year} лет';
+
+                return CheckboxListTile(
+                  value: childId != null && selectedChildIds.contains(childId),
+                  onChanged: childId == null ? null : (_) => onToggle(childId),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: Theme.of(context).colorScheme.primary,
+                  title: Text(
+                    fullName.isEmpty ? 'Ребёнок без имени' : fullName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  subtitle: subtitle == null
+                      ? null
+                      : Text(
+                          subtitle,
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                );
+              },
+            ),
         ],
       ),
     );

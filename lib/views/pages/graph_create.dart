@@ -47,32 +47,18 @@ class _GraphCreateState extends State<GraphCreate> {
       tariffId: vm.editor.tariff.id,
       allSelectedWeekdays: [weekday],
       applyToAllDaysDefault: false,
+      availableChildren: vm.selectedContractChildren,
+      initialSelectedChildIds: vm.initialRouteChildrenIds(road: updatingRoad),
     );
     if (result == null || !mounted) {
-      return;
-    }
-
-    final routeChildrenIds = await showModalBottomSheet<List<int>>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _RouteChildrenSheet(
-        children: vm.selectedContractChildren,
-        initialSelectedIds: vm.initialRouteChildrenIds(road: updatingRoad),
-        weekdayLabel: weekday.fullName,
-        routeTitle:
-            result.road.title.isEmpty ? 'Маршрут без названия' : result.road.title,
-      ),
-    );
-    if (routeChildrenIds == null || routeChildrenIds.isEmpty) {
       return;
     }
 
     vm.saveRoute(
       route: result.road,
       weekday: weekday,
-      childIds: routeChildrenIds,
+      childIds:
+          result.childIds ?? vm.initialRouteChildrenIds(road: updatingRoad),
       updatingRoad: updatingRoad,
     );
   }
@@ -254,6 +240,8 @@ class _GraphCreateState extends State<GraphCreate> {
                     ],
                   ),
                 ),
+                const SizedBox(height: AutonannySpacing.lg),
+                _ContractDraftSummarySection(vm: vm),
               ],
             );
           },
@@ -300,7 +288,7 @@ class _DayRoutesPanel extends StatelessWidget {
                     ),
                     const SizedBox(height: AutonannySpacing.xs),
                     Text(
-                      'Маршруты для этого дня создаются и редактируются отдельно.',
+                      'Добавляйте маршруты и сразу выбирайте детей для каждой поездки.',
                       style: AutonannyTypography.bodyS(
                         color: context.autonannyColors.textSecondary,
                       ),
@@ -641,12 +629,20 @@ class _RouteDraftCard extends StatelessWidget {
               children: assignedChildren
                   .map(
                     (child) => _ChildToken(
-                      label:
-                          '${child.name} ${child.surname}'.trim(),
+                      label: '${child.name} ${child.surname}'.trim(),
                     ),
                   )
                   .toList(growable: false),
             ),
+          if (road.amount != null) ...[
+            const SizedBox(height: AutonannySpacing.md),
+            Text(
+              'Предварительная стоимость маршрута: ${road.amount!.toStringAsFixed(0)} ₽',
+              style: AutonannyTypography.bodyS(
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
           const SizedBox(height: AutonannySpacing.md),
           Row(
             children: [
@@ -693,156 +689,6 @@ class _ChildToken extends StatelessWidget {
       child: Text(
         label,
         style: AutonannyTypography.caption(color: colors.textPrimary),
-      ),
-    );
-  }
-}
-
-class _RouteChildrenSheet extends StatefulWidget {
-  const _RouteChildrenSheet({
-    required this.children,
-    required this.initialSelectedIds,
-    required this.weekdayLabel,
-    required this.routeTitle,
-  });
-
-  final List<Child> children;
-  final List<int> initialSelectedIds;
-  final String weekdayLabel;
-  final String routeTitle;
-
-  @override
-  State<_RouteChildrenSheet> createState() => _RouteChildrenSheetState();
-}
-
-class _RouteChildrenSheetState extends State<_RouteChildrenSheet> {
-  late final Set<int> _selectedIds;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedIds = widget.initialSelectedIds.toSet();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.88,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AutonannySpacing.xl,
-            AutonannySpacing.md,
-            AutonannySpacing.xl,
-            AutonannySpacing.xl,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: context.autonannyColors.borderSubtle,
-                    borderRadius: AutonannyRadii.brLg,
-                  ),
-                ),
-              ),
-              const SizedBox(height: AutonannySpacing.lg),
-              Text(
-                'Дети для маршрута',
-                style: AutonannyTypography.h3(
-                  color: context.autonannyColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: AutonannySpacing.xs),
-              Text(
-                '${widget.weekdayLabel} • ${widget.routeTitle}',
-                style: AutonannyTypography.bodyS(
-                  color: context.autonannyColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: AutonannySpacing.lg),
-              if (_selectedIds.isEmpty)
-                const AutonannyInlineBanner(
-                  title: 'Нужно выбрать хотя бы одного ребёнка',
-                  message:
-                      'К маршруту можно привязать только детей, которые уже выбраны для контракта.',
-                  tone: AutonannyBannerTone.warning,
-                  leading: AutonannyIcon(AutonannyIcons.warning),
-                ),
-              if (_selectedIds.isEmpty)
-                const SizedBox(height: AutonannySpacing.md),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: widget.children
-                      .map(
-                        (child) => Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: AutonannySpacing.sm,
-                          ),
-                          child: _ChildSelectionTile(
-                            child: child,
-                            isSelected: child.id != null &&
-                                _selectedIds.contains(child.id),
-                            onTap: child.id == null
-                                ? null
-                                : () {
-                                    setState(() {
-                                      if (_selectedIds.contains(child.id)) {
-                                        _selectedIds.remove(child.id);
-                                      } else {
-                                        _selectedIds.add(child.id!);
-                                      }
-                                    });
-                                  },
-                          ),
-                        ),
-                      )
-                      .toList(growable: false),
-                ),
-              ),
-              const SizedBox(height: AutonannySpacing.lg),
-              Row(
-                children: [
-                  Expanded(
-                    child: AutonannyButton(
-                      label: 'Отмена',
-                      variant: AutonannyButtonVariant.secondary,
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ),
-                  const SizedBox(width: AutonannySpacing.sm),
-                  Expanded(
-                    child: AutonannyButton(
-                      label: 'Сохранить',
-                      onPressed: _selectedIds.isEmpty
-                          ? null
-                          : () => Navigator.of(context).pop(
-                                widget.children
-                                    .where((child) =>
-                                        child.id != null &&
-                                        _selectedIds.contains(child.id))
-                                    .map((child) => child.id!)
-                                    .toList(growable: false),
-                              ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -976,6 +822,171 @@ class _TripsCounterBanner extends StatelessWidget {
       tone: isValid ? AutonannyBannerTone.success : AutonannyBannerTone.danger,
       leading: AutonannyIcon(
         isValid ? AutonannyIcons.checkCircle : AutonannyIcons.error,
+      ),
+    );
+  }
+}
+
+class _ContractDraftSummarySection extends StatelessWidget {
+  const _ContractDraftSummarySection({
+    required this.vm,
+  });
+
+  final GraphCreateVM vm;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return AutonannySectionContainer(
+      title: 'Сводка по контракту',
+      subtitle:
+          'Проверьте конфигурацию контракта перед сохранением. Стоимость считается по маршрутам, где уже есть расчет.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryMetricCard(
+                  label: 'Детей',
+                  value: '${vm.selectedChildrenIds.length}',
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.sm),
+              Expanded(
+                child: _SummaryMetricCard(
+                  label: 'Дней',
+                  value: '${vm.selectedDaysCount}',
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.sm),
+              Expanded(
+                child: _SummaryMetricCard(
+                  label: 'Маршрутов',
+                  value: '${vm.routesCount}',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: _SummaryMetricCard(
+                  label: 'В неделю',
+                  value: _formatAmount(vm.estimatedWeeklyAmount),
+                  caption: 'предварительно',
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.sm),
+              Expanded(
+                child: _SummaryMetricCard(
+                  label: 'В месяц',
+                  value: _formatAmount(vm.estimatedMonthlyAmount),
+                  caption: '${vm.tripsPerMonth} поездок',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AutonannySpacing.md),
+            decoration: BoxDecoration(
+              color: colors.surfaceSecondary,
+              borderRadius: AutonannyRadii.brLg,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Категория: ${vm.editor.tariff.title ?? 'Заказ маршрута'}',
+                  style: AutonannyTypography.bodyM(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.xs),
+                Text(
+                  'Доп. услуги: ${vm.selectedServicesLabel}',
+                  style: AutonannyTypography.bodyS(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (vm.estimatedMonthlyAmount == null && vm.routesCount > 0) ...[
+            const SizedBox(height: AutonannySpacing.md),
+            const AutonannyInlineBanner(
+              title: 'Стоимость пока неполная',
+              message:
+                  'Для части маршрутов еще нет расчета. Откройте маршрут и дождитесь предварительной стоимости.',
+              tone: AutonannyBannerTone.info,
+              leading: AutonannyIcon(AutonannyIcons.info),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatAmount(double? value) {
+    if (value == null || value <= 0) {
+      return '—';
+    }
+    return '~ ${value.round()} ₽';
+  }
+}
+
+class _SummaryMetricCard extends StatelessWidget {
+  const _SummaryMetricCard({
+    required this.label,
+    required this.value,
+    this.caption,
+  });
+
+  final String label;
+  final String value;
+  final String? caption;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Container(
+      padding: const EdgeInsets.all(AutonannySpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: AutonannyRadii.brLg,
+        border: Border.all(color: colors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AutonannyTypography.caption(
+              color: colors.textTertiary,
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.xs),
+          Text(
+            value,
+            style: AutonannyTypography.h3(
+              color: colors.textPrimary,
+            ),
+          ),
+          if (caption case final captionText?) ...[
+            const SizedBox(height: AutonannySpacing.xs),
+            Text(
+              captionText,
+              style: AutonannyTypography.caption(
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

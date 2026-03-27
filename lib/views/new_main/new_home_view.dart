@@ -34,6 +34,7 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
 
   bool _hasActiveTrip = false;
   String? _activeToken;
+  ActiveTripBannerData? _activeTripBannerData;
   Timer? _pollTimer;
   StreamSubscription<Map<String, dynamic>>? _realtimeTripSub;
   static const Set<String> _activeTripInvalidationEvents = {
@@ -100,7 +101,12 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
       setState(() {
         _hasActiveTrip = true;
         _activeToken = token;
+        _activeTripBannerData ??= const ActiveTripBannerData(
+          title: 'Активная поездка',
+          subtitle: 'Открыть экран активной поездки',
+        );
       });
+      _checkActiveTrip();
       return;
     }
 
@@ -147,6 +153,7 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
             setState(() {
               _hasActiveTrip = true;
               _activeToken = orderToken;
+              _activeTripBannerData = _buildActiveTripBannerData(activeOrder);
             });
             return;
           }
@@ -156,6 +163,7 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
         setState(() {
           _hasActiveTrip = false;
           _activeToken = null;
+          _activeTripBannerData = null;
         });
         return;
       }
@@ -165,6 +173,10 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
         setState(() {
           _hasActiveTrip = true;
           _activeToken = cached.token;
+          _activeTripBannerData ??= const ActiveTripBannerData(
+            title: 'Активная поездка',
+            subtitle: 'Открыть экран активной поездки',
+          );
         });
         return;
       }
@@ -173,11 +185,64 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
         setState(() {
           _hasActiveTrip = false;
           _activeToken = null;
+          _activeTripBannerData = null;
         });
       }
     } catch (e, st) {
       debugPrint('[ActiveTrip] _checkActiveTrip error: $e\n$st');
     }
+  }
+
+  ActiveTripBannerData _buildActiveTripBannerData(
+    Map<String, dynamic> activeOrder,
+  ) {
+    final statusId = _toInt(activeOrder['id_status']);
+    final driver = activeOrder['driver'];
+    final driverMap = driver is Map ? Map<String, dynamic>.from(driver) : null;
+    final driverName = _driverName(driverMap);
+
+    return ActiveTripBannerData(
+      title: _activeTripTitle(statusId),
+      subtitle: driverName.isNotEmpty
+          ? '$driverName · открыть экран поездки'
+          : _activeTripSubtitle(statusId),
+      avatarImageUrl: driverMap?['photo']?.toString(),
+      avatarInitials: _driverInitials(driverMap),
+    );
+  }
+
+  String _activeTripTitle(int? statusId) {
+    return switch (statusId) {
+      13 || 5 => 'Водитель едет к вам',
+      6 || 7 => 'Водитель уже ожидает',
+      14 || 15 => 'Поездка в процессе',
+      4 || null => 'Ищем водителя',
+      _ => 'Активная поездка',
+    };
+  }
+
+  String _activeTripSubtitle(int? statusId) {
+    return switch (statusId) {
+      4 || null => 'Подбираем подходящего водителя для поездки',
+      _ => 'Открыть экран активной поездки',
+    };
+  }
+
+  String _driverName(Map<String, dynamic>? driver) {
+    if (driver == null) return '';
+    final surname = (driver['surname'] ?? '').toString().trim();
+    final name = (driver['name'] ?? '').toString().trim();
+    return [surname, name].where((part) => part.isNotEmpty).join(' ').trim();
+  }
+
+  String _driverInitials(Map<String, dynamic>? driver) {
+    if (driver == null) return 'A';
+    final surname = (driver['surname'] ?? '').toString().trim();
+    final name = (driver['name'] ?? '').toString().trim();
+    final first = surname.isNotEmpty ? surname.substring(0, 1) : '';
+    final second = name.isNotEmpty ? name.substring(0, 1) : '';
+    final initials = '$first$second'.toUpperCase();
+    return initials.isEmpty ? 'A' : initials;
   }
 
   Map<String, dynamic>? _selectActiveOrder(
@@ -297,7 +362,14 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
                 top: MediaQuery.of(context).padding.top + 8,
                 left: 16,
                 right: 16,
-                child: _ActiveTripBanner(onTap: _openActiveTrip),
+                child: _ActiveTripBanner(
+                  data: _activeTripBannerData ??
+                      const ActiveTripBannerData(
+                        title: 'Активная поездка',
+                        subtitle: 'Открыть экран активной поездки',
+                      ),
+                  onTap: _openActiveTrip,
+                ),
               ),
           ],
         ),
@@ -369,17 +441,15 @@ class _NewBottomNavBar extends StatelessWidget {
 }
 
 class _ActiveTripBanner extends StatelessWidget {
+  final ActiveTripBannerData data;
   final VoidCallback onTap;
 
-  const _ActiveTripBanner({required this.onTap});
+  const _ActiveTripBanner({required this.data, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return ActiveTripBanner(
-      data: const ActiveTripBannerData(
-        title: 'Поездка в процессе',
-        subtitle: 'Открыть экран активной поездки',
-      ),
+      data: data,
       onTap: onTap,
     );
   }

@@ -5,6 +5,7 @@ import 'package:nanny_client/ui_sdk/mappers/client_ui_sdk_mappers.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dart';
+import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/dialogs/driver_qr_dialog.dart';
 import 'package:nanny_components/new_design/nd_primary_button.dart';
 import 'package:nanny_components/styles/new_design_app.dart';
@@ -12,6 +13,7 @@ import 'package:nanny_components/widgets/map/full_screen_map_address_picker.dart
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_core/api/google_map_api.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
+import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -697,12 +699,24 @@ class _TripSheetState extends State<_TripSheet> {
               ),
               const SizedBox(height: 12),
               _statusBlocks(),
+              if (vm.driverContact != null) ...[
+                _driverCard(),
+                if (vm.driverId != null) ...[
+                  const SizedBox(height: 12),
+                  _driverRatingButton(),
+                ],
+                const SizedBox(height: 16),
+              ],
               if (vm.addresses.isNotEmpty) ...[
                 _routeCard(),
                 const SizedBox(height: 16),
               ],
               if (vm.children.isNotEmpty) ...[
                 _passengersCard(),
+                const SizedBox(height: 16),
+              ],
+              if (vm.serviceTitles.isNotEmpty) ...[
+                _servicesCard(),
                 const SizedBox(height: 16),
               ],
               if (vm.noDriversFound) ...[
@@ -1117,6 +1131,117 @@ class _TripSheetState extends State<_TripSheet> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _servicesCard() {
+    final services = widget.vm.serviceTitles;
+    if (services.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final subtitle = switch ((widget.vm.isInProgress, widget.vm.isArrived)) {
+      (true, _) => 'Дополнительные условия, которые учтены в текущей поездке',
+      (_, true) => 'Услуги уже переданы водителю и учитываются в поездке',
+      _ => 'Дополнительные условия заказа, переданные водителю',
+    };
+
+    return AutonannySectionContainer(
+      title: 'Дополнительные услуги',
+      subtitle: subtitle,
+      trailing: AutonannyBadge(label: '${services.length} услуг'),
+      child: Column(
+        children: [
+          for (var i = 0; i < services.length; i++) ...[
+            AutonannyListRow(
+              padding: EdgeInsets.zero,
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: NDT.primary100,
+                  borderRadius: NDT.brMd,
+                ),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.stars_rounded,
+                  size: 18,
+                  color: NDT.primary,
+                ),
+              ),
+              title: services[i],
+              subtitle: widget.vm.isInProgress
+                  ? 'Услуга активна в поездке'
+                  : 'Будет учтена при выполнении поездки',
+            ),
+            if (i != services.length - 1)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: AutonannySpacing.md),
+                child: Divider(height: 1),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _driverCard() {
+    final driver = widget.vm.driverContact;
+    if (driver == null) {
+      return const SizedBox.shrink();
+    }
+
+    return AssignedDriverCard(
+      data: _activeTripDriverCardData(driver),
+      onPrimaryAction: widget.vm.openAssignedDriverProfile,
+      onSecondaryAction:
+          widget.vm.chatId != null ? widget.vm.openAssignedDriverChat : null,
+    );
+  }
+
+  Widget _driverRatingButton() {
+    final driver = widget.vm.driverContact;
+    final driverId = widget.vm.driverId;
+    if (driver == null || driverId == null) {
+      return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: AutonannyButton(
+        label: 'Отзывы и рейтинг',
+        variant: AutonannyButtonVariant.secondary,
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => DriverRatingDetailsView(
+                driverId: driverId,
+                driverName: driver.fullName,
+                driverPhoto: driver.photo,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  AssignedDriverCardData _activeTripDriverCardData(DriverContact driver) {
+    final base = driver.assignedDriverCardData;
+    return AssignedDriverCardData(
+      name: base.name,
+      initials: base.initials,
+      photoUrl: base.photoUrl,
+      phoneLabel: base.phoneLabel,
+      ratingLabel: base.ratingLabel,
+      carLabel: base.carLabel,
+      caption: widget.vm.isInProgress
+          ? 'Назначенный водитель уже ведет поездку'
+          : widget.vm.isArrived
+              ? 'Водитель уже на месте. Можно открыть профиль или написать в чат.'
+              : 'Назначенный водитель по этой поездке',
+      primaryActionLabel: 'Профиль',
+      secondaryActionLabel: widget.vm.chatId != null ? 'Написать' : null,
     );
   }
 
