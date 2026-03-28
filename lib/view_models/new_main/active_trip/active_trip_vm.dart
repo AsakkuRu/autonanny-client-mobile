@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_components/base_views/views/direct.dart';
 import 'package:nanny_components/base_views/views/driver_info.dart';
-import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
@@ -42,9 +41,12 @@ class ActiveTripVM extends ViewModelBase {
   StreamSubscription? _routeSub;
   Timer? _statusPollTimer;
   Timer? _waitingTimer;
+  Timer? _pendingCancelledTerminalTimer;
   Duration? _statusPollInterval;
   bool _isReconcilingTerminalState = false;
   bool _isReconcilingStatusState = false;
+  static const Duration _cancelledEventGracePeriod =
+      Duration(milliseconds: 450);
 
   String? token;
   int? orderId;
@@ -78,6 +80,8 @@ class ActiveTripVM extends ViewModelBase {
   Set<Polyline> routePolylines = {};
   ActiveTripTerminalResult? terminalResult;
   int terminalResultVersion = 0;
+  ActiveTripInfoNotice? infoNotice;
+  int infoNoticeVersion = 0;
   bool _terminalResultPublished = false;
 
   bool get isFinished => statusId == 11;
@@ -125,6 +129,7 @@ class ActiveTripVM extends ViewModelBase {
     }
     return serverTotal > localTotal ? serverTotal : localTotal;
   }
+
   String get waitingStatusHint {
     if (isWithinFreeWaitingWindow) {
       final remaining = (freeWaitingSecondsLimit - waitingSeconds).clamp(
@@ -235,33 +240,33 @@ class ActiveTripVM extends ViewModelBase {
     final activeOrder = _selectActiveOrder(activeOrders);
 
     if (activeOrder == null) {
+      final authoritativeOrder = await _loadAuthoritativeOrderDetails();
+      final authoritativeStatus = _toInt(authoritativeOrder?['id_status']);
+
+      if (authoritativeOrder != null && authoritativeStatus != null) {
+        if (authoritativeStatus != 2 &&
+            authoritativeStatus != 3 &&
+            authoritativeStatus != 11) {
+          _applyOrderSnapshot(authoritativeOrder, updateRoute: false);
+          _refreshStatusText();
+          _startStatusPolling();
+          if (context.mounted) {
+            update(() {});
+          }
+          return;
+        }
+
+        await _applyAuthoritativeTerminalState(
+          authoritativeStatus,
+          payload: authoritativeOrder,
+        );
+        return;
+      }
+
       if (token != null || orderId != null) {
         final likelyCompleted = statusId == 14 || statusId == 15;
         final fallbackStatus = likelyCompleted ? 11 : 3;
-        statusId = fallbackStatus;
-        statusText =
-            likelyCompleted ? 'Поездка завершена' : 'Поездка больше не активна';
-        token = null;
-        _stopWaitingRuntime();
-        await ActiveTripSessionStore.clear();
-        _stopStatusPolling();
-        _publishTerminalResult(
-          fallbackStatus == 11
-              ? const ActiveTripTerminalResult(
-                  title: 'Поездка завершена',
-                  message:
-                      'Поездка закрыта на стороне сервера. Вы можете оценить водителя сейчас или позже в истории поездок.',
-                  statusId: 11,
-                  supportsDriverRating: true,
-                )
-              : const ActiveTripTerminalResult(
-                  title: 'Поездка больше не активна',
-                  message:
-                      'Активная поездка уже закрыта. Если отмена была выполнена ранее, новое действие не требуется.',
-                  statusId: 3,
-                ),
-        );
-        if (context.mounted) update(() {});
+        await _applyAuthoritativeTerminalState(fallbackStatus);
       }
       return;
     }
@@ -424,6 +429,8 @@ class ActiveTripVM extends ViewModelBase {
 
     _statusSub = _socket!.on('trip.status_changed').listen((msg) {
       connectionTimedOut = false;
+      _pendingCancelledTerminalTimer?.cancel();
+      _pendingCancelledTerminalTimer = null;
       final data = Map<String, dynamic>.from(msg['data'] ?? const {});
       final status = _toInt(data['legacy_status_id']) ??
           _mapTripStatusToUiStatusId(data['status']?.toString());
@@ -520,21 +527,30 @@ class ActiveTripVM extends ViewModelBase {
       ActiveTripSessionStore.clear();
       _refreshStatusText();
       _stopStatusPolling();
-      _publishTerminalResult(
-        cancelledStatus == 2
-            ? const ActiveTripTerminalResult(
-                title: 'Водитель отменил поездку',
-                message:
-                    'Поездка остановлена. Вы можете закрыть экран и заказать нового водителя.',
-                statusId: 2,
-              )
-            : const ActiveTripTerminalResult(
-                title: 'Поездка отменена',
-                message:
-                    'Активная поездка закрыта. Водитель уже получил уведомление об отмене.',
-                statusId: 3,
-              ),
-      );
+      _pendingCancelledTerminalTimer?.cancel();
+      _pendingCancelledTerminalTimer = Timer(_cancelledEventGracePeriod, () {
+        if (_terminalResultPublished) {
+          return;
+        }
+        _publishTerminalResult(
+          cancelledStatus == 2
+              ? const ActiveTripTerminalResult(
+                  title: 'Водитель отменил поездку',
+                  message:
+                      'Поездка остановлена. Вы можете закрыть экран и заказать нового водителя.',
+                  statusId: 2,
+                )
+              : const ActiveTripTerminalResult(
+                  title: 'Поездка отменена',
+                  message:
+                      'Активная поездка закрыта. Водитель уже получил уведомление об отмене.',
+                  statusId: 3,
+                ),
+        );
+        if (context.mounted) {
+          update(() {});
+        }
+      });
       if (context.mounted) update(() {});
     });
 
@@ -790,18 +806,16 @@ class ActiveTripVM extends ViewModelBase {
   }
 
   void _applyRuntimeFinancePayload(Map<String, dynamic> data) {
-    baseTripPrice =
-        _toDouble(data['base_price']) ??
-            _toDouble(data['total_price']) ??
-            _toDouble(data['amount']) ??
-            baseTripPrice;
+    baseTripPrice = _toDouble(data['base_price']) ??
+        _toDouble(data['total_price']) ??
+        _toDouble(data['amount']) ??
+        baseTripPrice;
     serverCurrentTotalPrice =
         _toDouble(data['current_total_price']) ?? serverCurrentTotalPrice;
     freeWaitingSecondsLimit =
         _toInt(data['free_wait_seconds']) ?? freeWaitingSecondsLimit;
     paidWaitingRatePerMinute =
-        _toDouble(data['waiting_rate_per_minute']) ??
-            paidWaitingRatePerMinute;
+        _toDouble(data['waiting_rate_per_minute']) ?? paidWaitingRatePerMinute;
     waitingSeconds = _toInt(data['waiting_seconds']) ?? waitingSeconds;
   }
 
@@ -853,27 +867,27 @@ class ActiveTripVM extends ViewModelBase {
     update(() {});
     try {
       if (orderId == null) {
-        if (context.mounted) {
-          await NannyDialogs.showMessageBox(
-            context,
-            'Ошибка',
-            'Не удалось определить активную поездку для отмены.',
-          );
-        }
+        _publishInfoNotice(
+          const ActiveTripInfoNotice(
+            title: 'Не удалось отменить поездку',
+            message: 'Не удалось определить активную поездку для отмены.',
+            isError: true,
+          ),
+        );
         return null;
       }
 
       final result = await NannyOrdersApi.cancelOrder(orderId: orderId!);
       if (!result.success) {
-        if (context.mounted) {
-          await NannyDialogs.showMessageBox(
-            context,
-            'Ошибка',
-            result.errorMessage.isNotEmpty
+        _publishInfoNotice(
+          ActiveTripInfoNotice(
+            title: 'Не удалось отменить поездку',
+            message: result.errorMessage.isNotEmpty
                 ? result.errorMessage
-                : 'Не удалось отменить поездку. Попробуйте ещё раз.',
-          );
-        }
+                : 'Попробуйте ещё раз.',
+            isError: true,
+          ),
+        );
         return null;
       }
 
@@ -995,26 +1009,32 @@ class ActiveTripVM extends ViewModelBase {
       if (!context.mounted) return;
 
       if (result.success) {
-        await NannyDialogs.showMessageBox(
-          context,
-          'SOS активирован',
-          'Экстренное уведомление отправлено. Администраторы получили ваши координаты.',
+        _publishInfoNotice(
+          const ActiveTripInfoNotice(
+            title: 'SOS активирован',
+            message:
+                'Экстренное уведомление отправлено. Администраторы получили ваши координаты.',
+          ),
         );
       } else {
-        await NannyDialogs.showMessageBox(
-          context,
-          'Ошибка',
-          result.errorMessage.isNotEmpty
-              ? result.errorMessage
-              : 'Не удалось отправить SOS. Проверьте подключение к интернету.',
+        _publishInfoNotice(
+          ActiveTripInfoNotice(
+            title: 'Не удалось отправить SOS',
+            message: result.errorMessage.isNotEmpty
+                ? result.errorMessage
+                : 'Проверьте подключение к интернету и попробуйте ещё раз.',
+            isError: true,
+          ),
         );
       }
     } catch (e) {
       if (context.mounted) {
-        await NannyDialogs.showMessageBox(
-          context,
-          'Ошибка',
-          'Не удалось отправить SOS. Проверьте подключение к интернету.',
+        _publishInfoNotice(
+          const ActiveTripInfoNotice(
+            title: 'Не удалось отправить SOS',
+            message: 'Проверьте подключение к интернету и попробуйте ещё раз.',
+            isError: true,
+          ),
         );
       }
     } finally {
@@ -1025,13 +1045,14 @@ class ActiveTripVM extends ViewModelBase {
 
   Future<void> openAssignedDriverProfile() async {
     if (driverId == null) {
-      if (context.mounted) {
-        await NannyDialogs.showMessageBox(
-          context,
-          'Профиль недоступен',
-          'Информация о водителе еще загружается. Попробуйте снова через пару секунд.',
-        );
-      }
+      _publishInfoNotice(
+        const ActiveTripInfoNotice(
+          title: 'Профиль недоступен',
+          message:
+              'Информация о водителе еще загружается. Попробуйте снова через пару секунд.',
+          isError: true,
+        ),
+      );
       return;
     }
 
@@ -1051,13 +1072,14 @@ class ActiveTripVM extends ViewModelBase {
 
   Future<void> openAssignedDriverChat() async {
     if (chatId == null) {
-      if (context.mounted) {
-        await NannyDialogs.showMessageBox(
-          context,
-          'Чат недоступен',
-          'Чат с водителем пока не создан или еще не синхронизировался.',
-        );
-      }
+      _publishInfoNotice(
+        const ActiveTripInfoNotice(
+          title: 'Чат недоступен',
+          message:
+              'Чат с водителем пока не создан или еще не синхронизировался.',
+          isError: true,
+        ),
+      );
       return;
     }
 
@@ -1074,13 +1096,14 @@ class ActiveTripVM extends ViewModelBase {
   Future<void> callAssignedDriver() async {
     final rawPhone = driverContact?.phone.trim();
     if (rawPhone == null || rawPhone.isEmpty) {
-      if (context.mounted) {
-        await NannyDialogs.showMessageBox(
-          context,
-          'Телефон недоступен',
-          'Номер водителя пока не удалось загрузить. Попробуйте немного позже.',
-        );
-      }
+      _publishInfoNotice(
+        const ActiveTripInfoNotice(
+          title: 'Телефон недоступен',
+          message:
+              'Номер водителя пока не удалось загрузить. Попробуйте немного позже.',
+          isError: true,
+        ),
+      );
       return;
     }
 
@@ -1090,10 +1113,12 @@ class ActiveTripVM extends ViewModelBase {
       return;
     }
 
-    await NannyDialogs.showMessageBox(
-      context,
-      'Не удалось открыть набор номера',
-      'Попробуйте еще раз или свяжитесь с водителем через чат.',
+    _publishInfoNotice(
+      const ActiveTripInfoNotice(
+        title: 'Не удалось открыть набор номера',
+        message: 'Попробуйте еще раз или свяжитесь с водителем через чат.',
+        isError: true,
+      ),
     );
   }
 
@@ -1159,8 +1184,8 @@ class ActiveTripVM extends ViewModelBase {
     baseTripPrice = _toDouble(activeOrder['total_price']) ??
         _toDouble(activeOrder['amount']) ??
         baseTripPrice;
-    serverCurrentTotalPrice =
-        _toDouble(activeOrder['current_total_price']) ?? serverCurrentTotalPrice;
+    serverCurrentTotalPrice = _toDouble(activeOrder['current_total_price']) ??
+        serverCurrentTotalPrice;
     freeWaitingSecondsLimit =
         _toInt(activeOrder['free_wait_seconds']) ?? freeWaitingSecondsLimit;
     paidWaitingRatePerMinute =
@@ -1177,6 +1202,85 @@ class ActiveTripVM extends ViewModelBase {
     );
     if (updateRoute) {
       ensureRoutePolyline();
+    }
+  }
+
+  Future<Map<String, dynamic>?> _loadAuthoritativeOrderDetails() async {
+    final trackedOrderId = orderId;
+    if (trackedOrderId == null) {
+      return null;
+    }
+
+    final orderDetails = await NannyOrdersApi.getOrderDetails(trackedOrderId);
+    if (orderDetails == null) {
+      return null;
+    }
+
+    orderId = _toInt(orderDetails['id_order']) ?? orderId;
+    scheduleRoadId = _toInt(orderDetails['id_schedule_road']) ?? scheduleRoadId;
+    chatId = _toInt(orderDetails['id_chat']) ?? chatId;
+    driverId = _toInt(orderDetails['id_driver']) ?? driverId;
+    final detailsToken = orderDetails['token']?.toString();
+    if (detailsToken != null && detailsToken.isNotEmpty) {
+      token = detailsToken;
+    }
+
+    return orderDetails;
+  }
+
+  ActiveTripTerminalResult _terminalResultForStatus(int status) {
+    switch (status) {
+      case 11:
+        return const ActiveTripTerminalResult(
+          title: 'Поездка завершена',
+          message:
+              'Поездка уже завершилась. Вы можете оценить водителя сейчас или позже в истории поездок.',
+          statusId: 11,
+          supportsDriverRating: true,
+        );
+      case 2:
+        return const ActiveTripTerminalResult(
+          title: 'Водитель отменил поездку',
+          message:
+              'Поездка закрыта. Можно вернуться на главный экран и оформить новую поездку.',
+          statusId: 2,
+        );
+      default:
+        return ActiveTripTerminalResult(
+          title: noDriversFound ? 'Водитель не найден' : 'Поездка отменена',
+          message: noDriversFound
+              ? 'Поиск водителя завершен без назначения. Попробуйте создать заказ повторно позже.'
+              : 'Активная поездка уже была отменена и больше недоступна.',
+          statusId: status,
+          noDriversFound: noDriversFound,
+        );
+    }
+  }
+
+  Future<void> _applyAuthoritativeTerminalState(
+    int terminalStatus, {
+    Map<String, dynamic>? payload,
+  }) async {
+    if (payload != null) {
+      _applyRuntimeFinancePayload(payload);
+      awaitingSince = _extractAwaitingSince(payload);
+      meetingVerified = _extractMeetingVerified(payload);
+      _syncWaitingTimer(
+        serverWaitingSeconds: _toInt(payload['waiting_seconds']),
+      );
+    }
+
+    final result = _terminalResultForStatus(terminalStatus);
+    statusId = terminalStatus;
+    noDriversFound = result.noDriversFound;
+    _refreshStatusText();
+    token = null;
+    _stopWaitingRuntime(preserveCharge: true);
+    await ActiveTripSessionStore.clear();
+    _stopStatusPolling();
+    _publishTerminalResult(result);
+    if (context.mounted) {
+      update(() {});
     }
   }
 
@@ -1236,49 +1340,29 @@ class ActiveTripVM extends ViewModelBase {
         return;
       }
 
-      statusId = fallbackStatus;
-      switch (fallbackStatus) {
-        case 11:
-          statusText = 'Поездка завершена';
-          break;
-        case 2:
-          statusText = 'Водитель отменил поездку';
-          break;
-        case 3:
-          statusText = 'Поездка отменена';
-          break;
-        default:
+      final authoritativeOrder = await _loadAuthoritativeOrderDetails();
+      final authoritativeStatus = _toInt(authoritativeOrder?['id_status']);
+      if (authoritativeOrder != null && authoritativeStatus != null) {
+        if (authoritativeStatus != 2 &&
+            authoritativeStatus != 3 &&
+            authoritativeStatus != 11) {
+          _applyOrderSnapshot(authoritativeOrder, updateRoute: false);
           _refreshStatusText();
+          _startStatusPolling();
+          if (context.mounted) {
+            update(() {});
+          }
+          return;
+        }
+
+        await _applyAuthoritativeTerminalState(
+          authoritativeStatus,
+          payload: authoritativeOrder,
+        );
+        return;
       }
-      token = null;
-      await ActiveTripSessionStore.clear();
-      _stopStatusPolling();
-      _publishTerminalResult(
-        switch (fallbackStatus) {
-          11 => const ActiveTripTerminalResult(
-              title: 'Поездка завершена',
-              message:
-                  'Поездка уже завершилась. Вы можете оценить водителя сейчас или позже в истории поездок.',
-              statusId: 11,
-              supportsDriverRating: true,
-            ),
-          2 => const ActiveTripTerminalResult(
-              title: 'Водитель отменил поездку',
-              message:
-                  'Поездка закрыта. Можно вернуться на главный экран и оформить новую поездку.',
-              statusId: 2,
-            ),
-          _ => ActiveTripTerminalResult(
-              title: noDriversFound ? 'Водитель не найден' : 'Поездка отменена',
-              message: noDriversFound
-                  ? 'Поиск водителя завершен без назначения. Попробуйте создать заказ повторно позже.'
-                  : 'Активная поездка уже была отменена и больше недоступна.',
-              statusId: fallbackStatus,
-              noDriversFound: noDriversFound,
-            ),
-        },
-      );
-      if (context.mounted) update(() {});
+
+      await _applyAuthoritativeTerminalState(fallbackStatus);
     } catch (e, st) {
       debugPrint(
         '[ActiveTrip] terminal state reconciliation failed: $e\n$st',
@@ -1295,6 +1379,14 @@ class ActiveTripVM extends ViewModelBase {
     _terminalResultPublished = true;
     terminalResult = result;
     terminalResultVersion += 1;
+  }
+
+  void _publishInfoNotice(ActiveTripInfoNotice notice) {
+    infoNotice = notice;
+    infoNoticeVersion += 1;
+    if (context.mounted) {
+      update(() {});
+    }
   }
 
   Future<void> _reconcileStatusStateFromServer() async {
@@ -1357,6 +1449,7 @@ class ActiveTripVM extends ViewModelBase {
     _expiredSub?.cancel();
     _routeSub?.cancel();
     _waitingTimer?.cancel();
+    _pendingCancelledTerminalTimer?.cancel();
     // Не dispose сокет — он общий синглтон
     _socket = null;
   }
@@ -1376,4 +1469,16 @@ class ActiveTripTerminalResult {
   final int statusId;
   final bool supportsDriverRating;
   final bool noDriversFound;
+}
+
+class ActiveTripInfoNotice {
+  const ActiveTripInfoNotice({
+    required this.title,
+    required this.message,
+    this.isError = false,
+  });
+
+  final String title;
+  final String message;
+  final bool isError;
 }

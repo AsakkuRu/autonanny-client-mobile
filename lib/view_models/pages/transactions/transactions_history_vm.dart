@@ -1,6 +1,9 @@
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/models/from_api/transaction.dart';
@@ -16,10 +19,9 @@ class TransactionsHistoryVM extends ViewModelBase {
   }) {
     filter = TransactionFilter(
       types: initialTransactionType == null ? null : [initialTransactionType!],
-      searchQuery:
-          initialSearchQuery == null || initialSearchQuery!.isEmpty
-              ? null
-              : initialSearchQuery,
+      searchQuery: initialSearchQuery == null || initialSearchQuery!.isEmpty
+          ? null
+          : initialSearchQuery,
     );
     if (filter.searchQuery case final query? when query.isNotEmpty) {
       searchController.text = query;
@@ -36,6 +38,7 @@ class TransactionsHistoryVM extends ViewModelBase {
   TransactionFilter filter = TransactionFilter();
 
   bool isLoadError = false;
+  bool isExporting = false;
 
   bool get hasActiveFilters {
     return filter.startDate != null ||
@@ -49,9 +52,8 @@ class TransactionsHistoryVM extends ViewModelBase {
   String get activeFiltersSummary {
     final parts = <String>[];
     if (filter.startDate != null || filter.endDate != null) {
-      final start = filter.startDate != null
-          ? _formatDate(filter.startDate!)
-          : '...';
+      final start =
+          filter.startDate != null ? _formatDate(filter.startDate!) : '...';
       final end = filter.endDate != null ? _formatDate(filter.endDate!) : '...';
       parts.add('Период: $start - $end');
     }
@@ -149,12 +151,141 @@ class TransactionsHistoryVM extends ViewModelBase {
     applyFilters();
   }
 
-  void exportTransactions() {
-    NannyDialogs.showMessageBox(
-      context,
-      "Экспорт",
-      "Экспорт в PDF/Excel будет добавлен в следующей версии",
-    );
+  Future<void> exportTransactions() async {
+    if (filteredTransactions.isEmpty) {
+      await NannyDialogs.showResultSheet(
+        context,
+        title: 'Нет данных для экспорта',
+        message: 'Измените фильтры или дождитесь появления операций.',
+        tone: AutonannyBannerTone.warning,
+        leading: const AutonannyIcon(AutonannyIcons.warning),
+      );
+      return;
+    }
+
+    update(() => isExporting = true);
+
+    try {
+      final pdf = pw.Document();
+      final now = DateTime.now();
+      final incomeTotal = filteredTransactions
+          .where((transaction) => transaction.isIncome)
+          .fold<double>(
+              0, (sum, transaction) => sum + transaction.amount.abs());
+      final expenseTotal = filteredTransactions
+          .where((transaction) => transaction.isExpense)
+          .fold<double>(
+              0, (sum, transaction) => sum + transaction.amount.abs());
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          header: (_) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'История операций — АвтоНяня',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'Период: ${_buildExportPeriodText()}',
+                style:
+                    const pw.TextStyle(fontSize: 11, color: PdfColors.grey700),
+              ),
+              if (hasActiveFilters)
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(top: 2),
+                  child: pw.Text(
+                    'Фильтры: $activeFiltersSummary',
+                    style: const pw.TextStyle(
+                      fontSize: 10,
+                      color: PdfColors.grey700,
+                    ),
+                  ),
+                ),
+              pw.Divider(),
+            ],
+          ),
+          footer: (ctx) => pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'Сформировано: ${DateFormat('dd.MM.yyyy HH:mm').format(now)}',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey),
+              ),
+              pw.Text(
+                'Стр. ${ctx.pageNumber} из ${ctx.pagesCount}',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey),
+              ),
+            ],
+          ),
+          build: (_) => [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                _pdfStat('Операций', '${filteredTransactions.length}'),
+                _pdfStat('Пополнения', _formatCurrency(incomeTotal)),
+                _pdfStat('Списания', _formatCurrency(expenseTotal)),
+              ],
+            ),
+            pw.SizedBox(height: 16),
+            pw.TableHelper.fromTextArray(
+              headerStyle:
+                  pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+              cellStyle: const pw.TextStyle(fontSize: 9),
+              headerDecoration:
+                  const pw.BoxDecoration(color: PdfColors.grey200),
+              cellHeight: 28,
+              columnWidths: {
+                0: const pw.FixedColumnWidth(74),
+                1: const pw.FixedColumnWidth(68),
+                2: const pw.FlexColumnWidth(3),
+                3: const pw.FixedColumnWidth(70),
+                4: const pw.FixedColumnWidth(58),
+              },
+              headers: ['Дата', 'Тип', 'Описание', 'Сумма', 'Статус'],
+              data: filteredTransactions
+                  .map(
+                    (transaction) => [
+                      DateFormat('dd.MM.yyyy').format(transaction.createdAt),
+                      transaction.typeText,
+                      transaction.description.isEmpty
+                          ? '—'
+                          : transaction.description,
+                      '${transaction.isIncome ? '+' : '-'}${_formatCurrency(transaction.amount.abs())}',
+                      transaction.statusText.isEmpty
+                          ? 'Завершено'
+                          : transaction.statusText,
+                    ],
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
+      );
+
+      await Printing.sharePdf(
+        bytes: await pdf.save(),
+        filename: 'transactions_${DateFormat('yyyyMMdd_HHmm').format(now)}.pdf',
+      );
+    } catch (error) {
+      if (context.mounted) {
+        await NannyDialogs.showResultSheet(
+          context,
+          title: 'Не удалось экспортировать историю',
+          message: '$error',
+          tone: AutonannyBannerTone.danger,
+          leading: const AutonannyIcon(AutonannyIcons.warning),
+        );
+      }
+    }
+
+    update(() => isExporting = false);
   }
 
   @override
@@ -175,6 +306,39 @@ class TransactionsHistoryVM extends ViewModelBase {
       _ => type,
     };
   }
+
+  String _buildExportPeriodText() {
+    if (filter.startDate != null && filter.endDate != null) {
+      return '${_formatDate(filter.startDate!)} - ${_formatDate(filter.endDate!)}';
+    }
+    if (filter.startDate != null) {
+      return 'с ${_formatDate(filter.startDate!)}';
+    }
+    if (filter.endDate != null) {
+      return 'по ${_formatDate(filter.endDate!)}';
+    }
+    return 'За все время';
+  }
+
+  String _formatCurrency(double value) {
+    return '${NumberFormat('#,##0.00', 'ru_RU').format(value)} ₽';
+  }
+
+  pw.Widget _pdfStat(String label, String value) {
+    return pw.Column(
+      children: [
+        pw.Text(
+          label,
+          style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+        ),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          value,
+          style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+        ),
+      ],
+    );
+  }
 }
 
 class _TransactionFilterSheet extends StatefulWidget {
@@ -185,7 +349,8 @@ class _TransactionFilterSheet extends StatefulWidget {
   final TransactionFilter initialFilter;
 
   @override
-  State<_TransactionFilterSheet> createState() => _TransactionFilterSheetState();
+  State<_TransactionFilterSheet> createState() =>
+      _TransactionFilterSheetState();
 }
 
 class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
@@ -202,12 +367,10 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
   late DateTime? _startDate = widget.initialFilter.startDate;
   late DateTime? _endDate = widget.initialFilter.endDate;
   late String? _selectedType = widget.initialFilter.types?.firstOrNull;
-  late final TextEditingController _minAmountController =
-      TextEditingController(
+  late final TextEditingController _minAmountController = TextEditingController(
     text: widget.initialFilter.minAmount?.toStringAsFixed(0) ?? '',
   );
-  late final TextEditingController _maxAmountController =
-      TextEditingController(
+  late final TextEditingController _maxAmountController = TextEditingController(
     text: widget.initialFilter.maxAmount?.toStringAsFixed(0) ?? '',
   );
 
@@ -260,7 +423,8 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
             const SizedBox(height: AutonannySpacing.xl),
             AutonannySectionContainer(
               title: 'Период',
-              subtitle: 'Можно выбрать только начало, только конец или обе даты.',
+              subtitle:
+                  'Можно выбрать только начало, только конец или обе даты.',
               child: Column(
                 children: [
                   _DateField(
@@ -366,8 +530,7 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
   }
 
   Future<void> _pickDate({required bool isStart}) async {
-    final initialDate =
-        (isStart ? _startDate : _endDate) ?? DateTime.now();
+    final initialDate = (isStart ? _startDate : _endDate) ?? DateTime.now();
     final picked = await showDatePicker(
       context: context,
       firstDate: DateTime(2023),

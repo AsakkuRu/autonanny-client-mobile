@@ -101,6 +101,19 @@ class OrderRouteChangePreview {
 }
 
 class NannyOrdersApi {
+  static Future<Map<String, dynamic>?> getOrderDetails(int orderId) async {
+    try {
+      final response = await DioRequest.dio.get('/orders/$orderId/details');
+      if (response.statusCode == 200 && response.data is Map) {
+        final data = Map<String, dynamic>.from(response.data as Map);
+        if (data['status'] == true && data['order'] is Map) {
+          return Map<String, dynamic>.from(data['order'] as Map);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   static Future<ApiResponse<int?>> createSchedule(Schedule schedule) {
     return RequestBuilder<int?>().create(
         dioRequest:

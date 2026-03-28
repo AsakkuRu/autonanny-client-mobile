@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
 // ignore: depend_on_referenced_packages
 import 'package:nanny_client/routing/client_entity_router.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/messaging/route_deviation_notifications.dart';
 
@@ -77,25 +75,11 @@ class FirebaseMessagingHandler {
 
     switch (event) {
       case 'chat.message_created':
-        final chatId = ClientEntityRouter.readInt(
-          data['chat_id'] ?? data['id_chat'] ?? data['id'],
-        );
-        if (chatId == null) {
-          return;
-        }
-
-        if (NannyGlobals.currentContext.widget.runtimeType == DirectView) {
-          Navigator.pop(NannyGlobals.currentContext);
-        }
-
-        await Navigator.push(
+        await ClientEntityRouter.openEntity(
           context,
-          MaterialPageRoute(
-            builder: (_) => DirectView(
-              idChat: chatId,
-              name: data['chat_name']?.toString(),
-            ),
-          ),
+          payload: Map<String, dynamic>.from(data),
+          target: 'chat',
+          type: event,
         );
         return;
       case 'trip.status_changed':
@@ -156,15 +140,12 @@ class FirebaseMessagingHandler {
   static void _handleAction(NotificationAction action, RemoteMessage msg) {
     switch (action) {
       case NotificationAction.message:
-        if (NannyGlobals.currentContext.widget.runtimeType == DirectView) {
-          Navigator.pop(NannyGlobals.currentContext);
-        }
-
-        Navigator.push(
-            NannyGlobals.currentContext,
-            MaterialPageRoute(
-                builder: (context) =>
-                    DirectView(idChat: int.parse(msg.data["id"]))));
+        ClientEntityRouter.openEntity(
+          NannyGlobals.currentContext,
+          payload: Map<String, dynamic>.from(msg.data),
+          target: 'chat',
+          type: msg.data['type']?.toString() ?? 'message',
+        );
         break;
 
       case NotificationAction.order:

@@ -35,6 +35,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   bool _isQrDialogOpen = false;
   int _handledRouteChangeResultVersion = 0;
   int _handledTerminalResultVersion = 0;
+  int _handledInfoNoticeVersion = 0;
 
   @override
   void initState() {
@@ -81,6 +82,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         }
         _maybeShowTerminalResultSheet();
         _maybeShowRouteChangeResultSheet();
+        _maybeShowInfoNoticeSheet();
         return Scaffold(
           backgroundColor: context.autonannyColors.surfaceSecondary,
           body: Stack(
@@ -400,6 +402,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   Future<void> _showTripInfoSheet({
     required String title,
     required String message,
+    bool isError = false,
   }) async {
     await showModalBottomSheet<void>(
       context: context,
@@ -407,16 +410,20 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       builder: (ctx) => _TripActionSheet(
         title: title,
         subtitle: _formatTripRouteLabel(vm.addresses),
-        leadingIcon: Icons.info_outline_rounded,
-        leadingColor: NDT.warning,
+        leadingIcon:
+            isError ? Icons.error_outline_rounded : Icons.info_outline_rounded,
+        leadingColor: isError ? NDT.danger : NDT.warning,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             AutonannyInlineBanner(
               title: title,
               message: message,
-              tone: AutonannyBannerTone.info,
-              leading: const AutonannyIcon(AutonannyIcons.info),
+              tone:
+                  isError ? AutonannyBannerTone.danger : AutonannyBannerTone.info,
+              leading: AutonannyIcon(
+                isError ? AutonannyIcons.warning : AutonannyIcons.info,
+              ),
             ),
             const SizedBox(height: AutonannySpacing.xl),
             AutonannyButton(
@@ -427,6 +434,29 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         ),
       ),
     );
+  }
+
+  void _maybeShowInfoNoticeSheet() {
+    final currentVersion = vm.infoNoticeVersion;
+    if (currentVersion == 0 || currentVersion == _handledInfoNoticeVersion) {
+      return;
+    }
+    _handledInfoNoticeVersion = currentVersion;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final notice = vm.infoNotice;
+      if (notice == null) {
+        return;
+      }
+      _showTripInfoSheet(
+        title: notice.title,
+        message: notice.message,
+        isError: notice.isError,
+      );
+    });
   }
 
   Future<void> _showCancelDialog() async {

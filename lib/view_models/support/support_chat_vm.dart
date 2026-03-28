@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
@@ -210,10 +211,12 @@ class SupportChatVM extends ViewModelBase {
         if (!context.mounted) {
           return;
         }
-        NannyDialogs.showMessageBox(
+        await NannyDialogs.showResultSheet(
           context,
-          'Не удалось отправить сообщение',
-          chatResult.errorMessage,
+          title: 'Не удалось отправить сообщение',
+          message: chatResult.errorMessage,
+          tone: AutonannyBannerTone.danger,
+          leading: const AutonannyIcon(AutonannyIcons.warning),
         );
         return;
       }
@@ -232,10 +235,12 @@ class SupportChatVM extends ViewModelBase {
     if (!context.mounted) return;
 
     if (!result.success) {
-      NannyDialogs.showMessageBox(
+      await NannyDialogs.showResultSheet(
         context,
-        'Не удалось отправить сообщение',
-        result.errorMessage,
+        title: 'Не удалось отправить сообщение',
+        message: result.errorMessage,
+        tone: AutonannyBannerTone.danger,
+        leading: const AutonannyIcon(AutonannyIcons.warning),
       );
     }
   }

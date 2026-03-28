@@ -166,10 +166,13 @@ class DirectVM extends ViewModelBase {
 
     // Если обнаружена нецензурная лексика, показываем предупреждение
     if (checkResult.hasProfanity) {
-      NannyDialogs.showMessageBox(
+      await NannyDialogs.showResultSheet(
         context,
-        'Внимание',
-        'Ваше сообщение содержит недопустимые слова. Они будут заменены на "***".',
+        title: 'Проверьте текст сообщения',
+        msg:
+            'Сообщение содержит недопустимые слова. Они будут заменены на "***".',
+        icon: Icons.warning_amber_rounded,
+        iconColor: Colors.orange,
       );
     }
 
@@ -210,12 +213,14 @@ class DirectVM extends ViewModelBase {
 
     if (!result.success) {
       if (context.mounted) {
-        NannyDialogs.showMessageBox(
+        await NannyDialogs.showResultSheet(
           context,
-          'Не удалось отправить сообщение',
-          result.errorMessage.isNotEmpty
+          title: 'Не удалось отправить сообщение',
+          msg: result.errorMessage.isNotEmpty
               ? result.errorMessage
               : 'Проверьте подключение к интернету и попробуйте еще раз.',
+          icon: Icons.error_outline_rounded,
+          iconColor: Colors.red,
         );
       }
       return false;
@@ -239,12 +244,14 @@ class DirectVM extends ViewModelBase {
     LoadScreen.showLoad(context, false);
 
     if (!fileUpload.success) {
-      NannyDialogs.showMessageBox(
+      await NannyDialogs.showResultSheet(
         context,
-        'Не удалось загрузить файл',
-        fileUpload.errorMessage.isNotEmpty
+        title: 'Не удалось загрузить файл',
+        msg: fileUpload.errorMessage.isNotEmpty
             ? fileUpload.errorMessage
             : 'Проверьте подключение к интернету и попробуйте еще раз.',
+        icon: Icons.error_outline_rounded,
+        iconColor: Colors.red,
       );
       return;
     }

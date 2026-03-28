@@ -31,8 +31,23 @@ class NotificationCenterVM extends ViewModelBase {
   ];
 
   List<NotificationItem> get filteredNotifications {
-    if (selectedFilter == 'all') return notifications;
-    return notifications.where((n) => n.type == selectedFilter).toList();
+    final filtered = selectedFilter == 'all'
+        ? List<NotificationItem>.from(notifications)
+        : notifications.where((n) => n.type == selectedFilter).toList();
+    filtered.sort((a, b) {
+      final createdAtCompare = b.createdAt.compareTo(a.createdAt);
+      if (createdAtCompare != 0) {
+        return createdAtCompare;
+      }
+
+      final unreadCompare = (b.isRead ? 0 : 1).compareTo(a.isRead ? 0 : 1);
+      if (unreadCompare != 0) {
+        return unreadCompare;
+      }
+
+      return b.id.compareTo(a.id);
+    });
+    return filtered;
   }
 
   int get unreadCount => notifications.where((n) => !n.isRead).length;

@@ -132,12 +132,29 @@ class _ChatsViewState extends State<ChatsView>
       );
     }
 
+    final sortedChats = List<ChatElement>.from(chats)
+      ..sort((a, b) {
+        final aTime = a.message?.time ?? 0;
+        final bTime = b.message?.time ?? 0;
+        if (aTime != bTime) {
+          return bTime.compareTo(aTime);
+        }
+
+        final aUnread = a.message?.newMessages ?? 0;
+        final bUnread = b.message?.newMessages ?? 0;
+        if (aUnread != bUnread) {
+          return bUnread.compareTo(aUnread);
+        }
+
+        return a.username.toLowerCase().compareTo(b.username.toLowerCase());
+      });
+
     return ListView.separated(
       padding: const EdgeInsets.only(bottom: AutonannySpacing.xxl),
-      itemCount: chats.length,
+      itemCount: sortedChats.length,
       separatorBuilder: (_, __) => const SizedBox(height: AutonannySpacing.sm),
       itemBuilder: (context, index) {
-        final chat = chats[index];
+        final chat = sortedChats[index];
         return _ChatCard(
           chat: chat,
           onTap: () {

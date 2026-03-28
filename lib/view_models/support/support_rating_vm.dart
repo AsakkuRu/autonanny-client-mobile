@@ -1,3 +1,4 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
@@ -26,8 +27,13 @@ class SupportRatingVM extends ViewModelBase {
 
   Future<void> submitRating() async {
     if (rating == 0) {
-      NannyDialogs.showMessageBox(
-          context, 'Выберите оценку', 'Пожалуйста, отметьте от 1 до 5 звёзд');
+      await NannyDialogs.showResultSheet(
+        context,
+        title: 'Выберите оценку',
+        message: 'Пожалуйста, отметьте от 1 до 5 звёзд.',
+        tone: AutonannyBannerTone.warning,
+        leading: const AutonannyIcon(AutonannyIcons.warning),
+      );
       return;
     }
 
@@ -46,21 +52,25 @@ class SupportRatingVM extends ViewModelBase {
     if (!context.mounted) return;
 
     if (result.success) {
-      Navigator.pop(context);
-      onSubmitted?.call();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Спасибо за вашу оценку!'),
-          backgroundColor: Colors.green,
-        ),
+      await NannyDialogs.showResultSheet(
+        context,
+        title: 'Спасибо за вашу оценку',
+        message: 'Ваш отзыв отправлен и поможет нам улучшить поддержку.',
+        tone: AutonannyBannerTone.success,
+        leading: const AutonannyIcon(AutonannyIcons.checkCircle),
       );
+      if (!context.mounted) return;
+      onSubmitted?.call();
+      Navigator.pop(context, true);
       return;
     }
 
-    NannyDialogs.showMessageBox(
+    await NannyDialogs.showResultSheet(
       context,
-      'Не удалось отправить оценку',
-      result.errorMessage,
+      title: 'Не удалось отправить оценку',
+      message: result.errorMessage,
+      tone: AutonannyBannerTone.danger,
+      leading: const AutonannyIcon(AutonannyIcons.warning),
     );
   }
 

@@ -1,3 +1,4 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/views/add_card.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
@@ -25,6 +26,7 @@ class AutopaySettingsVM extends ViewModelBase {
       : 'autopay_settings_schedule_$scheduleId';
 
   bool get isContractMode => scheduleId != null;
+  bool get isGeneralPreparationMode => !isContractMode;
 
   bool get canEnableContractAutopay {
     return effectiveWeeklyAmount != null && effectiveWeeklyAmount! > 0;
@@ -84,10 +86,14 @@ class AutopaySettingsVM extends ViewModelBase {
     }
 
     if (card.expDate.isNotEmpty) {
-      return 'Срок действия до ${card.expDate}';
+      return isContractMode
+          ? 'Срок действия до ${card.expDate}'
+          : 'Предпочтительная карта, срок действия до ${card.expDate}';
     }
 
-    return 'Карта выбрана для автоматических списаний';
+    return isContractMode
+        ? 'Карта выбрана для автоматических списаний'
+        : 'Карта сохранена как предпочтительная для будущих автоплатежей';
   }
 
   String get paymentStatusLabel {
@@ -132,11 +138,11 @@ class AutopaySettingsVM extends ViewModelBase {
         selectedCardId = paymentSchedule!.cardId;
       }
     } else {
-      // Загружаем настройки автоплатежей из локального хранилища
+      // В общем режиме храним только предпочтительную карту.
       final storage = LocalStorage(_storageKey);
       await storage.ready;
-      isAutopayEnabled = storage.getItem('enabled') ?? false;
-      final savedCardId = storage.getItem('card_id');
+      isAutopayEnabled = false;
+      final savedCardId = storage.getItem('preferred_card_id');
       if (savedCardId != null) {
         selectedCardId = savedCardId;
       }
@@ -148,20 +154,37 @@ class AutopaySettingsVM extends ViewModelBase {
   }
 
   void toggleAutopay(bool value) async {
-    if (value && cards.isEmpty) {
-      NannyDialogs.showMessageBox(
+    if (!isContractMode) {
+      await NannyDialogs.showResultSheet(
         context,
-        "Ошибка",
-        "Сначала добавьте карту для автоплатежей",
+        title: 'Автоплатеж включается в контракте',
+        message:
+            'Общий экран нужен для выбора предпочтительной карты. Реальное автосписание подключается отдельно в карточке конкретного контракта.',
+        tone: AutonannyBannerTone.info,
+        leading: const AutonannyIcon(AutonannyIcons.info),
+      );
+      return;
+    }
+
+    if (value && cards.isEmpty) {
+      await NannyDialogs.showResultSheet(
+        context,
+        title: 'Нужна карта',
+        message: 'Сначала добавьте карту для автоплатежей.',
+        tone: AutonannyBannerTone.warning,
+        leading: const AutonannyIcon(AutonannyIcons.warning),
       );
       return;
     }
 
     if (isContractMode && value && !canEnableContractAutopay) {
-      NannyDialogs.showMessageBox(
+      await NannyDialogs.showResultSheet(
         context,
-        "Ошибка",
-        "Не удалось определить сумму еженедельного списания для этого контракта.",
+        title: 'Не удалось включить автоплатеж',
+        message:
+            'Не удалось определить сумму еженедельного списания для этого контракта.',
+        tone: AutonannyBannerTone.danger,
+        leading: const AutonannyIcon(AutonannyIcons.warning),
       );
       return;
     }
@@ -179,10 +202,12 @@ class AutopaySettingsVM extends ViewModelBase {
         );
         if (!result.success) {
           if (context.mounted) {
-            NannyDialogs.showMessageBox(
+            await NannyDialogs.showResultSheet(
               context,
-              "Ошибка",
-              result.errorMessage,
+              title: 'Не удалось включить автоплатеж',
+              message: result.errorMessage,
+              tone: AutonannyBannerTone.danger,
+              leading: const AutonannyIcon(AutonannyIcons.warning),
             );
           }
           return;
@@ -195,10 +220,12 @@ class AutopaySettingsVM extends ViewModelBase {
         final result = await NannyUsersApi.cancelPaymentSchedule(scheduleId!);
         if (!result.success) {
           if (context.mounted) {
-            NannyDialogs.showMessageBox(
+            await NannyDialogs.showResultSheet(
               context,
-              "Ошибка",
-              result.errorMessage,
+              title: 'Не удалось отключить автоплатеж',
+              message: result.errorMessage,
+              tone: AutonannyBannerTone.danger,
+              leading: const AutonannyIcon(AutonannyIcons.warning),
             );
           }
           return;
@@ -213,13 +240,10 @@ class AutopaySettingsVM extends ViewModelBase {
         await _reloadContractPaymentSchedule();
       }
     } else {
-      isAutopayEnabled = value;
-
       final storage = LocalStorage(_storageKey);
       await storage.ready;
-      await storage.setItem('enabled', value);
       if (selectedCardId != null) {
-        await storage.setItem('card_id', selectedCardId);
+        await storage.setItem('preferred_card_id', selectedCardId);
       }
     }
 
@@ -228,14 +252,18 @@ class AutopaySettingsVM extends ViewModelBase {
     if (!context.mounted) {
       return;
     }
-    NannyDialogs.showMessageBox(
+    await NannyDialogs.showResultSheet(
       context,
-      "Успех",
-      value
+      title: value ? 'Автоплатеж включен' : 'Автоплатеж отключен',
+      message: value
           ? paymentSchedule?.nextPaymentDate?.isNotEmpty == true
-              ? "Автоплатежи включены. Следующее списание: ${paymentSchedule!.nextPaymentDate}."
-              : "Автоплатежи включены. Списание будет происходить еженедельно."
-          : "Автоплатежи отключены",
+              ? 'Следующее списание: ${paymentSchedule!.nextPaymentDate}.'
+              : 'Списание будет происходить еженедельно.'
+          : 'Автосписание по этому контракту отключено.',
+      tone: value ? AutonannyBannerTone.success : AutonannyBannerTone.info,
+      leading: AutonannyIcon(
+        value ? AutonannyIcons.checkCircle : AutonannyIcons.info,
+      ),
     );
   }
 
@@ -252,16 +280,18 @@ class AutopaySettingsVM extends ViewModelBase {
         paymentSchedule = result.response;
         await _reloadContractPaymentSchedule();
       } else if (context.mounted) {
-        NannyDialogs.showMessageBox(
+        await NannyDialogs.showResultSheet(
           context,
-          "Ошибка",
-          result.errorMessage,
+          title: 'Не удалось обновить карту',
+          message: result.errorMessage,
+          tone: AutonannyBannerTone.danger,
+          leading: const AutonannyIcon(AutonannyIcons.warning),
         );
       }
     } else {
       final storage = LocalStorage(_storageKey);
       await storage.ready;
-      await storage.setItem('card_id', cardId);
+      await storage.setItem('preferred_card_id', cardId);
     }
 
     update(() {});

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
-import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/view_models/support/dispute_vm.dart';
 
 /// B-013 TASK-B13: Экран оспаривания платежа
 class DisputeView extends StatefulWidget {
@@ -20,53 +20,24 @@ class DisputeView extends StatefulWidget {
 }
 
 class _DisputeViewState extends State<DisputeView> {
-  String? _selectedReason;
-  final TextEditingController _descriptionController = TextEditingController();
-  bool _isSubmitting = false;
+  late final DisputeVM vm;
 
-  final List<String> _reasons = const [
-    'Неверная сумма списания',
-    'Двойное списание',
-    'Заказ был отменён',
-    'Качество услуги не соответствует',
-    'Другое',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    vm = DisputeVM(
+      context: context,
+      update: setState,
+      orderId: widget.orderId,
+      amount: widget.amount,
+      route: widget.route,
+    );
+  }
 
   @override
   void dispose() {
-    _descriptionController.dispose();
+    vm.dispose();
     super.dispose();
-  }
-
-  Future<void> _submit() async {
-    if (_selectedReason == null) {
-      NannyDialogs.showMessageBox(
-        context,
-        'Выберите причину',
-        'Укажите причину оспаривания',
-      );
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-
-    // Mock-first: имитируем успешную отправку
-    await Future.delayed(const Duration(milliseconds: 600));
-
-    setState(() => _isSubmitting = false);
-
-    if (!mounted) return;
-
-    Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text(
-          'Спор принят. Мы рассмотрим его в течение 3 рабочих дней.',
-        ),
-        backgroundColor: context.autonannyColors.statusSuccess,
-        duration: const Duration(seconds: 4),
-      ),
-    );
   }
 
   @override
@@ -97,7 +68,7 @@ class _DisputeViewState extends State<DisputeView> {
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-            ...(_reasons.map((reason) => _buildReasonTile(reason))),
+            ...(vm.reasons.map((reason) => _buildReasonTile(reason))),
             const SizedBox(height: 24),
             const Text(
               'Описание (необязательно)',
@@ -105,7 +76,7 @@ class _DisputeViewState extends State<DisputeView> {
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: _descriptionController,
+              controller: vm.descriptionController,
               maxLines: 4,
               maxLength: 500,
               decoration: InputDecoration(
@@ -143,8 +114,8 @@ class _DisputeViewState extends State<DisputeView> {
             const SizedBox(height: 24),
             AutonannyButton(
               label: 'Подать спор',
-              isLoading: _isSubmitting,
-              onPressed: _isSubmitting ? null : _submit,
+              isLoading: vm.isSubmitting,
+              onPressed: vm.isSubmitting ? null : vm.submitDispute,
             ),
           ],
         ),
@@ -195,11 +166,11 @@ class _DisputeViewState extends State<DisputeView> {
   }
 
   Widget _buildReasonTile(String reason) {
-    final isSelected = _selectedReason == reason;
+    final isSelected = vm.selectedReason == reason;
     final colors = context.autonannyColors;
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedReason = reason),
+      onTap: () => vm.selectReason(reason),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

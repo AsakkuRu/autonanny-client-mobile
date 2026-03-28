@@ -126,11 +126,14 @@ class ClientEntityRouter {
         if (chatId == null) {
           return false;
         }
+        if (DirectView.activeChatId == chatId) {
+          return true;
+        }
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => DirectView(
               idChat: chatId,
-              name: safePayload['chat_name']?.toString(),
+              name: resolveChatDisplayName(safePayload),
             ),
           ),
         );
@@ -188,8 +191,7 @@ class ClientEntityRouter {
       return false;
     }
 
-    final entity =
-        (hasHostEntity ? uri.host : segments.first).toLowerCase();
+    final entity = (hasHostEntity ? uri.host : segments.first).toLowerCase();
     final idFromPath = hasHostEntity
         ? (segments.isNotEmpty ? segments.first : null)
         : (segments.length > 1 ? segments[1] : null);
@@ -244,8 +246,7 @@ class ClientEntityRouter {
           context,
           payload: {
             ...params,
-            'contract_id':
-                params['contract_id'] ?? params['schedule_id'],
+            'contract_id': params['contract_id'] ?? params['schedule_id'],
             'order_id': params['order_id'],
             'search_query': params['search_query'],
             'transaction_type': params['transaction_type'],
@@ -335,6 +336,22 @@ class ClientEntityRouter {
     );
   }
 
+  static String? resolveChatDisplayName(Map<String, dynamic> payload) {
+    for (final rawValue in [
+      payload['chat_name'],
+      payload['driver_name'],
+      payload['client_name'],
+      payload['username'],
+      payload['name'],
+    ]) {
+      final value = rawValue?.toString().trim();
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
+  }
+
   static int? readInt(dynamic rawValue) {
     if (rawValue is int) {
       return rawValue;
@@ -374,7 +391,8 @@ class ClientEntityRouter {
       return false;
     }
     if (activeTrip == null || activeTrip.token.isEmpty) {
-      _showInfoMessage(context, 'Активная поездка уже завершена или недоступна.');
+      _showInfoMessage(
+          context, 'Активная поездка уже завершена или недоступна.');
       return true;
     }
     if (expectedOrderId != null &&

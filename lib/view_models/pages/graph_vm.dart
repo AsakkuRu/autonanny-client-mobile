@@ -92,6 +92,7 @@ class GraphVM extends ViewModelBase {
       });
       _connectedSub = socket.on('connected').listen((_) {
         _setContractResponsesSubscription(socket, true);
+        unawaited(reloadPage());
       });
     } catch (e, st) {
       Logger().e('GraphVM unified schedule listener error: $e\n$st');
@@ -480,16 +481,6 @@ class GraphVM extends ViewModelBase {
   }
 
   Future<bool> deleteSchedule(Schedule schedule) async {
-    final scheduleId = schedule.id;
-    if (scheduleId == null) {
-      NannyDialogs.showMessageBox(
-        context,
-        "Ошибка",
-        "Не удалось определить контракт для расторжения.",
-      );
-      return false;
-    }
-
     final nearestTripLabel = _nearestTripLabelFor(schedule);
     final initialPrompt = nearestTripLabel == null
         ? "Расторгнуть контракт? Все будущие поездки будут отменены. Если до ближайшей поездки осталось меньше 30 минут, может списаться 50% стоимости."
@@ -506,15 +497,9 @@ class GraphVM extends ViewModelBase {
     }
     if (!context.mounted) return false;
 
-    LoadScreen.showLoad(context, true);
-    final previewResult =
-        await NannyOrdersApi.requestScheduleCancellation(scheduleId);
-    if (context.mounted) {
-      LoadScreen.showLoad(context, false);
-    }
+    final previewResult = await requestDeleteSchedule(schedule);
 
     if (previewResult.success) {
-      await reloadPage();
       return true;
     }
 
@@ -538,27 +523,20 @@ class GraphVM extends ViewModelBase {
         return false;
       }
 
-      LoadScreen.showLoad(context, true);
-      final debitResult = await NannyOrdersApi.cancelScheduleWithDebit(
-        id: scheduleId,
+      final debitResult = await confirmDeleteScheduleWithDebit(
+        schedule,
         debitAmount: debitAmount,
       );
-      if (context.mounted) {
-        LoadScreen.showLoad(context, false);
-      }
-
-      if (!debitResult.success) {
+      if (!debitResult) {
         if (context.mounted) {
           NannyDialogs.showMessageBox(
             context,
             "Ошибка",
-            debitResult.errorMessage,
+            "Не удалось расторгнуть контракт со списанием штрафа.",
           );
         }
         return false;
       }
-
-      await reloadPage();
       return true;
     }
 
@@ -574,26 +552,85 @@ class GraphVM extends ViewModelBase {
     return false;
   }
 
-  Future<bool> resumeSchedulePause(Schedule schedule) async {
+  Future<ScheduleCancellationResult> requestDeleteSchedule(
+    Schedule schedule,
+  ) async {
     final scheduleId = schedule.id;
     if (scheduleId == null) {
-      NannyDialogs.showMessageBox(
-        context,
-        "Ошибка",
-        "Не удалось определить контракт для возобновления.",
+      return const ScheduleCancellationResult(
+        success: false,
+        message: "Не удалось определить контракт для расторжения.",
       );
+    }
+
+    LoadScreen.showLoad(context, true);
+    final previewResult =
+        await NannyOrdersApi.requestScheduleCancellation(scheduleId);
+    if (context.mounted) {
+      LoadScreen.showLoad(context, false);
+    }
+
+    if (previewResult.success) {
+      await reloadPage();
+    }
+
+    return previewResult;
+  }
+
+  Future<bool> confirmDeleteScheduleWithDebit(
+    Schedule schedule, {
+    required double debitAmount,
+  }) async {
+    final scheduleId = schedule.id;
+    if (scheduleId == null) {
       return false;
     }
 
-    final confirm = await NannyDialogs.confirmAction(
-      context,
-      "Возобновить контракт досрочно? После этого поездки снова появятся в расписании.",
-      title: "Возобновить контракт",
-      confirmText: "Возобновить",
-      cancelText: "Пока оставить на паузе",
+    LoadScreen.showLoad(context, true);
+    final debitResult = await NannyOrdersApi.cancelScheduleWithDebit(
+      id: scheduleId,
+      debitAmount: debitAmount,
     );
-    if (!confirm || !context.mounted) {
+    if (context.mounted) {
+      LoadScreen.showLoad(context, false);
+    }
+
+    if (!debitResult.success) {
       return false;
+    }
+
+    await reloadPage();
+    return true;
+  }
+
+  Future<bool> resumeSchedulePause(
+    Schedule schedule, {
+    bool requireConfirmation = true,
+    bool showErrorDialogs = true,
+  }) async {
+    final scheduleId = schedule.id;
+    if (scheduleId == null) {
+      if (showErrorDialogs) {
+        NannyDialogs.showMessageBox(
+          context,
+          "Ошибка",
+          "Не удалось определить контракт для возобновления.",
+        );
+      }
+      return false;
+    }
+
+    if (requireConfirmation) {
+      final confirm = await NannyDialogs.confirmAction(
+        context,
+        "Возобновить контракт досрочно? После этого поездки снова появятся в расписании.",
+        title: "Возобновить контракт",
+        confirmText: "Возобновить",
+        cancelText: "Пока оставить на паузе",
+      );
+      if (!confirm || !context.mounted) {
+        return false;
+      }
     }
 
     LoadScreen.showLoad(context, true);
@@ -603,7 +640,7 @@ class GraphVM extends ViewModelBase {
     }
 
     if (!result.success) {
-      if (context.mounted) {
+      if (showErrorDialogs && context.mounted) {
         NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
       }
       return false;

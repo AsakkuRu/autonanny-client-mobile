@@ -6,6 +6,47 @@ import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class NannyDialogs {
+  static Future<void> showResultSheet(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required AutonannyBannerTone tone,
+    String buttonText = 'Понятно',
+    Widget? leading,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      useSafeArea: true,
+      builder: (sheetContext) => AutonannyBottomSheetShell(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style: AutonannyTypography.h3(
+                color: sheetContext.autonannyColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: AutonannySpacing.lg),
+            AutonannyInlineBanner(
+              title: title,
+              message: message,
+              tone: tone,
+              leading: leading,
+            ),
+            const SizedBox(height: AutonannySpacing.lg),
+            AutonannyButton(
+              label: buttonText,
+              onPressed: () => Navigator.of(sheetContext).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   static Future<void> showMessageBox(
     BuildContext context,
     String title,

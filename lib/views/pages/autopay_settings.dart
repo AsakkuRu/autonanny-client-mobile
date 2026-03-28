@@ -66,12 +66,15 @@ class _AutopaySettingsViewState extends State<AutopaySettingsView> {
 
           return ListView(
             children: [
-              const AutonannyInlineBanner(
-                title: 'Еженедельное списание',
-                message:
-                    'Автоматическая оплата будет проходить с выбранной карты раз в неделю.',
+              AutonannyInlineBanner(
+                title: widget.scheduleId == null
+                    ? 'Автоплатеж настраивается в контракте'
+                    : 'Еженедельное списание',
+                message: widget.scheduleId == null
+                    ? 'На этом экране можно заранее выбрать предпочтительную карту. Реальное автосписание включается отдельно в карточке конкретного контракта.'
+                    : 'Автоматическая оплата будет проходить с выбранной карты раз в неделю.',
                 tone: AutonannyBannerTone.info,
-                leading: AutonannyIcon(AutonannyIcons.info),
+                leading: const AutonannyIcon(AutonannyIcons.info),
               ),
               if (widget.scheduleId != null) ...[
                 const SizedBox(height: AutonannySpacing.lg),
@@ -79,13 +82,18 @@ class _AutopaySettingsViewState extends State<AutopaySettingsView> {
               ],
               const SizedBox(height: AutonannySpacing.lg),
               AutonannySectionContainer(
-                title: 'Автоматическое списание',
-                subtitle:
-                    'Включите автоплатежи, чтобы не подтверждать оплату вручную.',
-                trailing: AutonannySwitch(
-                  value: vm.isAutopayEnabled,
-                  onChanged: vm.toggleAutopay,
-                ),
+                title: widget.scheduleId == null
+                    ? 'Как работают автоплатежи'
+                    : 'Автоматическое списание',
+                subtitle: widget.scheduleId == null
+                    ? 'Включение автосписания доступно только внутри конкретного контракта, когда backend знает сумму и расписание списаний.'
+                    : 'Включите автоплатежи, чтобы не подтверждать оплату вручную.',
+                trailing: widget.scheduleId == null
+                    ? null
+                    : AutonannySwitch(
+                        value: vm.isAutopayEnabled,
+                        onChanged: vm.toggleAutopay,
+                      ),
                 child: Row(
                   children: [
                     Container(
@@ -116,10 +124,10 @@ class _AutopaySettingsViewState extends State<AutopaySettingsView> {
                           Text(
                             vm.isAutopayEnabled
                                 ? widget.scheduleId == null
-                                    ? 'Списание будет происходить автоматически.'
+                                    ? 'Предпочтительная карта уже выбрана.'
                                     : 'Списание для этого контракта будет происходить автоматически.'
                                 : widget.scheduleId == null
-                                    ? 'Сейчас автоплатежи отключены.'
+                                    ? 'Выберите карту заранее, а само автосписание включайте уже в карточке контракта.'
                                     : 'Для этого контракта автоплатежи сейчас отключены.',
                             style: AutonannyTypography.bodyS(
                               color: context.autonannyColors.textSecondary,
@@ -234,11 +242,11 @@ class _AutopaySettingsViewState extends State<AutopaySettingsView> {
     }
 
     return AutonannySectionContainer(
-      title: 'Карта для списания',
+      title: widget.scheduleId == null
+          ? 'Предпочтительная карта'
+          : 'Карта для списания',
       subtitle: widget.scheduleId == null
-          ? vm.isAutopayEnabled
-              ? 'Выберите карту, с которой будет происходить еженедельная оплата.'
-              : 'Подготовьте карту заранее, чтобы потом включить автоплатеж без дополнительного шага.'
+          ? 'Эта карта будет предвыбрана, когда вы включите автоплатеж внутри конкретного контракта.'
           : vm.isAutopayEnabled
               ? 'Выберите карту, с которой будут происходить списания по этому контракту.'
               : 'Выберите карту заранее, чтобы быстро включить автоплатеж по этому контракту.',

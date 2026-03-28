@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/transactions/transactions_history_vm.dart';
+import 'package:nanny_client/views/support/dispute_view.dart';
 import 'package:nanny_core/models/from_api/transaction.dart';
 
 /// FE-MVP-023: Экран истории финансовых операций
@@ -60,8 +61,8 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
           const SizedBox(width: AutonannySpacing.xs),
           AutonannyIconButton(
             icon: const AutonannyIcon(AutonannyIcons.document),
-            onPressed: vm.exportTransactions,
-            tooltip: 'Экспорт',
+            onPressed: vm.isExporting ? null : vm.exportTransactions,
+            tooltip: vm.isExporting ? 'Подготавливаем PDF' : 'Экспорт PDF',
             variant: AutonannyIconButtonVariant.ghost,
             size: 40,
           ),
@@ -97,6 +98,16 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
               if (vm.hasActiveFilters) ...[
                 const SizedBox(height: AutonannySpacing.md),
                 _buildActiveFiltersBanner(),
+              ],
+              if (vm.isExporting) ...[
+                const SizedBox(height: AutonannySpacing.md),
+                const AutonannyInlineBanner(
+                  title: 'Готовим PDF',
+                  message:
+                      'Собираем текущую историю операций для экспорта и передачи в системное меню.',
+                  tone: AutonannyBannerTone.info,
+                  leading: AutonannyIcon(AutonannyIcons.document),
+                ),
               ],
               const SizedBox(height: AutonannySpacing.lg),
               Expanded(
@@ -290,6 +301,16 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
                     ),
                   ),
                 ],
+                if (_canDisputeTransaction(transaction)) ...[
+                  const SizedBox(height: AutonannySpacing.md),
+                  AutonannyButton(
+                    label: 'Оспорить платёж',
+                    variant: AutonannyButtonVariant.secondary,
+                    size: AutonannyButtonSize.medium,
+                    expand: false,
+                    onPressed: () => _openDispute(transaction),
+                  ),
+                ],
               ],
             ),
           ),
@@ -299,6 +320,28 @@ class _TransactionsHistoryViewState extends State<TransactionsHistoryView> {
             style: AutonannyTypography.h3(color: amountColor),
           ),
         ],
+      ),
+    );
+  }
+
+  bool _canDisputeTransaction(Transaction transaction) {
+    return transaction.type == 'payment' &&
+        transaction.relatedId != null &&
+        (transaction.status == null || transaction.status == 'completed');
+  }
+
+  Future<void> _openDispute(Transaction transaction) async {
+    final relatedOrderId = transaction.relatedId;
+    if (relatedOrderId == null) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DisputeView(
+          orderId: relatedOrderId,
+          amount: transaction.amount.abs(),
+          route: transaction.description,
+        ),
       ),
     );
   }

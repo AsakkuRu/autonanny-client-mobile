@@ -8,6 +8,8 @@ import 'package:nanny_core/models/from_api/chat_message.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class DirectView extends StatefulWidget {
+  static int? activeChatId;
+
   final int idChat;
   final String? name;
 
@@ -23,6 +25,7 @@ class _DirectViewState extends State<DirectView> {
   @override
   void initState() {
     super.initState();
+    DirectView.activeChatId = widget.idChat;
     vm = DirectVM(context: context, update: setState, idChat: widget.idChat);
 
     vm.scrollController.addListener(() {
@@ -37,6 +40,9 @@ class _DirectViewState extends State<DirectView> {
 
   @override
   void dispose() {
+    if (DirectView.activeChatId == widget.idChat) {
+      DirectView.activeChatId = null;
+    }
     vm.dispose();
     super.dispose();
   }

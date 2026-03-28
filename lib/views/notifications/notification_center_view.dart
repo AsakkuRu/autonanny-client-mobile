@@ -180,13 +180,76 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
       type: item.type,
     );
     if (!opened && mounted) {
-      _showInfoMessage('Данные уведомления пока нельзя открыть напрямую.');
+      await _showInfoSheet(
+        title: 'Переход пока недоступен',
+        message: 'Данные уведомления пока нельзя открыть напрямую.',
+      );
     }
   }
 
-  void _showInfoMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+  Future<void> _showInfoSheet({
+    required String title,
+    required String message,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final colors = sheetContext.autonannyColors;
+        return SafeArea(
+          top: false,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                AutonannySpacing.xl,
+                AutonannySpacing.lg,
+                AutonannySpacing.xl,
+                AutonannySpacing.xl +
+                    MediaQuery.of(sheetContext).padding.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.textTertiary,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  Text(
+                    title,
+                    style: AutonannyTypography.h3(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  AutonannyInlineBanner(
+                    title: title,
+                    message: message,
+                    tone: AutonannyBannerTone.warning,
+                    leading: const AutonannyIcon(AutonannyIcons.info),
+                  ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  AutonannyButton(
+                    label: 'Понятно',
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

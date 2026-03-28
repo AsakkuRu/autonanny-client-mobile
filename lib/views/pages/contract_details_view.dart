@@ -3,7 +3,7 @@ import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/views/pages/autopay_settings.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/base_views/views/pages/wallet.dart';
-import 'package:nanny_components/dialogs/nanny_dialogs.dart';
+import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
@@ -29,6 +29,8 @@ class ContractDetailsView extends StatelessWidget {
     this.onEditContract,
     this.editLockedMessage,
     this.onPauseContract,
+    this.onRequestCancelContract,
+    this.onConfirmCancelContractDebit,
     this.onCancelContract,
     this.onResumeContract,
     this.onCallDriver,
@@ -47,6 +49,8 @@ class ContractDetailsView extends StatelessWidget {
   final VoidCallback? onEditContract;
   final String? editLockedMessage;
   final PauseContractAction? onPauseContract;
+  final Future<ScheduleCancellationResult> Function()? onRequestCancelContract;
+  final Future<bool> Function(double debitAmount)? onConfirmCancelContractDebit;
   final Future<bool> Function()? onCancelContract;
   final Future<bool> Function()? onResumeContract;
   final VoidCallback? onCallDriver;
@@ -230,28 +234,339 @@ class ContractDetailsView extends StatelessWidget {
                   request.dateUntil,
                   request.reason,
                 );
-                if (paused && context.mounted) {
+                if (!context.mounted) {
+                  return;
+                }
+                if (!paused) {
+                  await _showContractActionResultSheet(
+                    context,
+                    title: 'Не удалось поставить контракт на паузу',
+                    message:
+                        'Попробуйте повторить действие немного позже. Если проблема сохранится, обновите экран.',
+                    isError: true,
+                  );
+                  return;
+                }
+                await _showContractActionResultSheet(
+                  context,
+                  title: 'Контракт поставлен на паузу',
+                  message:
+                      'Пауза сохранена до ${request.dateUntil}. Расписание обновится сразу после возврата на предыдущий экран.',
+                  isError: false,
+                );
+                if (context.mounted) {
                   Navigator.of(context).pop(true);
                 }
               },
             ),
           ],
-          if (onCancelContract != null) ...[
+          if (onRequestCancelContract != null || onCancelContract != null) ...[
             const SizedBox(height: AutonannySpacing.md),
             AutonannyButton(
               label: 'Расторгнуть контракт',
               variant: AutonannyButtonVariant.danger,
-              onPressed: () async {
-                final cancelled = await onCancelContract!.call();
-                if (cancelled && context.mounted) {
-                  Navigator.of(context).pop(true);
-                }
-              },
+              onPressed: () => _handleCancelPressed(context),
             ),
           ],
         ],
       ),
     );
+  }
+
+  Future<void> _handleCancelPressed(BuildContext context) async {
+    late final bool cancelled;
+    if (onRequestCancelContract != null) {
+      // ignore: use_build_context_synchronously
+      cancelled = await _handleCancelContract(context);
+    } else {
+      cancelled = await onCancelContract!.call();
+    }
+    if (cancelled && context.mounted) {
+      Navigator.of(context).pop(true);
+    }
+  }
+
+  Future<bool> _handleCancelContract(BuildContext context) async {
+    final approved = await _showContractCancelDecisionSheet(
+      context,
+      title: 'Расторгнуть контракт',
+      message:
+          'Все будущие поездки будут отменены. Если до ближайшей поездки осталось меньше 30 минут, может списаться 50% стоимости.',
+      confirmText: 'Расторгнуть',
+      cancelText: 'Не расторгать',
+      tone: AutonannyBannerTone.warning,
+      leading: const AutonannyIcon(AutonannyIcons.warning),
+    );
+    if (!approved || onRequestCancelContract == null) {
+      return false;
+    }
+
+    final previewResult = await onRequestCancelContract!.call();
+    if (!context.mounted) {
+      return false;
+    }
+
+    if (previewResult.success) {
+      await _showContractCancelResultSheet(
+        context,
+        title: 'Контракт расторгнут',
+        message: previewResult.message.trim().isNotEmpty
+            ? previewResult.message.trim()
+            : 'Все будущие поездки отменены. При необходимости можно создать новый контракт позже.',
+        isError: false,
+      );
+      return true;
+    }
+
+    if (previewResult.requiresDebit) {
+      final debitAmount = previewResult.debitAmount ?? 0;
+      final confirmDebit = await _showContractCancelDecisionSheet(
+        context,
+        title: 'Поздняя отмена контракта',
+        message:
+            'До ближайшей поездки осталось меньше 30 минут. При расторжении спишется штраф ${_formatMoney(debitAmount)} в пользу водителя.',
+        confirmText: 'Подтвердить списание',
+        cancelText: 'Пока оставить контракт',
+        tone: AutonannyBannerTone.danger,
+        leading: const AutonannyIcon(AutonannyIcons.warning),
+      );
+      if (!confirmDebit || onConfirmCancelContractDebit == null) {
+        return false;
+      }
+
+      final confirmed = await onConfirmCancelContractDebit!(debitAmount);
+      if (!context.mounted) {
+        return false;
+      }
+
+      if (!confirmed) {
+        await _showContractCancelResultSheet(
+          context,
+          title: 'Не удалось расторгнуть контракт',
+          message:
+              'Система не смогла подтвердить списание штрафа. Попробуйте еще раз позже.',
+          isError: true,
+        );
+        return false;
+      }
+
+      await _showContractCancelResultSheet(
+        context,
+        title: 'Контракт расторгнут со штрафом',
+        message:
+            'Контракт закрыт, а штраф ${_formatMoney(debitAmount)} будет списан в пользу водителя.',
+        isError: false,
+      );
+      return true;
+    }
+
+    await _showContractCancelResultSheet(
+      context,
+      title: 'Не удалось расторгнуть контракт',
+      message: previewResult.message.trim().isNotEmpty
+          ? previewResult.message.trim()
+          : 'Попробуйте повторить действие немного позже.',
+      isError: true,
+    );
+    return false;
+  }
+
+  Future<void> _showContractActionResultSheet(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required bool isError,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final colors = sheetContext.autonannyColors;
+        final contractTitle =
+            schedule.title.trim().isEmpty ? 'Контракт' : schedule.title.trim();
+        return SafeArea(
+          top: false,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                AutonannySpacing.xl,
+                AutonannySpacing.lg,
+                AutonannySpacing.xl,
+                AutonannySpacing.xl +
+                    MediaQuery.of(sheetContext).padding.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.textTertiary,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  Text(
+                    title,
+                    style: AutonannyTypography.h3(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.xs),
+                  Text(
+                    contractTitle,
+                    style: AutonannyTypography.bodyS(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  AutonannyInlineBanner(
+                    title: title,
+                    message: message,
+                    tone: isError
+                        ? AutonannyBannerTone.danger
+                        : AutonannyBannerTone.success,
+                    leading: AutonannyIcon(
+                      isError
+                          ? AutonannyIcons.warning
+                          : AutonannyIcons.checkCircle,
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  AutonannyButton(
+                    label: 'Понятно',
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool> _showContractCancelDecisionSheet(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required String confirmText,
+    required String cancelText,
+    required AutonannyBannerTone tone,
+    required Widget leading,
+  }) async {
+    final contractTitle =
+        schedule.title.trim().isEmpty ? 'Контракт' : schedule.title.trim();
+    return (await showModalBottomSheet<bool>(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (sheetContext) {
+            final colors = sheetContext.autonannyColors;
+            return SafeArea(
+              top: false,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AutonannySpacing.xl,
+                    AutonannySpacing.lg,
+                    AutonannySpacing.xl,
+                    AutonannySpacing.xl +
+                        MediaQuery.of(sheetContext).padding.bottom,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: colors.textTertiary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      Text(
+                        title,
+                        style: AutonannyTypography.h3(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: AutonannySpacing.xs),
+                      Text(
+                        contractTitle,
+                        style: AutonannyTypography.bodyS(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      AutonannyInlineBanner(
+                        title: title,
+                        message: message,
+                        tone: tone,
+                        leading: leading,
+                      ),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      AutonannyButton(
+                        label: confirmText,
+                        variant: tone == AutonannyBannerTone.danger
+                            ? AutonannyButtonVariant.danger
+                            : AutonannyButtonVariant.primary,
+                        onPressed: () => Navigator.of(sheetContext).pop(true),
+                      ),
+                      const SizedBox(height: AutonannySpacing.sm),
+                      AutonannyButton(
+                        label: cancelText,
+                        variant: AutonannyButtonVariant.ghost,
+                        onPressed: () => Navigator.of(sheetContext).pop(false),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        )) ??
+        false;
+  }
+
+  Future<void> _showContractCancelResultSheet(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required bool isError,
+  }) async {
+    await _showContractActionResultSheet(
+      context,
+      title: title,
+      message: message,
+      isError: isError,
+    );
+  }
+
+  String _formatMoney(double amount) {
+    final hasFraction = amount != amount.roundToDouble();
+    final normalized = hasFraction
+        ? amount
+            .toStringAsFixed(2)
+            .replaceAll(RegExp(r'0+$'), '')
+            .replaceAll(RegExp(r'\\.$'), '')
+        : amount.round().toString();
+    return '$normalized ₽';
   }
 }
 
@@ -699,12 +1014,7 @@ class _PausedContractBanner extends StatelessWidget {
                 AutonannyButton(
                   label: 'Возобновить досрочно',
                   variant: AutonannyButtonVariant.secondary,
-                  onPressed: () async {
-                    final resumed = await onResumeContract!.call();
-                    if (resumed && context.mounted) {
-                      Navigator.of(context).pop(true);
-                    }
-                  },
+                  onPressed: () => _resumeContractManually(context),
                 ),
               ],
             ],
@@ -811,10 +1121,11 @@ class _PausedContractBanner extends StatelessWidget {
       return;
     }
 
-    final shouldResume = await NannyDialogs.confirmAction(
+    final shouldResume = await _showResumeCheckSheet(
       context,
-      'Если пополнение прошло успешно, можно сразу попытаться возобновить контракт.',
       title: 'Баланс пополнен?',
+      message:
+          'Если пополнение прошло успешно, можно сразу попытаться возобновить контракт.',
       confirmText: 'Да, проверить',
       cancelText: 'Пока нет',
     );
@@ -841,10 +1152,11 @@ class _PausedContractBanner extends StatelessWidget {
       return;
     }
 
-    final shouldResume = await NannyDialogs.confirmAction(
+    final shouldResume = await _showResumeCheckSheet(
       context,
-      'Если карта для автосписания уже настроена и оплата прошла, можно сразу проверить возобновление контракта.',
       title: 'Проверить контракт сейчас?',
+      message:
+          'Если карта для автосписания уже настроена и оплата прошла, можно сразу проверить возобновление контракта.',
       confirmText: 'Да, проверить',
       cancelText: 'Позже',
     );
@@ -858,10 +1170,11 @@ class _PausedContractBanner extends StatelessWidget {
   Future<void> _attemptResumePaymentSchedule(BuildContext context) async {
     final scheduleId = schedule.id;
     if (scheduleId == null) {
-      await NannyDialogs.showMessageBox(
+      await _showPauseStatusSheet(
         context,
-        'Ошибка',
-        'Не удалось определить контракт для возобновления.',
+        title: 'Не удалось возобновить контракт',
+        message: 'Не удалось определить контракт для возобновления.',
+        isError: true,
       );
       return;
     }
@@ -872,20 +1185,21 @@ class _PausedContractBanner extends StatelessWidget {
     }
 
     if (!resumeResult.success) {
-      await NannyDialogs.showMessageBox(
+      await _showPauseStatusSheet(
         context,
-        'Не удалось возобновить контракт',
-        resumeResult.errorMessage.isNotEmpty
+        title: 'Не удалось возобновить контракт',
+        message: resumeResult.errorMessage.isNotEmpty
             ? resumeResult.errorMessage
             : 'Не удалось возобновить контракт после пополнения.',
+        isError: true,
       );
       return;
     }
 
-    await NannyDialogs.showMessageBox(
+    await _showPauseStatusSheet(
       context,
-      'Контракт возобновлён',
-      resumeResult.response?.isNotEmpty == true
+      title: 'Контракт возобновлён',
+      message: resumeResult.response?.isNotEmpty == true
           ? 'Следующее списание: ${resumeResult.response}.'
           : 'Контракт успешно возобновлён.',
     );
@@ -893,6 +1207,213 @@ class _PausedContractBanner extends StatelessWidget {
       return;
     }
     Navigator.of(context).pop(true);
+  }
+
+  Future<void> _resumeContractManually(BuildContext context) async {
+    final shouldResume = await _showResumeCheckSheet(
+      context,
+      title: 'Возобновить контракт?',
+      message:
+          'После возобновления поездки снова появятся в расписании и станут доступны для выполнения.',
+      confirmText: 'Возобновить',
+      cancelText: 'Пока оставить на паузе',
+    );
+    if (!shouldResume || !context.mounted || onResumeContract == null) {
+      return;
+    }
+
+    final resumed = await onResumeContract!.call();
+    if (!context.mounted) {
+      return;
+    }
+
+    if (!resumed) {
+      await _showPauseStatusSheet(
+        context,
+        title: 'Не удалось возобновить контракт',
+        message: 'Попробуйте повторить действие немного позже.',
+        isError: true,
+      );
+      return;
+    }
+
+    await _showPauseStatusSheet(
+      context,
+      title: 'Контракт возобновлён',
+      message: 'Поездки по контракту снова активны.',
+    );
+    if (!context.mounted) {
+      return;
+    }
+    Navigator.of(context).pop(true);
+  }
+
+  Future<void> _showPauseStatusSheet(
+    BuildContext context, {
+    required String title,
+    required String message,
+    bool isError = false,
+  }) async {
+    final contractTitle =
+        schedule.title.trim().isEmpty ? 'Контракт' : schedule.title;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final colors = sheetContext.autonannyColors;
+        return SafeArea(
+          top: false,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                AutonannySpacing.xl,
+                AutonannySpacing.lg,
+                AutonannySpacing.xl,
+                AutonannySpacing.xl +
+                    MediaQuery.of(sheetContext).padding.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.textTertiary,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  Text(
+                    title,
+                    style: AutonannyTypography.h3(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.xs),
+                  Text(
+                    contractTitle,
+                    style: AutonannyTypography.bodyS(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  AutonannyInlineBanner(
+                    title: title,
+                    message: message,
+                    tone: isError
+                        ? AutonannyBannerTone.danger
+                        : AutonannyBannerTone.success,
+                    leading: AutonannyIcon(
+                      isError
+                          ? AutonannyIcons.warning
+                          : AutonannyIcons.checkCircle,
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  AutonannyButton(
+                    label: 'Понятно',
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool> _showResumeCheckSheet(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required String confirmText,
+    required String cancelText,
+  }) async {
+    final contractTitle =
+        schedule.title.trim().isEmpty ? 'Контракт' : schedule.title;
+    return (await showModalBottomSheet<bool>(
+          context: context,
+          backgroundColor: Colors.transparent,
+          builder: (sheetContext) {
+            final colors = sheetContext.autonannyColors;
+            return SafeArea(
+              top: false,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AutonannySpacing.xl,
+                    AutonannySpacing.lg,
+                    AutonannySpacing.xl,
+                    AutonannySpacing.xl +
+                        MediaQuery.of(sheetContext).padding.bottom,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: colors.textTertiary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      Text(
+                        title,
+                        style: AutonannyTypography.h3(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: AutonannySpacing.xs),
+                      Text(
+                        contractTitle,
+                        style: AutonannyTypography.bodyS(
+                          color: colors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      AutonannyInlineBanner(
+                        title: title,
+                        message: message,
+                        tone: AutonannyBannerTone.info,
+                        leading: const AutonannyIcon(AutonannyIcons.info),
+                      ),
+                      const SizedBox(height: AutonannySpacing.lg),
+                      AutonannyButton(
+                        label: confirmText,
+                        onPressed: () => Navigator.of(sheetContext).pop(true),
+                      ),
+                      const SizedBox(height: AutonannySpacing.sm),
+                      AutonannyButton(
+                        label: cancelText,
+                        variant: AutonannyButtonVariant.ghost,
+                        onPressed: () => Navigator.of(sheetContext).pop(false),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        )) ??
+        false;
   }
 }
 

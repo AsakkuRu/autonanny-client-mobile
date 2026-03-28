@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_core/api/nanny_chats_api.dart';
 import 'package:nanny_core/nanny_core.dart'
@@ -101,17 +102,22 @@ class ComplaintVM {
     if (!context.mounted) return;
 
     if (result.success) {
-      await NannyDialogs.showMessageBox(
+      await NannyDialogs.showResultSheet(
         context,
-        'Жалоба отправлена',
-        'Мы рассмотрим вашу жалобу в ближайшее время и свяжемся с вами.',
+        title: 'Жалоба отправлена',
+        message:
+            'Мы рассмотрим вашу жалобу в ближайшее время и свяжемся с вами.',
+        tone: AutonannyBannerTone.success,
+        leading: const AutonannyIcon(AutonannyIcons.checkCircle),
       );
       if (context.mounted) Navigator.pop(context, true);
     } else {
-      NannyDialogs.showMessageBox(
+      await NannyDialogs.showResultSheet(
         context,
-        'Ошибка',
-        result.errorMessage,
+        title: 'Не удалось отправить жалобу',
+        message: result.errorMessage,
+        tone: AutonannyBannerTone.danger,
+        leading: const AutonannyIcon(AutonannyIcons.warning),
       );
     }
   }

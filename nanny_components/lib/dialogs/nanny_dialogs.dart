@@ -5,6 +5,102 @@ import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class NannyDialogs {
+  static Future<void> showResultSheet(
+    BuildContext context, {
+    required String title,
+    required String msg,
+    IconData icon = Icons.info_outline_rounded,
+    Color iconColor = Colors.orange,
+    String buttonText = 'Понятно',
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              24,
+              16,
+              24,
+              24 + MediaQuery.of(sheetContext).padding.bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.black12,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(icon, color: iconColor, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: Theme.of(sheetContext)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          if (msg.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              msg,
+                              style: Theme.of(sheetContext)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: Colors.black87),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 52,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                    child: Text(buttonText),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   static Future<void> showMessageBox(
     BuildContext context,
     String title,
