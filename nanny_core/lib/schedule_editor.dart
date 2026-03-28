@@ -60,7 +60,7 @@ class ScheduleEditor {
   }
 
   void deleteParam(OtherParametr param) {
-    _otherParams.remove(param);
+    _otherParams.removeWhere((item) => item.id == param.id);
   }
 
   bool valiateSchedule() {

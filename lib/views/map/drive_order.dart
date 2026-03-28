@@ -294,7 +294,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
 
               const SizedBox(height: 16),
 
-              // Баннер «Скоро»
+              // Информируем, чем разовая поездка отличается от контрактов.
               Container(
                 width: double.infinity,
                 padding:
@@ -313,7 +313,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: const Icon(
-                        Icons.auto_graph_rounded,
+                        Icons.calendar_month_rounded,
                         color: NannyTheme.primary,
                         size: 18,
                       ),
@@ -321,7 +321,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Скоро появятся подписки и расписания — заказывать станет ещё удобнее.',
+                        'Нужны регулярные поездки по дням недели? Используйте раздел «Контракты». Здесь оформляется разовая поездка с выбранными детьми и услугами.',
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall

@@ -1,3 +1,4 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/view_models/map/shared_ride_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
@@ -45,7 +46,7 @@ class _SharedRideViewState extends State<SharedRideView> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
-                color: NannyTheme.primary.withOpacity(0.04),
+                color: NannyTheme.primary.withValues(alpha: 0.04),
                 child: Row(
                   children: [
                     const Icon(Icons.info_outline,
@@ -90,7 +91,8 @@ class _SharedRideViewState extends State<SharedRideView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 64, color: NannyTheme.danger),
+            const Icon(Icons.error_outline,
+                size: 64, color: NannyTheme.danger),
             const SizedBox(height: 16),
             Text(
               'Не удалось загрузить поездки',
@@ -134,7 +136,8 @@ class _SharedRideViewState extends State<SharedRideView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.people_outline, size: 64, color: NannyTheme.neutral300),
+            const Icon(Icons.people_outline,
+                size: 64, color: NannyTheme.neutral300),
             const SizedBox(height: 16),
             Text(
               'Нет подходящих совместных поездок',
@@ -164,7 +167,7 @@ class _SharedRideViewState extends State<SharedRideView> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: NannyTheme.shadow.withOpacity(0.08),
+            color: NannyTheme.shadow.withValues(alpha: 0.08),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -180,17 +183,12 @@ class _SharedRideViewState extends State<SharedRideView> {
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor:
-                          NannyTheme.primary.withOpacity(0.08),
-                      child: Text(
-                        option.parentName[0],
-                        style: const TextStyle(
-                          color: NannyTheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    AutonannyAvatar(
+                      initials: option.parentName.isNotEmpty
+                          ? option.parentName[0]
+                          : 'Р',
+                      size: 36,
+                      borderRadius: BorderRadius.circular(18),
                     ),
                     const SizedBox(width: 10),
                     Column(
@@ -219,7 +217,7 @@ class _SharedRideViewState extends State<SharedRideView> {
                       horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: _matchColor(option.matchPercent)
-                        .withOpacity(0.1),
+                            .withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -247,7 +245,7 @@ class _SharedRideViewState extends State<SharedRideView> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(Icons.schedule,
+                const Icon(Icons.schedule,
                     size: 14, color: NannyTheme.neutral600),
                 const SizedBox(width: 4),
                 Text(
@@ -277,7 +275,7 @@ class _SharedRideViewState extends State<SharedRideView> {
                       children: [
                         Text(
                           '${option.originalPrice.toStringAsFixed(0)} ₽',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 13,
                             color: NannyTheme.neutral400,
                             decoration: TextDecoration.lineThrough,
@@ -288,7 +286,7 @@ class _SharedRideViewState extends State<SharedRideView> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: NannyTheme.success.withOpacity(0.08),
+                            color: NannyTheme.success.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(

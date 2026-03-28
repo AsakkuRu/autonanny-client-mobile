@@ -44,6 +44,7 @@ export 'models/from_api/uploaded_files.dart';
 export 'models/from_api/user_cards.dart';
 export 'models/from_api/user_info.dart';
 export 'models/from_api/user_money.dart';
+export 'models/from_api/payment_schedule_data.dart';
 export 'models/from_api/get_users_data.dart';
 export 'models/login_path.dart';
 export 'models/dropdown_menu_data.dart';

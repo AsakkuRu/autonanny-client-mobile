@@ -50,12 +50,54 @@ class OrderCancellationResult {
   const OrderCancellationResult({
     required this.message,
     this.penalty = 0,
+    this.basePrice,
+    this.currentTotalPrice,
+    this.waitingSeconds,
+    this.freeWaitingSeconds,
+    this.waitingRatePerMinute,
+    this.waitingCharge,
+    this.isPaidWaiting,
   });
 
   final String message;
   final double penalty;
+  final double? basePrice;
+  final double? currentTotalPrice;
+  final int? waitingSeconds;
+  final int? freeWaitingSeconds;
+  final double? waitingRatePerMinute;
+  final double? waitingCharge;
+  final bool? isPaidWaiting;
 
   bool get hasPenalty => penalty > 0;
+
+  bool get hasSettlementBreakdown =>
+      basePrice != null ||
+      currentTotalPrice != null ||
+      waitingSeconds != null ||
+      waitingCharge != null ||
+      freeWaitingSeconds != null ||
+      waitingRatePerMinute != null;
+}
+
+class OrderRouteChangePreview {
+  const OrderRouteChangePreview({
+    required this.totalPrice,
+    required this.currentTotalPrice,
+    required this.priceDelta,
+    required this.travelTotal,
+    required this.additionalServicesTotal,
+    required this.distance,
+    required this.duration,
+  });
+
+  final double totalPrice;
+  final double currentTotalPrice;
+  final double priceDelta;
+  final double travelTotal;
+  final double additionalServicesTotal;
+  final int distance;
+  final int duration;
 }
 
 class NannyOrdersApi {
@@ -203,11 +245,19 @@ class NannyOrdersApi {
     );
   }
 
-  static Future<ApiResponse<void>> updateScheduleById(Schedule schedule) {
+  static Future<ApiResponse<void>> updateScheduleById(
+    Schedule schedule, {
+    bool includeRoads = true,
+  }) {
+    final data = schedule.toJson();
+    if (!includeRoads) {
+      data.remove("roads");
+    }
+
     return RequestBuilder<Schedule>().create(
         dioRequest: DioRequest.dio.put(
           "/orders/schedule",
-          data: schedule.toJson(),
+          data: data,
         ),
         errorCodeMsgs: {404: "Расписание не найдено!"});
   }
@@ -524,6 +574,26 @@ class NannyOrdersApi {
             message: 'Поездка отменена',
           );
         }
+        double? readDouble(dynamic value) {
+          if (value is num) return value.toDouble();
+          return double.tryParse(value?.toString() ?? '');
+        }
+
+        int? readInt(dynamic value) {
+          if (value is num) return value.toInt();
+          return int.tryParse(value?.toString() ?? '');
+        }
+
+        bool? readBool(dynamic value) {
+          if (value is bool) return value;
+          if (value is num) return value != 0;
+          final normalized = value?.toString().trim().toLowerCase();
+          if (normalized == null || normalized.isEmpty) return null;
+          if (normalized == 'true' || normalized == '1') return true;
+          if (normalized == 'false' || normalized == '0') return false;
+          return null;
+        }
+
         final rawPenalty = data['penalty'];
         final penalty = rawPenalty is num
             ? rawPenalty.toDouble()
@@ -533,6 +603,13 @@ class NannyOrdersApi {
           message:
               message == null || message.isEmpty ? 'Поездка отменена' : message,
           penalty: penalty,
+          basePrice: readDouble(data['base_price']),
+          currentTotalPrice: readDouble(data['current_total_price']),
+          waitingSeconds: readInt(data['waiting_seconds']),
+          freeWaitingSeconds: readInt(data['free_wait_seconds']),
+          waitingRatePerMinute: readDouble(data['waiting_rate_per_minute']),
+          waitingCharge: readDouble(data['waiting_charge']),
+          isPaidWaiting: readBool(data['is_paid_waiting']),
         );
       },
       errorCodeMsgs: {
@@ -543,6 +620,43 @@ class NannyOrdersApi {
   }
 
   // C-042: Изменение маршрута активной поездки
+  static Future<ApiResponse<OrderRouteChangePreview>> previewOrderRouteChange({
+    required int orderId,
+    required List<Map<String, dynamic>> addresses,
+  }) async {
+    return RequestBuilder<OrderRouteChangePreview>().create(
+      dioRequest: DioRequest.dio.post(
+        '/orders/$orderId/route-change/preview',
+        data: {
+          'addresses': addresses,
+        },
+      ),
+      onSuccess: (response) {
+        final data = response.data;
+        double parseDouble(dynamic raw) =>
+            raw is num ? raw.toDouble() : double.tryParse('$raw') ?? 0.0;
+        int parseInt(dynamic raw) =>
+            raw is num ? raw.toInt() : int.tryParse('$raw') ?? 0;
+
+        return OrderRouteChangePreview(
+          totalPrice: parseDouble(data['total_price']),
+          currentTotalPrice: parseDouble(data['current_total_price']),
+          priceDelta: parseDouble(data['price_delta']),
+          travelTotal: parseDouble(data['travel_total']),
+          additionalServicesTotal:
+              parseDouble(data['additional_services_total']),
+          distance: parseInt(data['distance']),
+          duration: parseInt(data['duration']),
+        );
+      },
+      errorCodeMsgs: {
+        404: 'Заказ не найден',
+        400: 'Не удалось пересчитать маршрут',
+        403: 'Нет доступа к этому заказу',
+      },
+    );
+  }
+
   static Future<ApiResponse<void>> updateOrderRoute({
     required int orderId,
     required List<Map<String, dynamic>> addresses,

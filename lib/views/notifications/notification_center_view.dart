@@ -1,13 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/routing/client_entity_router.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
-import 'package:nanny_client/view_models/new_main/active_trip/active_trip_resolver.dart';
 import 'package:nanny_client/view_models/notifications/notification_center_vm.dart';
-import 'package:nanny_components/base_views/views/direct.dart';
-import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart';
-import 'package:nanny_client/views/pages/balance.dart';
-import 'package:nanny_client/views/pages/graph.dart';
-import 'package:nanny_client/views/pages/transactions/transactions_history_view.dart';
-import 'package:nanny_client/views/rating/driver_rating_view.dart';
 import 'package:nanny_core/models/from_api/notification_item.dart' as api;
 
 /// B-014 TASK-B14: Центр уведомлений (клиент)
@@ -97,7 +91,8 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
                 padding: const EdgeInsets.all(AutonannySpacing.xl),
                 child: AutonannyErrorState(
                   title: 'Не удалось загрузить уведомления',
-                  description: vm.errorMessage ?? 'Попробуйте обновить экран позже.',
+                  description:
+                      vm.errorMessage ?? 'Попробуйте обновить экран позже.',
                 ),
               ),
             );
@@ -178,157 +173,21 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
 
   Future<void> _openNotification(api.NotificationItem item) async {
     vm.markAsRead(item.id);
-
-    final target = item.payload?['target']?.toString();
-    final resolvedTarget = target ?? _fallbackTarget(item.type);
-    final scheduleId = _readIntPayload(
-      item.payload?['schedule_id'] ?? item.payload?['id_schedule'],
+    final opened = await ClientEntityRouter.openEntity(
+      context,
+      payload: item.payload,
+      target: item.payload?['target']?.toString(),
+      type: item.type,
     );
-    final orderId = _readIntPayload(
-      item.payload?['order_id'] ?? item.payload?['id_order'],
-    );
-    final chatId = _readIntPayload(
-      item.payload?['chat_id'] ?? item.payload?['id_chat'],
-    );
-
-    switch (resolvedTarget) {
-      case 'rating_request':
-        if (orderId == null) {
-          _showInfoMessage('Данные для оценки поездки недоступны.');
-          return;
-        }
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => DriverRatingView(
-              orderId: orderId,
-              driverName: item.payload?['driver_name']?.toString(),
-              driverPhoto: item.payload?['driver_photo']?.toString(),
-            ),
-          ),
-        );
-        return;
-      case 'trip':
-      case 'active_trip':
-        await _openActiveTrip(orderId);
-        return;
-      case 'contracts':
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => GraphView(
-              persistState: false,
-              initialScheduleId: scheduleId,
-              openInitialScheduleDetails: scheduleId != null,
-            ),
-          ),
-        );
-        return;
-      case 'balance':
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const BalanceView(persistState: false),
-          ),
-        );
-        return;
-      case 'wallet_operation':
-        final searchQuery =
-            item.payload?['search_query']?.toString() ??
-                _buildWalletSearchQuery(
-                  scheduleId: scheduleId,
-                  orderId: orderId,
-                );
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => TransactionsHistoryView(
-              initialTransactionType:
-                  item.payload?['transaction_type']?.toString(),
-              initialSearchQuery: searchQuery,
-            ),
-          ),
-        );
-        return;
-      case 'chat':
-        if (chatId == null) {
-          return;
-        }
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => DirectView(
-              idChat: chatId,
-              name: item.payload?['chat_name']?.toString(),
-            ),
-          ),
-        );
-        return;
-      default:
-        return;
+    if (!opened && mounted) {
+      _showInfoMessage('Данные уведомления пока нельзя открыть напрямую.');
     }
-  }
-
-  Future<void> _openActiveTrip(int? expectedOrderId) async {
-    final activeTrip = await ActiveTripResolver.resolveCurrentActiveTrip();
-    if (!mounted) {
-      return;
-    }
-    if (activeTrip == null || activeTrip.token.isEmpty) {
-      _showInfoMessage('Активная поездка уже завершена или недоступна.');
-      return;
-    }
-    if (expectedOrderId != null &&
-        activeTrip.orderId != null &&
-        activeTrip.orderId != expectedOrderId) {
-      _showInfoMessage('Эта поездка уже завершена или больше не активна.');
-      return;
-    }
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ActiveTripScreen(token: activeTrip.token),
-      ),
-    );
   }
 
   void _showInfoMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
-  }
-
-  int? _readIntPayload(dynamic rawValue) {
-    if (rawValue is int) {
-      return rawValue;
-    }
-    if (rawValue is num) {
-      return rawValue.toInt();
-    }
-    if (rawValue is String) {
-      return int.tryParse(rawValue);
-    }
-    return null;
-  }
-
-  String? _fallbackTarget(String type) {
-    switch (type) {
-      case 'payment':
-        return 'wallet_operation';
-      case 'message':
-        return 'chat';
-      case 'order':
-        return 'contracts';
-      default:
-        return null;
-    }
-  }
-
-  String? _buildWalletSearchQuery({
-    required int? scheduleId,
-    required int? orderId,
-  }) {
-    if (orderId != null) {
-      return '#$orderId';
-    }
-    if (scheduleId != null) {
-      return '#$scheduleId';
-    }
-    return null;
   }
 
   String _formatDate(DateTime date) {
@@ -372,9 +231,7 @@ class _FilterChip extends StatelessWidget {
             gradient: isSelected ? components.primaryActionGradient : null,
             borderRadius: AutonannyRadii.brFull,
             border: Border.all(
-              color: isSelected
-                  ? Colors.transparent
-                  : colors.borderSubtle,
+              color: isSelected ? Colors.transparent : colors.borderSubtle,
             ),
           ),
           child: Center(

@@ -4,12 +4,12 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:nanny_client/routing/client_entity_router.dart';
 import 'package:nanny_client/theme_notifier.dart';
 import 'package:nanny_client/feature_flags.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/views/home.dart';
 import 'package:nanny_client/views/new_main/new_home_view.dart';
-import 'package:nanny_client/views/notifications/notification_center_view.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/app_link_handler.dart';
@@ -100,6 +100,9 @@ Future<void> _bootstrapApp() async {
   DioRequest.init();
   DioRequest.initDebugLogs();
   await NotificationService().init(NannyGlobals.navKey);
+  NotificationService().registerTapHandler(
+    FirebaseMessagingHandler.handleLocalNotificationTap,
+  );
 
   NannyConsts.setLoginPaths([
     LoginPath(
@@ -184,9 +187,7 @@ class MainApp extends StatelessWidget {
               darkTheme: ClientUiSdkTheme.darkTheme,
               themeMode: themeMode,
               home: firstScreen,
-              routes: {
-                '/notifications': (_) => const NotificationCenterView(),
-              },
+              onGenerateRoute: ClientEntityRouter.onGenerateRoute,
               supportedLocales: const [
                 Locale('ru', 'RU'),
                 Locale('en', 'US'),

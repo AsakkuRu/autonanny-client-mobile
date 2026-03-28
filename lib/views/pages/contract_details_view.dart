@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
+import 'package:nanny_client/views/pages/autopay_settings.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/base_views/views/pages/wallet.dart';
 import 'package:nanny_components/dialogs/nanny_dialogs.dart';
@@ -26,6 +27,7 @@ class ContractDetailsView extends StatelessWidget {
     this.responsesCount = 0,
     this.onOpenSchedule,
     this.onEditContract,
+    this.editLockedMessage,
     this.onPauseContract,
     this.onCancelContract,
     this.onResumeContract,
@@ -43,6 +45,7 @@ class ContractDetailsView extends StatelessWidget {
   final int responsesCount;
   final VoidCallback? onOpenSchedule;
   final VoidCallback? onEditContract;
+  final String? editLockedMessage;
   final PauseContractAction? onPauseContract;
   final Future<bool> Function()? onCancelContract;
   final Future<bool> Function()? onResumeContract;
@@ -81,7 +84,8 @@ class ContractDetailsView extends StatelessWidget {
                 AssignedDriverCard(
                   data: driverContact!.assignedDriverCardData,
                   onPrimaryAction: onOpenChat,
-                  onSecondaryAction: onShowQr,
+                  onSecondaryAction:
+                      schedule.isPaused == true ? null : onShowQr,
                 ),
                 if (onCallDriver != null) ...[
                   const SizedBox(height: AutonannySpacing.md),
@@ -202,6 +206,15 @@ class ContractDetailsView extends StatelessWidget {
                 ),
             ],
           ),
+          if (editLockedMessage != null) ...[
+            const SizedBox(height: AutonannySpacing.md),
+            AutonannyInlineBanner(
+              title: 'Редактирование недоступно',
+              message: editLockedMessage!,
+              tone: AutonannyBannerTone.warning,
+              leading: const AutonannyIcon(AutonannyIcons.warning),
+            ),
+          ],
           if (onPauseContract != null && schedule.isPaused != true) ...[
             const SizedBox(height: AutonannySpacing.md),
             AutonannyButton(
@@ -284,35 +297,60 @@ class _ContractServicesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final servicesTotal = schedule.otherParametrs.fold<double>(
+      0,
+      (sum, param) => sum + _serviceTotal(param),
+    );
+
     return AutonannySectionContainer(
       title: 'Дополнительные услуги',
       subtitle: 'Услуги, которые включены в этот контракт.',
-      child: Wrap(
-        spacing: AutonannySpacing.sm,
-        runSpacing: AutonannySpacing.sm,
-        children: schedule.otherParametrs
-            .map(
-              (param) => AutonannyBadge(
-                label: _serviceLabel(param),
-                variant: AutonannyBadgeVariant.info,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: AutonannySpacing.sm,
+            runSpacing: AutonannySpacing.sm,
+            children: schedule.otherParametrs
+                .map(
+                  (param) => AutonannyBadge(
+                    label: _serviceLabel(param),
+                    variant: AutonannyBadgeVariant.info,
+                  ),
+                )
+                .toList(growable: false),
+          ),
+          if (servicesTotal > 0) ...[
+            const SizedBox(height: AutonannySpacing.md),
+            Text(
+              'Итого по услугам: ${servicesTotal.round()} ₽ в неделю',
+              style: AutonannyTypography.bodyS(
+                color: context.autonannyColors.textSecondary,
               ),
-            )
-            .toList(growable: false),
+            ),
+          ],
+        ],
       ),
     );
   }
 
   String _serviceLabel(OtherParametr param) {
     final title = (param.title ?? 'Доп. услуга').trim();
+    final total = _serviceTotal(param);
     final suffix = <String>[
       if (param.count != null && param.count! > 0) 'x${param.count}',
       if (param.amount != null && param.amount! > 0)
-        '${param.amount!.round()} ₽',
+        '${param.amount!.round()} ₽/шт',
+      if (total > 0) 'итого ${total.round()} ₽',
     ];
     if (suffix.isEmpty) {
       return title;
     }
     return '$title • ${suffix.join(' • ')}';
+  }
+
+  double _serviceTotal(OtherParametr param) {
+    return (param.amount ?? 0) * (param.count ?? 0);
   }
 }
 
@@ -650,6 +688,12 @@ class _PausedContractBanner extends StatelessWidget {
                     onPressed: () => _openWalletTopUp(context),
                   ),
                 ),
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyButton(
+                  label: 'Настроить автоплатеж',
+                  variant: AutonannyButtonVariant.secondary,
+                  onPressed: () => _openAutopaySettings(context),
+                ),
               ] else if (onResumeContract != null) ...[
                 const SizedBox(height: AutonannySpacing.md),
                 AutonannyButton(
@@ -685,7 +729,7 @@ class _PausedContractBanner extends StatelessWidget {
             borderRadius: AutonannyRadii.brLg,
           ),
           child: Text(
-            'После снятия паузы вы снова увидите ближайшую поездку, назначенного водителя и детальный breakdown по дням.',
+            'После снятия паузы вы снова увидите ближайшую поездку, назначенного водителя и подробную структуру контракта по дням.',
             style: AutonannyTypography.bodyS(
               color: colors.textSecondary,
             ),
@@ -767,6 +811,51 @@ class _PausedContractBanner extends StatelessWidget {
       return;
     }
 
+    final shouldResume = await NannyDialogs.confirmAction(
+      context,
+      'Если пополнение прошло успешно, можно сразу попытаться возобновить контракт.',
+      title: 'Баланс пополнен?',
+      confirmText: 'Да, проверить',
+      cancelText: 'Пока нет',
+    );
+    if (!shouldResume || !context.mounted) {
+      return;
+    }
+
+    await _attemptResumePaymentSchedule(context);
+  }
+
+  Future<void> _openAutopaySettings(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AutopaySettingsView(
+          scheduleId: schedule.id,
+          contractTitle:
+              schedule.title.trim().isEmpty ? 'Контракт' : schedule.title,
+          weeklyAmount: schedule.amountWeek,
+        ),
+      ),
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final shouldResume = await NannyDialogs.confirmAction(
+      context,
+      'Если карта для автосписания уже настроена и оплата прошла, можно сразу проверить возобновление контракта.',
+      title: 'Проверить контракт сейчас?',
+      confirmText: 'Да, проверить',
+      cancelText: 'Позже',
+    );
+    if (!shouldResume || !context.mounted) {
+      return;
+    }
+
+    await _attemptResumePaymentSchedule(context);
+  }
+
+  Future<void> _attemptResumePaymentSchedule(BuildContext context) async {
     final scheduleId = schedule.id;
     if (scheduleId == null) {
       await NannyDialogs.showMessageBox(

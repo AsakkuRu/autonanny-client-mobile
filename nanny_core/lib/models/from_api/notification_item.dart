@@ -54,8 +54,8 @@ class NotificationItem {
         createdAt: now.subtract(const Duration(minutes: 5)),
         isRead: false,
         payload: {
-          'target': 'contracts',
-          'schedule_id': 17,
+          'target': 'contract',
+          'contract_id': 17,
         },
       ),
       NotificationItem(
@@ -78,8 +78,8 @@ class NotificationItem {
         createdAt: now.subtract(const Duration(days: 1)),
         isRead: true,
         payload: {
-          'target': 'contracts',
-          'schedule_id': 17,
+          'target': 'contract',
+          'contract_id': 17,
         },
       ),
       NotificationItem(

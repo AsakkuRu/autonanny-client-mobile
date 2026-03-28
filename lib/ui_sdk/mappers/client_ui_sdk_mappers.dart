@@ -358,6 +358,9 @@ extension ScheduleUiSdkMapper on Schedule {
   }
 
   String get _statusLabel {
+    if (_isBalancePause) {
+      return 'Нужна оплата';
+    }
     if (isPaused == true) {
       return 'Приостановлен';
     }
@@ -368,6 +371,9 @@ extension ScheduleUiSdkMapper on Schedule {
   }
 
   AutonannyStatusVariant get _statusVariant {
+    if (_isBalancePause) {
+      return AutonannyStatusVariant.danger;
+    }
     if (isPaused == true) {
       return AutonannyStatusVariant.warning;
     }
@@ -388,6 +394,13 @@ extension ScheduleUiSdkMapper on Schedule {
     }
 
     return labels.join(', ');
+  }
+
+  bool get _isBalancePause {
+    return isPaused == true &&
+        (pauseReason == 'insufficient_balance' ||
+            pauseReason == 'low_balance' ||
+            pauseReason == 'lack_of_funds');
   }
 
   String _formatAmount(double? value) {

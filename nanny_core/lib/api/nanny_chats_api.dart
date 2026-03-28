@@ -123,6 +123,24 @@ class NannyChatsApi {
     );
   }
 
+  static Future<ApiResponse<Map<String, dynamic>>> sendSupportMessage({
+    required String message,
+  }) async {
+    return RequestBuilder<Map<String, dynamic>>().create(
+      dioRequest: DioRequest.dio.post(
+        "/support/send_message",
+        data: {
+          'message': message,
+        },
+      ),
+      onSuccess: (response) => Map<String, dynamic>.from(response.data as Map),
+      errorCodeMsgs: {
+        400: 'Не удалось отправить сообщение',
+        500: 'Сервис поддержки временно недоступен',
+      },
+    );
+  }
+
   // C-052: Оценка качества поддержки (TASK-C5)
   static Future<ApiResponse<bool>> rateSupportChat({
     required int ticketId,

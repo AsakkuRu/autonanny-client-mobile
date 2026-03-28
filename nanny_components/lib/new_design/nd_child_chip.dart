@@ -1,5 +1,7 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_components/styles/new_design_app.dart';
+import 'package:nanny_core/nanny_core.dart';
 
 /// Чип ребёнка для блока «Кто едет».
 /// [isSelected] управляет подсветкой.
@@ -42,7 +44,11 @@ class NdChildChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _Avatar(initial: initial, photoUrl: photoUrl, selected: isSelected),
+            _Avatar(
+              initial: initial,
+              photoUrl: photoUrl,
+              selected: isSelected,
+            ),
             const SizedBox(width: NDT.sp6),
             Text(
               name,
@@ -102,44 +108,11 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 24,
-      height: 24,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: selected ? NDT.avatarGradient : null,
-        color: selected ? null : NDT.neutral200,
-      ),
-      child: (photoUrl != null && photoUrl!.isNotEmpty)
-          ? ClipOval(
-              child: Image.network(
-                photoUrl!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _Initial(initial, selected),
-              ),
-            )
-          : _Initial(initial, selected),
-    );
-  }
-}
-
-class _Initial extends StatelessWidget {
-  final String initial;
-  final bool selected;
-
-  const _Initial(this.initial, this.selected);
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        initial,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: selected ? NDT.neutral0 : NDT.neutral500,
-        ),
-      ),
+    return AutonannyAvatar(
+      imageUrl: NannyConsts.buildFileUrl(photoUrl),
+      initials: initial,
+      size: 24,
+      borderRadius: BorderRadius.circular(12),
     );
   }
 }

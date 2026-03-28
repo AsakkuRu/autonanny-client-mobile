@@ -14,20 +14,28 @@ class OtherParametr implements NannyBaseRequest {
   final int? count;
 
   OtherParametr.fromJson(Map<String, dynamic> json)
-    : id = json['id'] ?? json['parametr'],
-      title = json['title'],
-      amount = json['amount'],
-      count = json['count'];
-      
+      : id = json['id'] ?? json['parametr'],
+        title = json['title'],
+        amount = json['amount'],
+        count = json['count'];
+
   @override
   Map<String, dynamic> toJson() => {
-    "id": id,
-    "title": title,
-    "amount": amount,
-  };
+        "id": id,
+        "title": title,
+        "amount": amount,
+      };
+
+  Map<String, dynamic> toCacheJson() => {
+        "id": id,
+        "parametr": id,
+        "title": title,
+        "amount": amount,
+        "count": count,
+      };
 
   Map<String, dynamic> toGraphJson(int childCount) => {
-    "parametr": id,
-    "count": childCount,
-  };
+        "parametr": id,
+        "count": childCount,
+      };
 }

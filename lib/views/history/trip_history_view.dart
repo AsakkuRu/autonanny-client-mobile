@@ -1,7 +1,7 @@
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:nanny_client/view_models/history/trip_history_vm.dart';
+import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/models/from_api/trip_history.dart';
 
 class TripHistoryView extends StatefulWidget {
@@ -302,12 +302,13 @@ class _DriverInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.autonannyColors;
+    final imageUrl = NannyConsts.buildFileUrl(photoUrl);
 
     return Row(
       children: [
         AutonannyAvatar(
           size: 44,
-          image: (photoUrl ?? '').isNotEmpty ? NetworkImage(photoUrl!) : null,
+          imageUrl: imageUrl,
           initials: _initials(name),
         ),
         const SizedBox(width: AutonannySpacing.sm),

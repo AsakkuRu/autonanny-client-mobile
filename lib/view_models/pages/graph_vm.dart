@@ -1,16 +1,18 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
-import 'package:nanny_client/views/pages/graph_create.dart';
+import 'package:nanny_client/views/pages/contract_builder_view.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/base_views/views/direct.dart';
 import 'package:nanny_components/base_views/views/driver_info.dart';
 import 'package:nanny_components/dialogs/driver_qr_dialog.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/models/from_api/child.dart';
+import 'package:nanny_core/models/from_api/other_parametr.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
@@ -35,6 +37,7 @@ class GraphVM extends ViewModelBase {
   Schedule? selectedSchedule;
   DriverContact? driverContact;
   List<ScheduleResponsesData> responses = [];
+  List<OtherParametr> _otherParamsCatalog = [];
 
   /// ID контракта для выбора при следующей загрузке (после создания нового).
   int? _selectScheduleIdOnNextLoad;
@@ -138,8 +141,15 @@ class GraphVM extends ViewModelBase {
 
   /// Короткий статус программы/контракта для родителя.
   String get contractStatusLabel {
-    if (selectedSchedule == null) {
+    final schedule = selectedSchedule;
+    if (schedule == null) {
       return 'Контракт не выбран';
+    }
+    if (_isBalancePause(schedule.pauseReason)) {
+      return 'Нужна оплата';
+    }
+    if (schedule.isPaused == true) {
+      return 'Приостановлен';
     }
     if (hasDriver) {
       return 'Контракт подтверждён';
@@ -152,8 +162,24 @@ class GraphVM extends ViewModelBase {
 
   /// Дополнительное описание статуса.
   String get contractStatusDescription {
-    if (selectedSchedule == null) {
+    final schedule = selectedSchedule;
+    if (schedule == null) {
       return 'Выберите контракт, чтобы увидеть его детали.';
+    }
+    if (_isBalancePause(schedule.pauseReason)) {
+      return 'Поездки временно остановлены из-за нехватки средств. Откройте детали контракта, чтобы пополнить баланс или настроить автоплатёж.';
+    }
+    if (schedule.isPaused == true) {
+      switch (schedule.pauseInitiatedBy) {
+        case 1:
+          return 'Водитель временно остановил поездки по этому контракту. В деталях контракта видны сроки паузы и причина.';
+        case 2:
+          return 'Вы временно поставили контракт на паузу. В деталях можно посмотреть сроки и при необходимости возобновить поездки досрочно.';
+        case 3:
+          return 'Контракт временно приостановлен системой. Проверьте детали контракта, чтобы понять причину паузы.';
+        default:
+          return 'Поездки по контракту временно остановлены. Откройте детали контракта, чтобы посмотреть сроки и причину паузы.';
+      }
     }
     if (hasDriver) {
       return 'Вы выбрали автоняню, контракт активен. Перед поездкой будет доступен QR/PIN для верификации и чат с водителем.';
@@ -164,11 +190,40 @@ class GraphVM extends ViewModelBase {
     return 'Мы ищем для вас водителя. Как только появятся отклики, вы увидите их ниже и сможете выбрать автоняню.';
   }
 
+  AutonannyStatusVariant get contractStatusVariant {
+    final schedule = selectedSchedule;
+    if (schedule == null) {
+      return AutonannyStatusVariant.neutral;
+    }
+    if (_isBalancePause(schedule.pauseReason)) {
+      return AutonannyStatusVariant.danger;
+    }
+    if (schedule.isPaused == true) {
+      return AutonannyStatusVariant.warning;
+    }
+    if (hasDriver) {
+      return AutonannyStatusVariant.success;
+    }
+    if (_responsesForSelectedSchedule.isNotEmpty) {
+      return AutonannyStatusVariant.warning;
+    }
+    return AutonannyStatusVariant.neutral;
+  }
+
   /// Краткая информация о ближайшей поездке по выбранному дню.
   String? get nextTripLabel {
-    if (selectedDayRoads.isEmpty) return null;
-    final road = selectedDayRoads.first;
-    return '${road.startTime.formatTime()} – ${road.endTime.formatTime()}';
+    final schedule = selectedSchedule;
+    if (schedule == null) {
+      return null;
+    }
+
+    final road = _nearestUpcomingRoad(schedule);
+    if (road == null) {
+      return null;
+    }
+
+    return '${road.weekDay.shortName} · '
+        '${road.startTime.formatTime()} – ${road.endTime.formatTime()}';
   }
 
   NannyWeekday? get selectedDay =>
@@ -314,7 +369,7 @@ class GraphVM extends ViewModelBase {
   void toGraphCreate() async {
     final result = await Navigator.push<Object?>(
       context,
-      MaterialPageRoute(builder: (context) => const GraphCreate()),
+      MaterialPageRoute(builder: (context) => const ContractBuilderView()),
     );
     if (result is int) {
       if (result > 0) {
@@ -336,7 +391,7 @@ class GraphVM extends ViewModelBase {
     final result = await Navigator.push<Object?>(
       context,
       MaterialPageRoute(
-        builder: (context) => GraphCreate(schedule: schedule),
+        builder: (context) => ContractBuilderView(contract: schedule),
       ),
     );
     if (result is int && result > 0) {
@@ -344,6 +399,55 @@ class GraphVM extends ViewModelBase {
       _openSelectedScheduleDetailsOnNextLoad = true;
     }
     reloadPage();
+  }
+
+  bool canEditSchedule(
+    Schedule schedule, {
+    int? responsesCount,
+    bool? hasAssignedDriver,
+  }) {
+    return !_isScheduleOperational(
+      schedule,
+      responsesCount: responsesCount,
+      hasAssignedDriver: hasAssignedDriver,
+    );
+  }
+
+  String scheduleEditLockedMessage(
+    Schedule schedule, {
+    int? responsesCount,
+    bool? hasAssignedDriver,
+  }) {
+    final effectiveResponsesCount = responsesCount ??
+        responses.where((r) => r.idSchedule == schedule.id).length;
+    final effectiveHasAssignedDriver = hasAssignedDriver ??
+        (selectedSchedule?.id == schedule.id && driverContact != null);
+
+    if (effectiveHasAssignedDriver) {
+      return 'По контракту уже назначен водитель. Чтобы не сломать привязку маршрутов, чат, QR и историю поездок, редактирование отключено. Для изменений создайте новый контракт или расторгните текущий.';
+    }
+
+    if (effectiveResponsesCount > 0) {
+      return 'По контракту уже есть отклики водителей. Изменение маршрутов может сделать текущие отклики неактуальными, поэтому редактирование заблокировано. Создайте новый контракт с обновлёнными условиями или дождитесь завершения обработки этого.';
+    }
+
+    return 'Контракт уже вошёл в рабочий контур приложения. Чтобы сохранить корректные маршруты, платежи и историю поездок, редактирование этого контракта недоступно. Для изменений используйте новый контракт.';
+  }
+
+  Future<void> showScheduleEditLockedInfo(
+    Schedule schedule, {
+    int? responsesCount,
+    bool? hasAssignedDriver,
+  }) async {
+    await NannyDialogs.showMessageBox(
+      context,
+      'Редактирование недоступно',
+      scheduleEditLockedMessage(
+        schedule,
+        responsesCount: responsesCount,
+        hasAssignedDriver: hasAssignedDriver,
+      ),
+    );
   }
 
   void weekdaySelected(DateTime date) {
@@ -356,6 +460,7 @@ class GraphVM extends ViewModelBase {
     update(() {
       selectedSchedule = schedule;
       driverContact = null; // Сбрасываем предыдущие контакты
+      _ensureSelectedWeekdayForSchedule(schedule);
     });
     _updateSpentsFromSelectedSchedule();
 
@@ -585,6 +690,32 @@ class GraphVM extends ViewModelBase {
     return nearestRoad;
   }
 
+  void _ensureSelectedWeekdayForSchedule(Schedule schedule) {
+    if (schedule.roads.isEmpty) {
+      return;
+    }
+
+    final currentDay = selectedWeekday.isEmpty ? null : selectedWeekday.first;
+    final hasRoutesForCurrentDay = currentDay != null &&
+        schedule.roads.any((road) => road.weekDay == currentDay);
+
+    if (hasRoutesForCurrentDay) {
+      return;
+    }
+
+    final nearestRoad = _nearestUpcomingRoad(schedule);
+    if (nearestRoad == null) {
+      return;
+    }
+
+    if (selectedWeekday.isEmpty) {
+      selectedWeekday = [nearestRoad.weekDay];
+      return;
+    }
+
+    selectedWeekday[0] = nearestRoad.weekDay;
+  }
+
   DateTime _nextOccurrenceFor(NannyWeekday weekday, TimeOfDay startTime) {
     final now = DateTime.now();
     final todayIndex = now.weekday - 1;
@@ -807,7 +938,12 @@ class GraphVM extends ViewModelBase {
 
     if (scheduleResult.success) {
       isOffline = false;
-      schedules = scheduleResult.response!;
+      final otherParamsResult = await NannyStaticDataApi.getOtherParams();
+      if (otherParamsResult.success && otherParamsResult.response != null) {
+        _otherParamsCatalog = otherParamsResult.response!;
+      }
+
+      schedules = _hydrateSchedulesWithOtherParams(scheduleResult.response!);
 
       final childrenResult = await NannyChildrenApi.getChildren();
       if (childrenResult.success && childrenResult.response != null) {
@@ -832,7 +968,7 @@ class GraphVM extends ViewModelBase {
       // Кэшируем расписание
       try {
         await NannyStorage.cacheSchedules(
-          schedules.map((s) => s.toJson()).toList(),
+          schedules.map((s) => s.toCacheJson()).toList(),
         );
       } catch (_) {}
 
@@ -847,6 +983,9 @@ class GraphVM extends ViewModelBase {
       }
 
       _updateSpentsFromSelectedSchedule();
+      if (selectedSchedule != null) {
+        _ensureSelectedWeekdayForSchedule(selectedSchedule!);
+      }
 
       // При первом открытии экрана сразу подтягиваем контакт водителя
       // для автоматически выбранного контракта, чтобы статус был корректным.
@@ -885,6 +1024,9 @@ class GraphVM extends ViewModelBase {
         }
 
         _updateSpentsFromSelectedSchedule();
+        if (selectedSchedule != null) {
+          _ensureSelectedWeekdayForSchedule(selectedSchedule!);
+        }
 
         // То же поведение в оффлайн-режиме: пытаемся загрузить контакт
         // по автоматически выбранному контракту (если есть сеть).
@@ -898,5 +1040,74 @@ class GraphVM extends ViewModelBase {
     } catch (_) {}
 
     return false;
+  }
+
+  List<Schedule> _hydrateSchedulesWithOtherParams(List<Schedule> rawSchedules) {
+    if (_otherParamsCatalog.isEmpty) {
+      return rawSchedules;
+    }
+
+    return rawSchedules
+        .map(
+          (schedule) => Schedule(
+            id: schedule.id,
+            title: schedule.title,
+            isActive: schedule.isActive,
+            description: schedule.description,
+            duration: schedule.duration,
+            childrenCount: schedule.childrenCount,
+            datetimeCreate: schedule.datetimeCreate,
+            weekdays: schedule.weekdays,
+            tariff: schedule.tariff,
+            otherParametrs: schedule.otherParametrs
+                .map(_hydrateOtherParametr)
+                .toList(growable: false),
+            roads: schedule.roads,
+            salary: schedule.salary,
+            amountWeek: schedule.amountWeek,
+            amountMonth: schedule.amountMonth,
+            isPaused: schedule.isPaused,
+            pauseFrom: schedule.pauseFrom,
+            pauseUntil: schedule.pauseUntil,
+            pauseReason: schedule.pauseReason,
+            pauseInitiatedBy: schedule.pauseInitiatedBy,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  OtherParametr _hydrateOtherParametr(OtherParametr param) {
+    final match = _otherParamsCatalog.cast<OtherParametr?>().firstWhere(
+          (candidate) => candidate?.id == param.id,
+          orElse: () => null,
+        );
+
+    return OtherParametr(
+      id: param.id ?? match?.id,
+      title: param.title ?? match?.title,
+      amount: param.amount ?? match?.amount,
+      count: param.count,
+    );
+  }
+
+  bool _isBalancePause(String? raw) {
+    return raw == 'insufficient_balance' ||
+        raw == 'low_balance' ||
+        raw == 'lack_of_funds';
+  }
+
+  bool _isScheduleOperational(
+    Schedule schedule, {
+    int? responsesCount,
+    bool? hasAssignedDriver,
+  }) {
+    final effectiveResponsesCount = responsesCount ??
+        responses.where((r) => r.idSchedule == schedule.id).length;
+    final effectiveHasAssignedDriver = hasAssignedDriver ??
+        (selectedSchedule?.id == schedule.id && driverContact != null);
+
+    return effectiveHasAssignedDriver ||
+        effectiveResponsesCount > 0 ||
+        schedule.isActive == true;
   }
 }

@@ -14,6 +14,7 @@ import 'package:nanny_core/models/from_api/check_3ds_data.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:nanny_core/models/from_api/notification_item.dart';
 import 'package:nanny_core/models/from_api/payment_init_data.dart';
+import 'package:nanny_core/models/from_api/payment_schedule_data.dart';
 import 'package:nanny_core/models/from_api/sbp_init_data.dart';
 import 'package:nanny_core/models/from_api/transaction.dart';
 import 'package:nanny_core/models/from_api/user_cards.dart';
@@ -51,7 +52,8 @@ class NannyUsersApi {
         errorCodeMsgs: {
           // 404 здесь означает, что ручка не найдена на выбранном backend-окружении
           // (например, приложение смотрит на боевой бэк вместо демо).
-          404: "Demo-ручка не найдена. Проверьте, что приложение смотрит на демо-бэкенд.",
+          404:
+              "Demo-ручка не найдена. Проверьте, что приложение смотрит на демо-бэкенд.",
           405: "Недопустимый банк карты!",
           406: "Карта уже добавлена!",
           407: "Некорректная дата сгорания карты!",
@@ -124,9 +126,23 @@ class NannyUsersApi {
   }
 
   static Future<ApiResponse<void>> addMoney(AddMoneyRequest request) async {
-    // В demo‑режиме баланс уже пополняется через /users/demo/balance/topup,
-    // поэтому здесь просто возвращаем успешный ответ без дополнительного запроса.
-    return ApiResponse(success: true);
+    if (request.paymentId <= 0) {
+      // В demo-режиме баланс уже пополняется через /users/demo/balance/topup,
+      // поэтому подтверждать платеж повторным backend-запросом не нужно.
+      return ApiResponse(success: true);
+    }
+
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.post(
+        "/users/add_money",
+        data: request.toJson(),
+      ),
+      errorCodeMsgs: {
+        402:
+            'Платёж ещё не подтверждён банком. Попробуйте повторить чуть позже.',
+        404: 'Платёж не найден или не принадлежит текущему пользователю.',
+      },
+    );
   }
 
   // BE-MVP-028: История транзакций с пагинацией и фильтрацией
@@ -149,12 +165,12 @@ class NannyUsersApi {
         '/users/transactions',
         queryParameters: params,
       ),
-      onSuccess: (response) =>
-          TransactionListResponse.fromJson(response.data),
+      onSuccess: (response) => TransactionListResponse.fromJson(response.data),
     );
   }
 
-  static Future<ApiResponse<String?>> resumePaymentSchedule(int scheduleId) async {
+  static Future<ApiResponse<String?>> resumePaymentSchedule(
+      int scheduleId) async {
     return RequestBuilder<String?>().create(
       dioRequest: DioRequest.dio.post(
         '/users/payment_schedule/resume/$scheduleId',
@@ -163,6 +179,75 @@ class NannyUsersApi {
       errorCodeMsgs: {
         400: 'Не удалось возобновить автоплатеж по контракту',
         404: 'Контракт или расписание платежей не найдено',
+      },
+    );
+  }
+
+  static Future<ApiResponse<PaymentScheduleData?>> getPaymentSchedule(
+    int scheduleId,
+  ) {
+    return RequestBuilder<PaymentScheduleData?>().create(
+      dioRequest: DioRequest.dio.get('/users/payment_schedule/$scheduleId'),
+      onSuccess: (response) {
+        final hasSchedule = response.data['has_schedule'] == true;
+        if (!hasSchedule) {
+          return null;
+        }
+
+        final rawSchedule = response.data['schedule'];
+        if (rawSchedule is! Map) {
+          return null;
+        }
+
+        return PaymentScheduleData.fromJson(
+          {
+            ...Map<String, dynamic>.from(rawSchedule),
+            'payment_history': response.data['payment_history'],
+          },
+        );
+      },
+      errorCodeMsgs: {
+        404: 'Контракт не найден',
+      },
+    );
+  }
+
+  static Future<ApiResponse<PaymentScheduleData>> createDemoAutopaySchedule({
+    required int scheduleId,
+    required double amount,
+    int? cardId,
+  }) {
+    return RequestBuilder<PaymentScheduleData>().create(
+      dioRequest: DioRequest.dio.post(
+        '/users/demo/autopay/schedule',
+        data: {
+          'schedule_id': scheduleId,
+          'amount': amount,
+          if (cardId != null) 'card_id': cardId,
+        },
+      ),
+      onSuccess: (response) {
+        final rawSchedule = response.data['schedule'];
+        return PaymentScheduleData.fromJson(
+          rawSchedule is Map
+              ? Map<String, dynamic>.from(rawSchedule)
+              : const {},
+        );
+      },
+      errorCodeMsgs: {
+        400: 'Не удалось настроить автоплатёж',
+        404: 'Контракт не найден',
+      },
+    );
+  }
+
+  static Future<ApiResponse<void>> cancelPaymentSchedule(int scheduleId) {
+    return RequestBuilder<void>().create(
+      dioRequest:
+          DioRequest.dio.post('/users/payment_schedule/cancel/$scheduleId'),
+      errorCodeMsgs: {
+        400: 'Не удалось отключить автоплатёж',
+        404: 'Расписание автоплатежей не найдено',
       },
     );
   }
@@ -224,7 +309,8 @@ class NannyUsersApi {
         }
         return rawItems
             .whereType<Map>()
-            .map((item) => NotificationItem.fromJson(Map<String, dynamic>.from(item)))
+            .map((item) =>
+                NotificationItem.fromJson(Map<String, dynamic>.from(item)))
             .toList();
       },
     );
@@ -243,39 +329,38 @@ class NannyUsersApi {
   }
 
   // FE-MVP-009: Получение контактов водителя для расписания
-  static Future<ApiResponse<DriverContact>> getDriverContact(int scheduleId) async {
+  static Future<ApiResponse<DriverContact>> getDriverContact(
+      int scheduleId) async {
     return RequestBuilder<DriverContact>().create(
       dioRequest: DioRequest.dio.get("/users/driver_contact/$scheduleId"),
       onSuccess: (response) => DriverContact.fromJson(response.data['driver']),
-      errorCodeMsgs: {
-        404: "Водитель еще не назначен на этот контракт"
-      },
+      errorCodeMsgs: {404: "Водитель еще не назначен на этот контракт"},
     );
   }
 
   // FE-MVP-003: Активация SOS-кнопки (BUG-140326-009: таймаут для диагностики)
-  static Future<ApiResponse<void>> activateSOS(SOSActivateRequest request) async {
-    return RequestBuilder<void>()
-        .create(
-          dioRequest: DioRequest.dio.post(
-            "/users/activate_sos",
-            data: request.toJson(),
-            options: Options(
-              sendTimeout: const Duration(seconds: 15),
-              receiveTimeout: const Duration(seconds: 15),
-            ),
-          ),
-          errorCodeMsgs: {
-            400: "Ошибка при активации SOS",
-            500: "Сервер не отвечает. Проверьте, что backend запущен и доступен по ${NannyConsts.baseUrl}",
-          },
-        )
-        .timeout(
-          const Duration(seconds: 18),
-          onTimeout: () => ApiResponse(
-            errorMessage:
-                "Таймаут. Проверьте интернет и доступность сервера (${NannyConsts.baseUrl})",
-          ),
-        );
+  static Future<ApiResponse<void>> activateSOS(
+      SOSActivateRequest request) async {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.post(
+        "/users/activate_sos",
+        data: request.toJson(),
+        options: Options(
+          sendTimeout: const Duration(seconds: 15),
+          receiveTimeout: const Duration(seconds: 15),
+        ),
+      ),
+      errorCodeMsgs: {
+        400: "Ошибка при активации SOS",
+        500:
+            "Сервер не отвечает. Проверьте, что backend запущен и доступен по ${NannyConsts.baseUrl}",
+      },
+    ).timeout(
+      const Duration(seconds: 18),
+      onTimeout: () => ApiResponse(
+        errorMessage:
+            "Таймаут. Проверьте интернет и доступность сервера (${NannyConsts.baseUrl})",
+      ),
+    );
   }
 }

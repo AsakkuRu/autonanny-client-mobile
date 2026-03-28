@@ -50,38 +50,51 @@ class _SupportChatViewState extends State<SupportChatView> {
                         color: colors.actionPrimary,
                       ),
                     )
-                  : vm.messages.isEmpty
+                  : vm.loadError != null && vm.messages.isEmpty
                       ? Padding(
                           padding: const EdgeInsets.all(AutonannySpacing.xl),
-                          child: Center(
-                            child: AutonannyEmptyState(
-                              title: 'Напишите нам',
-                              description:
-                                  'Мы готовы помочь с любыми вопросами о сервисе АвтоНяня.',
-                              icon: const AutonannyIcon(AutonannyIcons.chat),
-                            ),
+                          child: AutonannyErrorState(
+                            title: 'Не удалось открыть чат поддержки',
+                            description: vm.loadError!,
+                            actionLabel: 'Повторить',
+                            onAction: vm.refresh,
                           ),
                         )
-                      : ListView.builder(
-                          controller: vm.scrollController,
-                          padding: const EdgeInsets.fromLTRB(
-                            AutonannySpacing.lg,
-                            AutonannySpacing.sm,
-                            AutonannySpacing.lg,
-                            AutonannySpacing.lg,
-                          ),
-                          reverse: true,
-                          itemCount: vm.messages.length,
-                          itemBuilder: (context, index) {
-                            final message = vm.messages[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: AutonannySpacing.sm,
+                      : vm.messages.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.all(AutonannySpacing.xl),
+                              child: Center(
+                                child: AutonannyEmptyState(
+                                  title: 'Напишите нам',
+                                  description:
+                                      'Мы готовы помочь с любыми вопросами о сервисе АвтоНяня.',
+                                  icon: AutonannyIcon(AutonannyIcons.chat),
+                                ),
                               ),
-                              child: _MessageBubble(message: message),
-                            );
-                          },
-                        ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: vm.refresh,
+                              child: ListView.builder(
+                                controller: vm.scrollController,
+                                padding: const EdgeInsets.fromLTRB(
+                                  AutonannySpacing.lg,
+                                  AutonannySpacing.sm,
+                                  AutonannySpacing.lg,
+                                  AutonannySpacing.lg,
+                                ),
+                                reverse: true,
+                                itemCount: vm.messages.length,
+                                itemBuilder: (context, index) {
+                                  final message = vm.messages[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: AutonannySpacing.sm,
+                                    ),
+                                    child: _MessageBubble(message: message),
+                                  );
+                                },
+                              ),
+                            ),
             ),
             if (vm.showRatingBanner)
               Padding(
@@ -256,15 +269,6 @@ class _ChatComposer extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: AutonannyIconButton(
-              icon: const AutonannyIcon(AutonannyIcons.add),
-              onPressed: vm.attachFile,
-              tooltip: 'Прикрепить файл',
-            ),
-          ),
-          const SizedBox(width: AutonannySpacing.sm),
           Expanded(
             child: AutonannyTextField(
               controller: vm.messageController,
@@ -277,9 +281,9 @@ class _ChatComposer extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 4),
             child: AutonannyIconButton(
               icon: const AutonannyIcon(AutonannyIcons.arrowRight),
-              onPressed: vm.sendMessage,
+              onPressed: vm.isSending ? null : vm.sendMessage,
               variant: AutonannyIconButtonVariant.primary,
-              tooltip: 'Отправить',
+              tooltip: vm.isSending ? 'Отправляем...' : 'Отправить',
             ),
           ),
         ],

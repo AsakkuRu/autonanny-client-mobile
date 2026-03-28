@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:nanny_client/l10n/app_localizations.dart';
 import 'package:nanny_client/view_models/map/edit_route_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
@@ -101,15 +103,69 @@ class _EditRouteViewState extends State<EditRouteView> {
                   final address = entry.value;
                   return _buildAddressCard(index, address);
                 }),
-                if (vm.priceChange != null) ...[
+                if (vm.isRecalculatingPrice) ...[
                   const SizedBox(height: 20),
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: NannyTheme.warning.withOpacity(0.06),
+                      color: NannyTheme.neutral50,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: NannyTheme.neutral200),
+                    ),
+                    child: Row(
+                      children: [
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Пересчитываем стоимость нового маршрута...',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else if (vm.pricePreviewError != null) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: NannyTheme.danger.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(
-                        color: NannyTheme.warning.withOpacity(0.7),
+                        color: NannyTheme.danger.withValues(alpha: 0.28),
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: NannyTheme.danger,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            vm.pricePreviewError!,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else if (vm.priceChange != null) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: NannyTheme.warning.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: NannyTheme.warning.withValues(alpha: 0.7),
                       ),
                     ),
                     child: Row(
@@ -146,6 +202,16 @@ class _EditRouteViewState extends State<EditRouteView> {
                                       fontWeight: FontWeight.w800,
                                     ),
                               ),
+                              if (vm.nextTotalPrice != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Новая стоимость: ${NumberFormat('#,##0.00', 'ru_RU').format(vm.nextTotalPrice)} ₽',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -167,7 +233,7 @@ class _EditRouteViewState extends State<EditRouteView> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: NannyTheme.shadow.withOpacity(0.12),
+                  color: NannyTheme.shadow.withValues(alpha: 0.12),
                   blurRadius: 20,
                   offset: const Offset(0, -4),
                 ),
@@ -177,7 +243,10 @@ class _EditRouteViewState extends State<EditRouteView> {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: vm.hasChanges && !vm.isSaving ? vm.saveChanges : null,
+                onPressed:
+                    vm.hasChanges && !vm.isSaving && !vm.isRecalculatingPrice
+                        ? vm.saveChanges
+                        : null,
                 child: vm.isSaving
                     ? const SizedBox(
                         width: 24,
@@ -199,9 +268,11 @@ class _EditRouteViewState extends State<EditRouteView> {
   Widget _buildAddressCard(int index, AddressData address) {
     final isFirst = index == 0;
     final isLast = index == vm.addresses.length - 1;
+    final l10n = AppLocalizations.of(context);
 
-    final Color dotColor =
-        isFirst ? NannyTheme.primary : (isLast ? NannyTheme.danger : NannyTheme.neutral400);
+    final Color dotColor = isFirst
+        ? NannyTheme.primary
+        : (isLast ? NannyTheme.danger : NannyTheme.neutral400);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -240,7 +311,7 @@ class _EditRouteViewState extends State<EditRouteView> {
                 border: Border.all(color: NannyTheme.neutral100),
                 boxShadow: [
                   BoxShadow(
-                    color: NannyTheme.shadow.withOpacity(0.04),
+                    color: NannyTheme.shadow.withValues(alpha: 0.04),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -257,12 +328,14 @@ class _EditRouteViewState extends State<EditRouteView> {
                         children: [
                           Text(
                             isFirst
-                                ? AppLocalizations.of(context).from
+                                ? (l10n?.from ?? 'Откуда')
                                 : (isLast
-                                    ? AppLocalizations.of(context).to
-                                    : AppLocalizations.of(context)
-                                        .intermediateStopLabel(index)),
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    ? (l10n?.to ?? 'Куда')
+                                    : 'Промежуточная остановка ${index + 1}'),
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
                                   color: NannyTheme.neutral500,
                                   fontWeight: FontWeight.w600,
                                 ),

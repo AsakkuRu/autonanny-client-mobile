@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
+// ignore: depend_on_referenced_packages
+import 'package:nanny_client/routing/client_entity_router.dart';
 import 'package:nanny_components/nanny_components.dart';
-import 'package:nanny_client/view_models/new_main/active_trip/active_trip_resolver.dart';
-import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart';
-import 'package:nanny_client/views/pages/balance.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/messaging/route_deviation_notifications.dart';
-import 'package:nanny_client/views/pages/graph.dart';
-import 'package:nanny_client/views/pages/transactions/transactions_history_view.dart';
-import 'package:nanny_client/views/rating/driver_rating_view.dart';
 
 class FirebaseMessagingHandler {
   static void init() {
@@ -65,6 +61,60 @@ class FirebaseMessagingHandler {
     _handleAction(action, msg);
   }
 
+  static Future<void> handleLocalNotificationTap(
+    Map<String, dynamic> payload,
+  ) async {
+    final event = payload['event']?.toString();
+    final rawData = payload['data'];
+    final data = rawData is Map
+        ? rawData.map((key, value) => MapEntry(key.toString(), value))
+        : payload;
+
+    final context = NannyGlobals.navKey.currentContext;
+    if (event == null || context == null) {
+      return;
+    }
+
+    switch (event) {
+      case 'chat.message_created':
+        final chatId = ClientEntityRouter.readInt(
+          data['chat_id'] ?? data['id_chat'] ?? data['id'],
+        );
+        if (chatId == null) {
+          return;
+        }
+
+        if (NannyGlobals.currentContext.widget.runtimeType == DirectView) {
+          Navigator.pop(NannyGlobals.currentContext);
+        }
+
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DirectView(
+              idChat: chatId,
+              name: data['chat_name']?.toString(),
+            ),
+          ),
+        );
+        return;
+      case 'trip.status_changed':
+      case 'trip.cancelled':
+      case 'order.expired':
+      case 'route.change_result':
+      case 'route.change_requested':
+        await ClientEntityRouter.openEntity(
+          context,
+          payload: data,
+          target: 'trip',
+          type: event,
+        );
+        return;
+      default:
+        return;
+    }
+  }
+
   static void _handleTypeFallback(RemoteMessage msg) {
     if (_handleTargetFallback(msg)) {
       return;
@@ -78,28 +128,24 @@ class FirebaseMessagingHandler {
 
     switch (type) {
       case 'weekly_payment_success':
-      case 'weekly_payment_failed':
-        Navigator.push(
+        ClientEntityRouter.openEntity(
           context,
-          MaterialPageRoute(
-            builder: (_) => const TransactionsHistoryView(
-              initialTransactionType: 'payment',
-            ),
-          ),
+          payload: Map<String, dynamic>.from(msg.data),
+          type: type,
+        );
+        return;
+      case 'weekly_payment_failed':
+        ClientEntityRouter.openEntity(
+          context,
+          payload: Map<String, dynamic>.from(msg.data),
+          type: type,
         );
         return;
       case 'contract_resumed':
-        final scheduleId =
-            int.tryParse(msg.data['schedule_id']?.toString() ?? '');
-        Navigator.push(
+        ClientEntityRouter.openEntity(
           context,
-          MaterialPageRoute(
-            builder: (_) => GraphView(
-              persistState: false,
-              initialScheduleId: scheduleId,
-              openInitialScheduleDetails: scheduleId != null,
-            ),
-          ),
+          payload: Map<String, dynamic>.from(msg.data),
+          type: type,
         );
         return;
       default:
@@ -138,178 +184,12 @@ class FirebaseMessagingHandler {
     if (context == null) {
       return false;
     }
-
-    final type = msg.data['type']?.toString() ?? '';
-    final resolvedTarget =
-        msg.data['target']?.toString() ?? _fallbackTarget(type);
-    if (resolvedTarget == null) {
-      return false;
-    }
-
-    final scheduleId = _readIntPayload(
-      msg.data['schedule_id'] ?? msg.data['id_schedule'],
-    );
-    final orderId = _readIntPayload(
-      msg.data['order_id'] ?? msg.data['id_order'],
-    );
-    final chatId = _readIntPayload(
-      msg.data['chat_id'] ?? msg.data['id_chat'] ?? msg.data['id'],
-    );
-
-    switch (resolvedTarget) {
-      case 'rating_request':
-        if (orderId == null) {
-          return false;
-        }
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DriverRatingView(
-              orderId: orderId,
-              driverName: msg.data['driver_name']?.toString(),
-              driverPhoto: msg.data['driver_photo']?.toString(),
-            ),
-          ),
-        );
-        return true;
-      case 'trip':
-      case 'active_trip':
-        _openActiveTrip(context, orderId);
-        return true;
-      case 'contracts':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => GraphView(
-              persistState: false,
-              initialScheduleId: scheduleId,
-              openInitialScheduleDetails: scheduleId != null,
-            ),
-          ),
-        );
-        return true;
-      case 'balance':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const BalanceView(persistState: false),
-          ),
-        );
-        return true;
-      case 'wallet_operation':
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => TransactionsHistoryView(
-              initialTransactionType:
-                  msg.data['transaction_type']?.toString() ?? 'payment',
-              initialSearchQuery: _buildWalletSearchQuery(
-                scheduleId: scheduleId,
-                orderId: orderId,
-              ),
-            ),
-          ),
-        );
-        return true;
-      case 'chat':
-        if (chatId == null) {
-          return false;
-        }
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => DirectView(
-              idChat: chatId,
-              name: msg.data['chat_name']?.toString(),
-            ),
-          ),
-        );
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  static Future<void> _openActiveTrip(
-    BuildContext context,
-    int? expectedOrderId,
-  ) async {
-    final activeTrip = await ActiveTripResolver.resolveCurrentActiveTrip();
-    if (!context.mounted) {
-      return;
-    }
-
-    if (activeTrip == null || activeTrip.token.isEmpty) {
-      _showInfoMessage(
-          context, 'Активная поездка уже завершена или недоступна.');
-      return;
-    }
-    if (expectedOrderId != null &&
-        activeTrip.orderId != null &&
-        activeTrip.orderId != expectedOrderId) {
-      _showInfoMessage(
-          context, 'Эта поездка уже завершена или больше не активна.');
-      return;
-    }
-
-    await Navigator.push(
+    ClientEntityRouter.openEntity(
       context,
-      MaterialPageRoute(
-        builder: (_) => ActiveTripScreen(token: activeTrip.token),
-      ),
+      payload: Map<String, dynamic>.from(msg.data),
+      target: msg.data['target']?.toString(),
+      type: msg.data['type']?.toString(),
     );
-  }
-
-  static void _showInfoMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
-  }
-
-  static int? _readIntPayload(dynamic rawValue) {
-    if (rawValue is int) {
-      return rawValue;
-    }
-    if (rawValue is num) {
-      return rawValue.toInt();
-    }
-    if (rawValue is String) {
-      return int.tryParse(rawValue);
-    }
-    return null;
-  }
-
-  static String? _fallbackTarget(String type) {
-    switch (type) {
-      case 'payment':
-      case 'weekly_payment_success':
-      case 'weekly_payment_failed':
-        return 'wallet_operation';
-      case 'message':
-        return 'chat';
-      case 'order':
-      case 'contract_resumed':
-        return 'contracts';
-      case 'rating_request':
-        return 'rating_request';
-      case 'trip':
-      case 'active_trip':
-        return 'active_trip';
-      default:
-        return null;
-    }
-  }
-
-  static String? _buildWalletSearchQuery({
-    required int? scheduleId,
-    required int? orderId,
-  }) {
-    if (orderId != null) {
-      return '#$orderId';
-    }
-    if (scheduleId != null) {
-      return '#$scheduleId';
-    }
-    return null;
+    return true;
   }
 }

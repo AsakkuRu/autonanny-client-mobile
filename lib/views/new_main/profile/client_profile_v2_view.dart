@@ -925,29 +925,10 @@ class _ChildAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fileUrl = NannyConsts.buildFileUrl(photoPath);
-    if (fileUrl != null) {
-      return CircleAvatar(
-        radius: 22,
-        backgroundImage: NetworkImage(fileUrl),
-      );
-    }
-
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFEC4899), Color(0xFFBE185D)],
-        ),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        initial,
-        style: AutonannyTypography.bodyL(color: Colors.white),
-      ),
+    return AutonannyAvatar(
+      imageUrl: fileUrl,
+      initials: initial,
+      size: 44,
     );
   }
 }

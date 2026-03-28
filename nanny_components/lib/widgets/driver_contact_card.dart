@@ -1,6 +1,8 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_core/constants.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -18,6 +20,13 @@ class DriverContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final initials = driver.fullName
+        .split(' ')
+        .where((part) => part.trim().isNotEmpty)
+        .take(2)
+        .map((part) => part.trim()[0])
+        .join()
+        .toUpperCase();
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -25,7 +34,7 @@ class DriverContactCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -50,9 +59,11 @@ class DriverContactCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Фото водителя
-              ProfileImage(
-                url: driver.photo ?? '',
-                radius: 50,
+              AutonannyAvatar(
+                imageUrl: NannyConsts.buildFileUrl(driver.photo),
+                initials: initials.isEmpty ? 'В' : initials,
+                size: 100,
+                borderRadius: BorderRadius.circular(50),
               ),
               const SizedBox(width: 16),
               

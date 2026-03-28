@@ -18,7 +18,24 @@ class GraphCreate extends StatefulWidget {
 }
 
 class _GraphCreateState extends State<GraphCreate> {
+  static const List<String> _stepTitles = [
+    'Параметры',
+    'Дети',
+    'Маршруты',
+    'Услуги',
+    'Проверка',
+  ];
+
+  static const List<String> _stepDescriptions = [
+    'Название контракта и период регулярных поездок.',
+    'Кто относится к этому контракту.',
+    'Дни поездок, маршруты и дети внутри каждого маршрута.',
+    'Тариф и дополнительные услуги.',
+    'Финальная проверка перед сохранением.',
+  ];
+
   late final GraphCreateVM vm;
+  int _currentStepIndex = 0;
 
   @override
   void initState() {
@@ -31,6 +48,7 @@ class _GraphCreateState extends State<GraphCreate> {
   }
 
   bool get _isEditMode => widget.schedule != null;
+  bool get _isLastStep => _currentStepIndex == _stepTitles.length - 1;
 
   Future<void> _showRouteFlow(
     NannyWeekday weekday, {
@@ -63,6 +81,233 @@ class _GraphCreateState extends State<GraphCreate> {
     );
   }
 
+  List<String> _stepIssuesFor(int stepIndex) {
+    switch (stepIndex) {
+      case 0:
+        return vm.hasContractTitle
+            ? const <String>[]
+            : const <String>['Введите название контракта.'];
+      case 1:
+        return vm.selectedChildrenIds.isNotEmpty
+            ? const <String>[]
+            : const <String>['Выберите хотя бы одного ребёнка.'];
+      case 2:
+        final issues = <String>[];
+        if (vm.selectedWeekday.isEmpty) {
+          issues.add('Выберите дни поездок.');
+        }
+        if (vm.editor.roads.isEmpty) {
+          issues.add('Добавьте хотя бы один маршрут.');
+        }
+        if (vm.weekdaysWithoutRoutes.isNotEmpty) {
+          final dayLabels = vm.weekdaysWithoutRoutes
+              .map((weekday) => weekday.shortName)
+              .join(', ');
+          issues.add('Для дней $dayLabels пока нет маршрутов.');
+        }
+        if (vm.routesWithoutChildren.isNotEmpty) {
+          final dayLabels = vm.routesWithoutChildren
+              .map((road) => road.weekDay.shortName)
+              .toSet()
+              .join(', ');
+          issues.add('У маршрутов не выбраны дети: $dayLabels.');
+        }
+        if (vm.contractChildrenWithoutRoutes.isNotEmpty) {
+          final childLabels = vm.contractChildrenWithoutRoutes
+              .map((child) => child.fullName.trim())
+              .where((label) => label.isNotEmpty)
+              .join(', ');
+          issues.add(
+            childLabels.isEmpty
+                ? 'Не все выбранные дети распределены по маршрутам.'
+                : 'Добавьте в маршруты всех выбранных детей: $childLabels.',
+          );
+        }
+        if (vm.tripsPerMonth > 0 && vm.tripsPerMonth < 4) {
+          issues.add('Для контракта нужно минимум 4 поездки в месяц.');
+        }
+        return issues;
+      case 3:
+        return const <String>[];
+      case 4:
+        return vm.readinessIssues;
+      default:
+        return const <String>[];
+    }
+  }
+
+  Future<void> _continueFlow() async {
+    final issues = _stepIssuesFor(_currentStepIndex);
+    if (issues.isNotEmpty) {
+      await NannyDialogs.showMessageBox(
+        context,
+        'Шаг еще не завершён',
+        issues.join('\n'),
+      );
+      return;
+    }
+    setState(() {
+      _currentStepIndex += 1;
+    });
+  }
+
+  void _goBack() {
+    if (_currentStepIndex == 0) {
+      return;
+    }
+    setState(() {
+      _currentStepIndex -= 1;
+    });
+  }
+
+  List<Widget> _buildCurrentStepSections(BuildContext context) {
+    switch (_currentStepIndex) {
+      case 0:
+        return [
+          AutonannySectionContainer(
+            title: 'Основные параметры',
+            subtitle:
+                'Базовые параметры контракта: название и формат регулярных поездок.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AutonannyTextField(
+                  controller: vm.nameController,
+                  labelText: 'Название контракта',
+                  hintText: 'Например, школа, секции и дом',
+                  onChanged: vm.changeTitle,
+                ),
+                const SizedBox(height: AutonannySpacing.lg),
+                _SelectionField<GraphType>(
+                  title: 'Период контракта',
+                  value: vm.editor.type,
+                  items: GraphType.values
+                      .map(
+                        (type) => _SelectionFieldItem<GraphType>(
+                          value: type,
+                          label: type.name,
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: vm.graphTypeChanged,
+                ),
+              ],
+            ),
+          ),
+        ];
+      case 1:
+        return [
+          _ChildrenSection(vm: vm),
+        ];
+      case 2:
+        return [
+          AutonannySectionContainer(
+            title: 'Дни поездок и маршруты',
+            subtitle:
+                'Сначала выберите дни контракта, затем добавьте маршруты для выбранных дней.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Дни поездок',
+                  style: AutonannyTypography.labelL(
+                    color: context.autonannyColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.sm),
+                WeeksSelector(
+                  selectedWeekday: vm.selectedWeekday,
+                  onChanged: vm.weekdaySelected,
+                ),
+                const SizedBox(height: AutonannySpacing.lg),
+                if (vm.selectedChildrenIds.isEmpty)
+                  const AutonannyInlineBanner(
+                    title: 'Сначала выберите детей контракта',
+                    message:
+                        'Маршруты создаются только после выбора детей, которые относятся к контракту.',
+                    tone: AutonannyBannerTone.warning,
+                    leading: AutonannyIcon(AutonannyIcons.warning),
+                  )
+                else
+                  AutonannyInlineBanner(
+                    title: 'Выбрано детей: ${vm.selectedChildrenIds.length}',
+                    message:
+                        'Новые маршруты будут привязаны только к выбранным детям контракта.',
+                    tone: AutonannyBannerTone.info,
+                    leading: const AutonannyIcon(AutonannyIcons.child),
+                  ),
+                if (vm.contractChildrenWithoutRoutes.isNotEmpty) ...[
+                  const SizedBox(height: AutonannySpacing.md),
+                  AutonannyInlineBanner(
+                    title: 'Не все дети распределены по маршрутам',
+                    message: vm.contractChildrenWithoutRoutes
+                        .map((child) => child.fullName.trim())
+                        .where((label) => label.isNotEmpty)
+                        .join(', '),
+                    tone: AutonannyBannerTone.warning,
+                    leading: const AutonannyIcon(AutonannyIcons.warning),
+                  ),
+                ],
+                const SizedBox(height: AutonannySpacing.lg),
+                if (vm.selectedWeekday.isEmpty)
+                  const AutonannyInlineBanner(
+                    title: 'Выберите дни контракта',
+                    message:
+                        'После выбора дней появятся отдельные панели, внутри которых можно добавлять маршруты.',
+                    tone: AutonannyBannerTone.info,
+                    leading: AutonannyIcon(AutonannyIcons.calendar),
+                  )
+                else ...[
+                  ...vm.sortedSelectedWeekdays.map(
+                    (weekday) => Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: AutonannySpacing.md,
+                      ),
+                      child: _DayRoutesPanel(
+                        day: weekday,
+                        roads: vm.routesForDay(weekday),
+                        onAddRoute: vm.selectedChildrenIds.isEmpty
+                            ? null
+                            : () => _showRouteFlow(weekday),
+                        onEditRoute: (road) => _showRouteFlow(
+                          weekday,
+                          updatingRoad: road,
+                        ),
+                        onDeleteRoute: vm.deleteRoute,
+                        routeChildrenBuilder: vm.routeChildrenForRoad,
+                      ),
+                    ),
+                  ),
+                  _TripsCounterBanner(roadsCount: vm.editor.roads.length),
+                ],
+              ],
+            ),
+          ),
+        ];
+      case 3:
+        return [
+          AutonannySectionContainer(
+            title: 'Тариф и доп. услуги',
+            subtitle:
+                'Выберите период контракта и дополнительные требования к поездкам.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _TariffSection(vm: vm),
+                const SizedBox(height: AutonannySpacing.lg),
+                _AdditionalServicesSection(vm: vm),
+              ],
+            ),
+          ),
+        ];
+      case 4:
+      default:
+        return [
+          _ContractDraftSummarySection(vm: vm),
+        ];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AutonannyAppScaffold(
@@ -82,13 +327,39 @@ class _GraphCreateState extends State<GraphCreate> {
             AutonannySpacing.xl,
             AutonannySpacing.lg,
           ),
-          child: AutonannyButton(
-            label: _isEditMode ? 'Обновить контракт' : 'Создать контракт',
-            onPressed: vm.canSubmit ? vm.confirm : null,
-            leading: const AutonannyIcon(
-              AutonannyIcons.checkCircle,
-              color: Colors.white,
-            ),
+          child: Row(
+            children: [
+              if (_currentStepIndex > 0)
+                Expanded(
+                  child: AutonannyButton(
+                    label: 'Назад',
+                    variant: AutonannyButtonVariant.secondary,
+                    leading: AutonannyIcon(
+                      AutonannyIcons.arrowLeft,
+                      color: context.autonannyColors.actionPrimary,
+                    ),
+                    onPressed: _goBack,
+                  ),
+                ),
+              if (_currentStepIndex > 0)
+                const SizedBox(width: AutonannySpacing.md),
+              Expanded(
+                child: AutonannyButton(
+                  label: _isLastStep
+                      ? (_isEditMode ? 'Обновить контракт' : 'Создать контракт')
+                      : 'Далее',
+                  onPressed: _isLastStep
+                      ? (vm.canSubmit ? vm.confirm : null)
+                      : _continueFlow,
+                  leading: AutonannyIcon(
+                    _isLastStep
+                        ? AutonannyIcons.checkCircle
+                        : AutonannyIcons.arrowRight,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -112,6 +383,9 @@ class _GraphCreateState extends State<GraphCreate> {
               );
             }
 
+            final stepIssues = _stepIssuesFor(_currentStepIndex);
+            final stepSections = _buildCurrentStepSections(context);
+
             return ListView(
               padding: const EdgeInsets.fromLTRB(
                 AutonannySpacing.xl,
@@ -122,126 +396,24 @@ class _GraphCreateState extends State<GraphCreate> {
               children: [
                 _GraphCreateHero(isEditMode: _isEditMode),
                 const SizedBox(height: AutonannySpacing.xl),
-                AutonannySectionContainer(
-                  title: 'Основные параметры',
-                  subtitle:
-                      'Базовые параметры контракта: название и формат регулярных поездок.',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AutonannyTextField(
-                        controller: vm.nameController,
-                        labelText: 'Название контракта',
-                        hintText: 'Например, школа, секции и дом',
-                        onChanged: vm.changeTitle,
-                      ),
-                      const SizedBox(height: AutonannySpacing.lg),
-                      _SelectionField<GraphType>(
-                        title: 'Период контракта',
-                        value: vm.editor.type,
-                        items: GraphType.values
-                            .map(
-                              (type) => _SelectionFieldItem<GraphType>(
-                                value: type,
-                                label: type.name,
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: vm.graphTypeChanged,
-                      ),
-                    ],
-                  ),
+                _CreateFlowHeader(
+                  currentStepIndex: _currentStepIndex,
+                  titles: _stepTitles,
+                  descriptions: _stepDescriptions,
                 ),
-                const SizedBox(height: AutonannySpacing.lg),
-                _ChildrenSection(vm: vm),
-                const SizedBox(height: AutonannySpacing.lg),
-                AutonannySectionContainer(
-                  title: 'Дни поездок и маршруты',
-                  subtitle:
-                      'Сначала выберите дни контракта, затем добавьте маршруты для выбранных дней.',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Дни поездок',
-                        style: AutonannyTypography.labelL(
-                          color: context.autonannyColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: AutonannySpacing.sm),
-                      WeeksSelector(
-                        selectedWeekday: vm.selectedWeekday,
-                        onChanged: vm.weekdaySelected,
-                      ),
-                      const SizedBox(height: AutonannySpacing.lg),
-                      if (vm.selectedChildrenIds.isEmpty)
-                        const AutonannyInlineBanner(
-                          title: 'Сначала выберите детей контракта',
-                          message:
-                              'Маршруты создаются только после выбора детей, которые относятся к контракту.',
-                          tone: AutonannyBannerTone.warning,
-                          leading: AutonannyIcon(AutonannyIcons.warning),
-                        )
-                      else
-                        AutonannyInlineBanner(
-                          title:
-                              'Выбрано детей: ${vm.selectedChildrenIds.length}',
-                          message:
-                              'Новые маршруты будут привязаны только к выбранным детям контракта.',
-                          tone: AutonannyBannerTone.info,
-                          leading: const AutonannyIcon(AutonannyIcons.child),
-                        ),
-                      const SizedBox(height: AutonannySpacing.lg),
-                      if (vm.selectedWeekday.isEmpty)
-                        const AutonannyInlineBanner(
-                          title: 'Выберите дни контракта',
-                          message:
-                              'После выбора дней появятся отдельные панели, внутри которых можно добавлять маршруты.',
-                          tone: AutonannyBannerTone.info,
-                          leading: AutonannyIcon(AutonannyIcons.calendar),
-                        )
-                      else ...[
-                        ...vm.sortedSelectedWeekdays.map(
-                          (weekday) => Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AutonannySpacing.md,
-                            ),
-                            child: _DayRoutesPanel(
-                              day: weekday,
-                              roads: vm.routesForDay(weekday),
-                              onAddRoute: vm.selectedChildrenIds.isEmpty
-                                  ? null
-                                  : () => _showRouteFlow(weekday),
-                              onEditRoute: (road) => _showRouteFlow(
-                                weekday,
-                                updatingRoad: road,
-                              ),
-                              onDeleteRoute: vm.deleteRoute,
-                              routeChildrenBuilder: vm.routeChildrenForRoad,
-                            ),
-                          ),
-                        ),
-                        _TripsCounterBanner(roadsCount: vm.editor.roads.length),
-                      ],
-                    ],
+                if (stepIssues.isNotEmpty && !_isLastStep) ...[
+                  const SizedBox(height: AutonannySpacing.lg),
+                  AutonannyInlineBanner(
+                    title: 'Чтобы перейти дальше, завершите шаг',
+                    message: stepIssues.join('\n'),
+                    tone: AutonannyBannerTone.warning,
+                    leading: const AutonannyIcon(AutonannyIcons.warning),
                   ),
-                ),
-                const SizedBox(height: AutonannySpacing.lg),
-                AutonannySectionContainer(
-                  title: 'Тариф и доп. услуги',
-                  subtitle:
-                      'Выберите период контракта и дополнительные требования к поездкам.',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _TariffSection(vm: vm),
-                      const SizedBox(height: AutonannySpacing.lg),
-                      _AdditionalServicesSection(vm: vm),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AutonannySpacing.lg),
-                _ContractDraftSummarySection(vm: vm),
+                ],
+                for (var i = 0; i < stepSections.length; i++) ...[
+                  const SizedBox(height: AutonannySpacing.lg),
+                  stepSections[i],
+                ],
               ],
             );
           },
@@ -389,6 +561,83 @@ class _GraphCreateHero extends StatelessWidget {
               AutonannyIcons.calendar,
               color: Colors.white,
               size: 28,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreateFlowHeader extends StatelessWidget {
+  const _CreateFlowHeader({
+    required this.currentStepIndex,
+    required this.titles,
+    required this.descriptions,
+  });
+
+  final int currentStepIndex;
+  final List<String> titles;
+  final List<String> descriptions;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return AutonannySectionContainer(
+      title: 'Шаг ${currentStepIndex + 1} из ${titles.length}',
+      subtitle: descriptions[currentStepIndex],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: AutonannySpacing.sm,
+            runSpacing: AutonannySpacing.sm,
+            children: List.generate(
+              titles.length,
+              (index) {
+                final isActive = index == currentStepIndex;
+                final isCompleted = index < currentStepIndex;
+                final backgroundColor = isActive
+                    ? colors.actionPrimary
+                    : isCompleted
+                        ? colors.statusSuccessSurface
+                        : colors.surfaceSecondary;
+                final textColor = isActive
+                    ? colors.textInverse
+                    : isCompleted
+                        ? colors.statusSuccess
+                        : colors.textSecondary;
+                final label = '${index + 1}. ${titles[index]}';
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AutonannySpacing.md,
+                    vertical: AutonannySpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: AutonannyRadii.brLg,
+                    border: Border.all(
+                      color:
+                          isActive ? colors.actionPrimary : colors.borderSubtle,
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: AutonannyTypography.labelM(
+                      color: textColor,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          Text(
+            titles[currentStepIndex],
+            style: AutonannyTypography.h3(
+              color: colors.textPrimary,
             ),
           ),
         ],
@@ -779,7 +1028,7 @@ class _AdditionalServicesSectionState
             (param) => AdditionalServiceOptionData(
               id: '${param.id ?? param.title}',
               title: param.title ?? 'Неизвестная услуга',
-              isSelected: widget.vm.editor.params.contains(param),
+              isSelected: widget.vm.isParamSelected(param),
               priceLabel: (param.amount != null && param.amount! > 0)
                   ? '${param.amount!.round()} ₽'
                   : null,
@@ -792,7 +1041,7 @@ class _AdditionalServicesSectionState
         final match = widget.vm.params.firstWhere(
           (param) => '${param.id ?? param.title}' == optionId,
         );
-        final isSelected = widget.vm.editor.params.contains(match);
+        final isSelected = widget.vm.isParamSelected(match);
         if (isSelected) {
           widget.vm.removeParam(match);
         } else {
@@ -885,7 +1134,7 @@ class _ContractDraftSummarySection extends StatelessWidget {
                 child: _SummaryMetricCard(
                   label: 'В неделю',
                   value: _formatAmount(vm.estimatedWeeklyAmount),
-                  caption: 'предварительно',
+                  caption: 'с учетом услуг',
                 ),
               ),
               const SizedBox(width: AutonannySpacing.sm),
@@ -918,6 +1167,20 @@ class _ContractDraftSummarySection extends StatelessWidget {
                 const SizedBox(height: AutonannySpacing.xs),
                 Text(
                   'Доп. услуги: ${vm.selectedServicesLabel}',
+                  style: AutonannyTypography.bodyS(
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.xs),
+                Text(
+                  'Маршруты: ${_formatAmount(vm.estimatedRoutesWeeklyAmount)} в неделю',
+                  style: AutonannyTypography.bodyS(
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.xs),
+                Text(
+                  'Услуги: ${_formatAmount(vm.selectedAdditionalServicesTotal)} в неделю',
                   style: AutonannyTypography.bodyS(
                     color: colors.textSecondary,
                   ),

@@ -2,7 +2,6 @@ import 'package:autonanny_ui_client/autonanny_ui_client.dart';
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/mappers/client_ui_sdk_mappers.dart';
-import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dart';
 import 'package:nanny_client/views/rating/driver_rating_view.dart';
@@ -205,6 +204,47 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                   ],
                 ),
               ),
+              if (result.statusId == 11 && vm.baseTripPrice > 0) ...[
+                const SizedBox(height: AutonannySpacing.lg),
+                AutonannySectionContainer(
+                  title: 'Финальный расчет',
+                  subtitle:
+                      'Сумма по завершенной поездке с учетом активного ожидания.',
+                  child: Column(
+                    children: [
+                      _TripActionInfoRow(
+                        label: 'Базовая поездка',
+                        value:
+                            '${vm.baseTripPrice.toStringAsFixed(vm.baseTripPrice.truncateToDouble() == vm.baseTripPrice ? 0 : 2)} ₽',
+                      ),
+                      if (vm.hasPaidWaiting) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: AutonannySpacing.md,
+                          ),
+                          child: Divider(height: 1),
+                        ),
+                        _TripActionInfoRow(
+                          label: 'Платное ожидание',
+                          value: vm.waitingChargeLabel,
+                          valueColor: NDT.warning,
+                        ),
+                      ],
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: AutonannySpacing.md,
+                        ),
+                        child: Divider(height: 1),
+                      ),
+                      _TripActionInfoRow(
+                        label: 'Итого',
+                        value: vm.currentTripTotalLabel,
+                        valueColor: NDT.success,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: AutonannySpacing.lg),
               if (result.supportsDriverRating && vm.orderId != null) ...[
                 SizedBox(
@@ -316,10 +356,10 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     final data = await vm.fetchMeetingCodeForTrip();
     if (!mounted) return;
     if (data == null) {
-      NannyDialogs.showMessageBox(
-        context,
-        'Код недоступен',
-        'Водитель ещё не сгенерировал код. Попросите водителя нажать «Включить режим ожидания» в приложении.',
+      await _showTripInfoSheet(
+        title: 'Код недоступен',
+        message:
+            'Водитель ещё не сгенерировал код. Попросите водителя нажать «Включить режим ожидания» в приложении.',
       );
       return;
     }
@@ -328,10 +368,10 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     final scheduleRoadId = data['schedule_road_id'] as int?;
     final verificationScope = data['verification_scope'] as String? ?? 'order';
     if (meetingCode == null || meetingCode.isEmpty) {
-      NannyDialogs.showMessageBox(
-        context,
-        'Код недоступен',
-        'Водитель ещё не сгенерировал код. Попросите водителя нажать «Включить режим ожидания» в приложении.',
+      await _showTripInfoSheet(
+        title: 'Код недоступен',
+        message:
+            'Водитель ещё не сгенерировал код. Попросите водителя нажать «Включить режим ожидания» в приложении.',
       );
       return;
     }
@@ -341,10 +381,9 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     } else if (orderId != null) {
       qrData = 'order:$orderId:$meetingCode';
     } else {
-      NannyDialogs.showMessageBox(
-        context,
-        'Код недоступен',
-        'Не удалось определить тип поездки для верификации.',
+      await _showTripInfoSheet(
+        title: 'Код недоступен',
+        message: 'Не удалось определить тип поездки для верификации.',
       );
       return;
     }
@@ -356,6 +395,38 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       meetingCodePin: meetingCode,
     );
     if (mounted) _isQrDialogOpen = false;
+  }
+
+  Future<void> _showTripInfoSheet({
+    required String title,
+    required String message,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _TripActionSheet(
+        title: title,
+        subtitle: _formatTripRouteLabel(vm.addresses),
+        leadingIcon: Icons.info_outline_rounded,
+        leadingColor: NDT.warning,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AutonannyInlineBanner(
+              title: title,
+              message: message,
+              tone: AutonannyBannerTone.info,
+              leading: const AutonannyIcon(AutonannyIcons.info),
+            ),
+            const SizedBox(height: AutonannySpacing.xl),
+            AutonannyButton(
+              label: 'Понятно',
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showCancelDialog() async {
@@ -495,6 +566,19 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     final penaltyLabel = hasPenalty
         ? '${result.penalty.toStringAsFixed(result.penalty.truncateToDouble() == result.penalty ? 0 : 2)} ₽'
         : null;
+    final hasSettlement = result.hasSettlementBreakdown || vm.hasPaidWaiting;
+    final basePriceLabel = result.basePrice == null
+        ? '${vm.baseTripPrice.toStringAsFixed(vm.baseTripPrice.truncateToDouble() == vm.baseTripPrice ? 0 : 2)} ₽'
+        : '${result.basePrice!.toStringAsFixed(result.basePrice!.truncateToDouble() == result.basePrice! ? 0 : 2)} ₽';
+    final waitingChargeLabel = result.waitingCharge == null
+        ? vm.waitingChargeLabel
+        : '${result.waitingCharge!.toStringAsFixed(result.waitingCharge!.truncateToDouble() == result.waitingCharge! ? 0 : 2)} ₽';
+    final currentTotalLabel = result.currentTotalPrice == null
+        ? vm.currentTripTotalLabel
+        : '${result.currentTotalPrice!.toStringAsFixed(result.currentTotalPrice!.truncateToDouble() == result.currentTotalPrice! ? 0 : 2)} ₽';
+    final waitingMinutes = result.waitingSeconds == null
+        ? (vm.waitingSeconds / 60).ceil()
+        : (result.waitingSeconds! / 60).ceil();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -548,6 +632,34 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                         : 'Без дополнительных списаний',
                     valueColor: hasPenalty ? NDT.danger : null,
                   ),
+                  if (hasSettlement) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(
+                        vertical: AutonannySpacing.md,
+                      ),
+                      child: Divider(height: 1),
+                    ),
+                    _TripActionInfoRow(
+                      label: 'Базовая стоимость',
+                      value: basePriceLabel,
+                    ),
+                    const SizedBox(height: AutonannySpacing.sm),
+                    _TripActionInfoRow(
+                      label: 'Платное ожидание',
+                      value: waitingChargeLabel,
+                    ),
+                    const SizedBox(height: AutonannySpacing.sm),
+                    _TripActionInfoRow(
+                      label: 'Ожидание',
+                      value: '$waitingMinutes мин',
+                    ),
+                    const SizedBox(height: AutonannySpacing.sm),
+                    _TripActionInfoRow(
+                      label: 'Сумма на момент отмены',
+                      value: currentTotalLabel,
+                      valueColor: NDT.neutral700,
+                    ),
+                  ],
                   if (vm.hasPaidWaiting) ...[
                     const Padding(
                       padding: EdgeInsets.symmetric(
@@ -598,10 +710,10 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   Future<void> _openDriverRating() async {
     final activeOrderId = vm.orderId;
     if (activeOrderId == null) {
-      await NannyDialogs.showMessageBox(
-        context,
-        'Оценка пока недоступна',
-        'Не удалось определить завершенную поездку. Попробуйте открыть оценку из истории поездок.',
+      await _showTripInfoSheet(
+        title: 'Оценка пока недоступна',
+        message:
+            'Не удалось определить завершенную поездку. Попробуйте открыть оценку из истории поездок.',
       );
       return;
     }

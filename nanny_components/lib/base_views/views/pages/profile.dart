@@ -1,3 +1,4 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/view_models/pages/profile_vm.dart';
 import 'package:nanny_components/nanny_components.dart';
@@ -41,11 +42,6 @@ class _ProfileViewState extends State<ProfileView>
         color: NannyTheme.secondary,
         isTransparent: false,
         hasBackButton: false,
-        leading: IconButton(
-          onPressed: vm.navigateToAppSettings,
-          icon: const Icon(Icons.settings),
-          splashRadius: 30,
-        ),
         actions: [
           IconButton(
             onPressed: vm.logout,
@@ -56,19 +52,30 @@ class _ProfileViewState extends State<ProfileView>
       ),
       body: AdaptBuilder(
         builder: (context, size) {
+          final user = NannyUser.userInfo!;
+          final initials =
+              '${user.name.isNotEmpty ? user.name[0] : ''}${user.surname.isNotEmpty ? user.surname[0] : ''}'
+                  .toUpperCase();
           return Center(
             child: Column(
               children: [
                 const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Row(
-                    children: [
-                      ProfileImage(
-                        url: NannyUser.userInfo!.photoPath,
-                        radius: size.shortestSide * .3,
-                        onTap: vm.changeProfilePhoto,
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: vm.changeProfilePhoto,
+                      child: AutonannyAvatar(
+                        imageUrl:
+                            NannyConsts.buildFileUrl(user.photoPath),
+                        initials: initials,
+                        size: size.shortestSide * .6,
+                        borderRadius: BorderRadius.circular(
+                          size.shortestSide * .3,
+                        ),
                       ),
+                    ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -78,12 +85,12 @@ class _ProfileViewState extends State<ProfileView>
                               spacing: 5,
                               children: [
                                 Text(
-                                  NannyUser.userInfo!.name,
+                                  user.name,
                                   style:
                                       Theme.of(context).textTheme.headlineSmall,
                                 ),
                                 Text(
-                                  NannyUser.userInfo!.surname,
+                                  user.surname,
                                   style:
                                       Theme.of(context).textTheme.headlineSmall,
                                 ),
@@ -91,7 +98,7 @@ class _ProfileViewState extends State<ProfileView>
                             ),
                             Text(
                               TextMasks.phoneMask().maskText(
-                                  NannyUser.userInfo!.phone.substring(1)),
+                                  user.phone.substring(1)),
                               style: Theme.of(context).textTheme.labelLarge,
                             ),
                           ],

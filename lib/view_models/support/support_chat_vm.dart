@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
@@ -36,7 +38,13 @@ class SupportChatVM extends ViewModelBase {
 
   List<SupportMessage> messages = [];
   bool isLoading = true;
+  bool isSending = false;
   int? chatId;
+  String? loadError;
+  Timer? _pollTimer;
+  bool _pollingNow = false;
+
+  static const Duration _pollInterval = Duration(seconds: 12);
 
   // TASK-C5: флаг показа баннера оценки после закрытия тикета
   bool showRatingBanner = false;
@@ -44,28 +52,31 @@ class SupportChatVM extends ViewModelBase {
 
   @override
   Future<bool> loadPage() async {
-    update(() => isLoading = true);
+    _stopPolling();
+    update(() {
+      isLoading = true;
+      loadError = null;
+    });
 
     final chatResult = await NannyChatsApi.createSupportChat();
     if (chatResult.success && chatResult.response != null) {
       chatId = chatResult.response;
       await _loadMessages();
       _checkIfTicketClosed();
+      _startPolling();
     } else {
-      messages = _generateMockMessages();
-      // Mock: симулируем закрытый тикет для демонстрации
-      _checkIfTicketClosed();
+      chatId = null;
+      messages = [];
+      loadError = chatResult.errorMessage;
     }
 
     update(() => isLoading = false);
-    return true;
+    return loadError == null;
   }
 
-  // Проверяем, закрыт ли тикет (mock: если есть сообщения — показываем баннер)
+  // Показываем рейтинг только когда backend начнет отдавать реальный статус закрытия тикета.
   void _checkIfTicketClosed() {
-    if (!ratingSubmitted && messages.isNotEmpty) {
-      showRatingBanner = true;
-    }
+    showRatingBanner = false;
   }
 
   void onRatingSubmitted() {
@@ -82,45 +93,151 @@ class SupportChatVM extends ViewModelBase {
   Future<void> _loadMessages() async {
     final result = await NannyChatsApi.getSupportMessages();
     if (result.success && result.response != null) {
+      chatId = result.response!.idChat == 0 ? chatId : result.response!.idChat;
       messages = result.response!.messages
           .map((m) => SupportMessage(
                 id: m.id ?? 0,
                 text: m.msg,
                 timestamp: DateTime.fromMillisecondsSinceEpoch(
-                    (m.timestampSend * 1000).toInt()),
+                  (m.timestampSend * 1000).round(),
+                ),
+                isFromMe: m.isMe,
+                isRead: true,
+              ))
+          .toList()
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      loadError = null;
+    } else {
+      loadError = result.errorMessage;
+    }
+  }
+
+  int? _latestMessageId() {
+    if (messages.isEmpty) return null;
+
+    var latestId = messages.first.id;
+    for (final message in messages.skip(1)) {
+      if (message.id > latestId) {
+        latestId = message.id;
+      }
+    }
+    return latestId;
+  }
+
+  bool _isNearBottom() {
+    if (!scrollController.hasClients) return true;
+    return scrollController.offset <= 120;
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      unawaited(_pollNewMessages());
+    });
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  Future<void> _pollNewMessages() async {
+    if (_pollingNow || chatId == null) return;
+    _pollingNow = true;
+
+    try {
+      final result = await NannyChatsApi.getSupportMessages(
+        lastMessageId: _latestMessageId(),
+      );
+      if (!result.success || result.response == null) {
+        return;
+      }
+
+      chatId = result.response!.idChat == 0 ? chatId : result.response!.idChat;
+      final freshMessages = result.response!.messages
+          .map((m) => SupportMessage(
+                id: m.id ?? 0,
+                text: m.msg,
+                timestamp: DateTime.fromMillisecondsSinceEpoch(
+                  (m.timestampSend * 1000).round(),
+                ),
                 isFromMe: m.isMe,
                 isRead: true,
               ))
           .toList();
+      if (freshMessages.isEmpty) {
+        return;
+      }
+
+      final shouldScroll = _isNearBottom();
+      final existingIds = messages.map((message) => message.id).toSet();
+      final uniqueMessages = freshMessages
+          .where((message) => !existingIds.contains(message.id))
+          .toList();
+      if (uniqueMessages.isEmpty) {
+        return;
+      }
+
+      messages = [...uniqueMessages, ...messages]
+        ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      loadError = null;
+      update(() {});
+
+      if (shouldScroll) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToBottom();
+        });
+      }
+    } finally {
+      _pollingNow = false;
     }
   }
 
-  void sendMessage() async {
-    final text = messageController.text.trim();
-    if (text.isEmpty) return;
-
-    final newMessage = SupportMessage(
-      id: DateTime.now().millisecondsSinceEpoch,
-      text: text,
-      timestamp: DateTime.now(),
-      isFromMe: true,
-      isRead: false,
-    );
-
-    update(() {
-      messages.insert(0, newMessage);
-      messageController.clear();
-    });
-
-    _scrollToBottom();
+  Future<void> refresh() async {
+    await loadPage();
   }
 
-  void attachFile() async {
-    NannyDialogs.showMessageBox(
-      context,
-      'Прикрепление файла',
-      'Функция прикрепления файлов будет добавлена в следующей версии',
-    );
+  Future<void> sendMessage() async {
+    final text = messageController.text.trim();
+    if (text.isEmpty || isSending) return;
+
+    update(() => isSending = true);
+
+    if (chatId == null) {
+      final chatResult = await NannyChatsApi.createSupportChat();
+      if (!chatResult.success || chatResult.response == null) {
+        update(() => isSending = false);
+        if (!context.mounted) {
+          return;
+        }
+        NannyDialogs.showMessageBox(
+          context,
+          'Не удалось отправить сообщение',
+          chatResult.errorMessage,
+        );
+        return;
+      }
+      chatId = chatResult.response;
+    }
+
+    final result = await NannyChatsApi.sendSupportMessage(message: text);
+    if (result.success) {
+      messageController.clear();
+      await _loadMessages();
+      _scrollToBottom();
+    }
+
+    update(() => isSending = false);
+
+    if (!context.mounted) return;
+
+    if (!result.success) {
+      NannyDialogs.showMessageBox(
+        context,
+        'Не удалось отправить сообщение',
+        result.errorMessage,
+      );
+    }
   }
 
   void _scrollToBottom() {
@@ -135,28 +252,9 @@ class SupportChatVM extends ViewModelBase {
 
   @override
   void dispose() {
+    _stopPolling();
     messageController.dispose();
     scrollController.dispose();
     super.dispose();
-  }
-
-  List<SupportMessage> _generateMockMessages() {
-    final now = DateTime.now();
-    return [
-      SupportMessage(
-        id: 1,
-        text: 'Здравствуйте! Чем могу помочь?',
-        timestamp: now.subtract(const Duration(minutes: 5)),
-        isFromMe: false,
-        isRead: true,
-      ),
-      SupportMessage(
-        id: 2,
-        text: 'Добрый день! У меня вопрос по оплате поездки.',
-        timestamp: now.subtract(const Duration(minutes: 10)),
-        isFromMe: true,
-        isRead: true,
-      ),
-    ];
   }
 }

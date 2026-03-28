@@ -1,6 +1,6 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_components/widgets/future_handlers/request_loader.dart';
-import 'package:nanny_components/widgets/profile_image.dart';
 import 'package:nanny_components/widgets/states/error_view.dart';
 import 'package:nanny_core/api/nanny_franchise_api.dart';
 import 'package:nanny_core/nanny_core.dart';
@@ -87,9 +87,11 @@ class _FranchiseDriverListState<T> extends State<FranchiseDriverList<T>> with Au
                 shrinkWrap: true,
                 children: data != null ? data.map(
                   (e) => ListTile(
-                    leading: ProfileImage(
-                      url: e.photoPath, 
-                      radius: 50,
+                    leading: AutonannyAvatar(
+                      imageUrl: NannyConsts.buildFileUrl(e.photoPath),
+                      initials: _buildInitials(e.name, e.surname),
+                      size: 50,
+                      borderRadius: BorderRadius.circular(25),
                     ),
                     title: Text("${e.name} ${e.surname}"),
                     subtitle: Text(
@@ -121,4 +123,20 @@ class _FranchiseDriverListState<T> extends State<FranchiseDriverList<T>> with Au
   
   @override
   bool get wantKeepAlive => widget.persistState;
+
+  String _buildInitials(String? name, String? surname) {
+    final parts = [name, surname]
+        .whereType<String>()
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return 'В';
+    }
+    return parts
+        .take(2)
+        .map((part) => part.characters.first)
+        .join()
+        .toUpperCase();
+  }
 }

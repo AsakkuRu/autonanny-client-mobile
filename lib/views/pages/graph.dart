@@ -77,9 +77,15 @@ class _GraphViewState extends State<GraphView>
     }
 
     return AutonannyAppScaffold(
-      appBar: const AutonannyAppBar(
+      appBar: AutonannyAppBar(
         title: 'Контракты',
-        leading: SizedBox(width: 24),
+        leading: widget.persistState
+            ? const SizedBox(width: 24)
+            : IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+                tooltip: 'Назад',
+              ),
       ),
       body: FutureBuilder<bool>(
         future: vm.loadRequest,
@@ -310,7 +316,7 @@ class _GraphViewState extends State<GraphView>
         const AutonannyInlineBanner(
           title: 'Все ваши контракты в одном месте',
           message:
-              'Открывайте нужный контракт и быстро переключайтесь в его расписание без входа в create/edit flow.',
+              'Открывайте нужный контракт и быстро переключайтесь в его расписание без повторного входа в редактирование.',
           tone: AutonannyBannerTone.info,
           leading: AutonannyIcon(AutonannyIcons.list),
         ),
@@ -405,6 +411,20 @@ class _GraphViewState extends State<GraphView>
     final responsesCount = vm.responses
         .where((response) => response.idSchedule == schedule.id)
         .length;
+    final canEditContract = vm.canEditSchedule(
+      schedule,
+      responsesCount: responsesCount,
+      hasAssignedDriver:
+          vm.selectedSchedule?.id == schedule.id && vm.driverContact != null,
+    );
+    final editLockedMessage = canEditContract
+        ? null
+        : vm.scheduleEditLockedMessage(
+            schedule,
+            responsesCount: responsesCount,
+            hasAssignedDriver: vm.selectedSchedule?.id == schedule.id &&
+                vm.driverContact != null,
+          );
 
     final resumed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -431,13 +451,16 @@ class _GraphViewState extends State<GraphView>
               _selectedTabIndex = 0;
             });
           },
-          onEditContract: () {
-            Navigator.of(context).maybePop();
-            if (!mounted) {
-              return;
-            }
-            vm.toGraphEdit(schedule: schedule);
-          },
+          onEditContract: canEditContract
+              ? () {
+                  Navigator.of(context).maybePop();
+                  if (!mounted) {
+                    return;
+                  }
+                  vm.toGraphEdit(schedule: schedule);
+                }
+              : null,
+          editLockedMessage: editLockedMessage,
           onPauseContract: (dateFrom, dateUntil, reason) => vm.pauseSchedule(
             schedule: schedule,
             dateFrom: dateFrom,
@@ -531,29 +554,55 @@ class _GraphViewState extends State<GraphView>
   }
 
   String? _nextTripLabelFor(Schedule schedule) {
-    if (schedule.roads.isEmpty) {
+    final road = _nearestUpcomingRoad(schedule);
+    if (road == null) {
       return null;
     }
 
-    final roads = schedule.roads.toList(growable: false)
-      ..sort((left, right) {
-        final byDay = left.weekDay.index.compareTo(right.weekDay.index);
-        if (byDay != 0) {
-          return byDay;
-        }
-        final byHour = left.startTime.hour.compareTo(right.startTime.hour);
-        if (byHour != 0) {
-          return byHour;
-        }
-        return left.startTime.minute.compareTo(right.startTime.minute);
-      });
-
-    final road = roads.first;
     return '${road.weekDay.shortName} · '
         '${road.startTime.formatTime()} – ${road.endTime.formatTime()}';
   }
 
+  Road? _nearestUpcomingRoad(Schedule schedule) {
+    Road? nearestRoad;
+    DateTime? nearestDateTime;
+
+    for (final road in schedule.roads) {
+      final occurrence = _nextOccurrenceFor(road.weekDay, road.startTime);
+      if (nearestDateTime == null || occurrence.isBefore(nearestDateTime)) {
+        nearestDateTime = occurrence;
+        nearestRoad = road;
+      }
+    }
+
+    return nearestRoad;
+  }
+
+  DateTime _nextOccurrenceFor(NannyWeekday weekday, TimeOfDay startTime) {
+    final now = DateTime.now();
+    final todayIndex = now.weekday - 1;
+    final targetIndex = weekday.index;
+    final daysDifference = (targetIndex - todayIndex) % 7;
+
+    var candidate = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      startTime.hour,
+      startTime.minute,
+    ).add(Duration(days: daysDifference));
+
+    if (!candidate.isAfter(now)) {
+      candidate = candidate.add(const Duration(days: 7));
+    }
+
+    return candidate;
+  }
+
   String _contractStatusLabelFor(Schedule schedule) {
+    if (_isBalancePause(schedule.pauseReason)) {
+      return 'Нужна оплата';
+    }
     if (schedule.isPaused == true) {
       return 'Приостановлен';
     }
@@ -570,6 +619,9 @@ class _GraphViewState extends State<GraphView>
   }
 
   AutonannyStatusVariant _contractStatusVariantFor(Schedule schedule) {
+    if (_isBalancePause(schedule.pauseReason)) {
+      return AutonannyStatusVariant.danger;
+    }
     if (schedule.isPaused == true) {
       return AutonannyStatusVariant.warning;
     }
@@ -583,6 +635,12 @@ class _GraphViewState extends State<GraphView>
       return AutonannyStatusVariant.success;
     }
     return AutonannyStatusVariant.neutral;
+  }
+
+  bool _isBalancePause(String? raw) {
+    return raw == 'insufficient_balance' ||
+        raw == 'low_balance' ||
+        raw == 'lack_of_funds';
   }
 
   Future<void> _openSchedulePicker() async {
@@ -790,6 +848,11 @@ class _GraphHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.autonannyColors;
     final schedule = vm.selectedSchedule;
+    final canEditSelectedSchedule =
+        schedule != null && vm.canEditSchedule(schedule);
+    final editButtonLabel = canEditSelectedSchedule
+        ? 'Редактировать'
+        : 'Почему нельзя редактировать';
 
     return Container(
       padding: const EdgeInsets.all(AutonannySpacing.xl),
@@ -890,14 +953,22 @@ class _GraphHeader extends StatelessWidget {
                   const SizedBox(width: AutonannySpacing.md),
                 Expanded(
                   child: AutonannyButton(
-                    label: 'Редактировать',
+                    label: editButtonLabel,
                     variant: AutonannyButtonVariant.secondary,
                     expand: false,
                     leading: AutonannyIcon(
-                      AutonannyIcons.edit,
+                      canEditSelectedSchedule
+                          ? AutonannyIcons.edit
+                          : AutonannyIcons.warning,
                       color: colors.actionPrimary,
                     ),
-                    onPressed: () => vm.toGraphEdit(schedule: schedule),
+                    onPressed: () async {
+                      if (canEditSelectedSchedule) {
+                        vm.toGraphEdit(schedule: schedule);
+                        return;
+                      }
+                      await vm.showScheduleEditLockedInfo(schedule);
+                    },
                   ),
                 ),
               ],
@@ -953,20 +1024,12 @@ class _ContractStatusSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final variant = vm.driverContact != null
-        ? AutonannyStatusVariant.success
-        : vm.responses
-                .where((r) => r.idSchedule == vm.selectedSchedule?.id)
-                .isNotEmpty
-            ? AutonannyStatusVariant.warning
-            : AutonannyStatusVariant.neutral;
-
     return AutonannySectionContainer(
       title: 'Статус контракта',
       subtitle: vm.contractStatusDescription,
       trailing: AutonannyStatusChip(
         label: vm.contractStatusLabel,
-        variant: variant,
+        variant: vm.contractStatusVariant,
       ),
       child: vm.nextTripLabel == null
           ? Text(
@@ -1224,6 +1287,17 @@ class _PausedContractBanner extends StatelessWidget {
       return;
     }
 
+    final shouldResume = await NannyDialogs.confirmAction(
+      context,
+      'Если пополнение прошло успешно, можно сразу попытаться возобновить контракт.',
+      title: 'Баланс пополнен?',
+      confirmText: 'Да, проверить',
+      cancelText: 'Пока нет',
+    );
+    if (!shouldResume || !context.mounted) {
+      return;
+    }
+
     final scheduleId = schedule.id;
     if (scheduleId == null) {
       await NannyDialogs.showMessageBox(
@@ -1354,14 +1428,14 @@ class _ResponseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasPhoto = response.photoPath.trim().isNotEmpty;
+    final imageUrl = NannyConsts.buildFileUrl(response.photoPath);
 
     return AutonannyCard(
       child: AutonannyListRow(
         title: response.name,
         subtitle: '${response.data.length} маршрутов',
         leading: AutonannyAvatar(
-          image: hasPhoto ? NetworkImage(response.photoPath) : null,
+          imageUrl: imageUrl,
           initials: _initials(response.name),
           size: 48,
         ),

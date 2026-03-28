@@ -55,6 +55,7 @@ class ActiveTripVM extends ViewModelBase {
   int? etaMinutes;
   int? pinCode;
   double baseTripPrice = 0;
+  double? serverCurrentTotalPrice;
   bool noDriversFound = false;
   bool isBusy = false;
   bool connectionTimedOut = false;
@@ -106,7 +107,7 @@ class ActiveTripVM extends ViewModelBase {
       '${_formatMoney(paidWaitingRatePerMinute)} ₽/мин';
   String get waitingChargeLabel => '${_formatMoney(waitingCharge)} ₽';
   String get currentTripTotalLabel =>
-      '${_formatMoney(baseTripPrice + waitingCharge)} ₽';
+      '${_formatMoney(_effectiveTripTotalPrice)} ₽';
   String get waitingTimerLabel {
     final minutes = (waitingSeconds ~/ 60).toString().padLeft(2, '0');
     final seconds = (waitingSeconds % 60).toString().padLeft(2, '0');
@@ -115,6 +116,15 @@ class ActiveTripVM extends ViewModelBase {
 
   String get waitingStatusTitle =>
       isWithinFreeWaitingWindow ? 'Бесплатное ожидание' : 'Платное ожидание';
+
+  double get _effectiveTripTotalPrice {
+    final localTotal = baseTripPrice + waitingCharge;
+    final serverTotal = serverCurrentTotalPrice;
+    if (serverTotal == null) {
+      return localTotal;
+    }
+    return serverTotal > localTotal ? serverTotal : localTotal;
+  }
   String get waitingStatusHint {
     if (isWithinFreeWaitingWindow) {
       final remaining = (freeWaitingSecondsLimit - waitingSeconds).clamp(
@@ -232,6 +242,7 @@ class ActiveTripVM extends ViewModelBase {
         statusText =
             likelyCompleted ? 'Поездка завершена' : 'Поездка больше не активна';
         token = null;
+        _stopWaitingRuntime();
         await ActiveTripSessionStore.clear();
         _stopStatusPolling();
         _publishTerminalResult(
@@ -439,6 +450,7 @@ class ActiveTripVM extends ViewModelBase {
 
       if (status != null) {
         _applyIncomingStatus(status);
+        _applyRuntimeFinancePayload(data);
         try {
           NotificationService().handleEvent('trip.status_changed', data);
         } catch (e, st) {
@@ -501,6 +513,9 @@ class ActiveTripVM extends ViewModelBase {
           ) ??
           3;
       _applyIncomingStatus(cancelledStatus);
+      _applyRuntimeFinancePayload(data);
+      token = null;
+      _stopWaitingRuntime(preserveCharge: true);
       NotificationService().handleEvent('trip.cancelled', data);
       ActiveTripSessionStore.clear();
       _refreshStatusText();
@@ -541,6 +556,9 @@ class ActiveTripVM extends ViewModelBase {
       noDriversFound = true;
       statusId = 3;
       statusText = 'Водитель не найден';
+      token = null;
+      _stopWaitingRuntime();
+      _stopStatusPolling();
       ActiveTripSessionStore.clear();
       NotificationService().handleEvent('order.expired', data);
       _publishTerminalResult(
@@ -594,6 +612,13 @@ class ActiveTripVM extends ViewModelBase {
           addresses = newAddresses;
           ensureRoutePolyline();
         }
+      }
+      if (accepted) {
+        serverCurrentTotalPrice =
+            _toDouble(data['current_total_price']) ?? serverCurrentTotalPrice;
+        baseTripPrice = _toDouble(data['total_price']) ??
+            _toDouble(data['amount']) ??
+            baseTripPrice;
       }
 
       NotificationService().handleEvent('route.change_result', data);
@@ -700,8 +725,7 @@ class ActiveTripVM extends ViewModelBase {
   void _syncWaitingTimer({int? serverWaitingSeconds}) {
     if (!isArrived || awaitingSince?.isEmpty != false) {
       waitingSeconds = 0;
-      _waitingTimer?.cancel();
-      _waitingTimer = null;
+      _stopWaitingRuntime();
       return;
     }
 
@@ -754,6 +778,42 @@ class ActiveTripVM extends ViewModelBase {
         statusText =
             noDriversFound ? 'Водители не найдены' : 'Ищем водителя...';
     }
+  }
+
+  void _stopWaitingRuntime({bool preserveCharge = false}) {
+    awaitingSince = null;
+    if (!preserveCharge) {
+      waitingSeconds = 0;
+    }
+    _waitingTimer?.cancel();
+    _waitingTimer = null;
+  }
+
+  void _applyRuntimeFinancePayload(Map<String, dynamic> data) {
+    baseTripPrice =
+        _toDouble(data['base_price']) ??
+            _toDouble(data['total_price']) ??
+            _toDouble(data['amount']) ??
+            baseTripPrice;
+    serverCurrentTotalPrice =
+        _toDouble(data['current_total_price']) ?? serverCurrentTotalPrice;
+    freeWaitingSecondsLimit =
+        _toInt(data['free_wait_seconds']) ?? freeWaitingSecondsLimit;
+    paidWaitingRatePerMinute =
+        _toDouble(data['waiting_rate_per_minute']) ??
+            paidWaitingRatePerMinute;
+    waitingSeconds = _toInt(data['waiting_seconds']) ?? waitingSeconds;
+  }
+
+  void _applyCancellationResult(OrderCancellationResult result) {
+    baseTripPrice = result.basePrice ?? baseTripPrice;
+    serverCurrentTotalPrice =
+        result.currentTotalPrice ?? serverCurrentTotalPrice;
+    freeWaitingSecondsLimit =
+        result.freeWaitingSeconds ?? freeWaitingSecondsLimit;
+    paidWaitingRatePerMinute =
+        result.waitingRatePerMinute ?? paidWaitingRatePerMinute;
+    waitingSeconds = result.waitingSeconds ?? waitingSeconds;
   }
 
   void _applyIncomingStatus(int? nextStatus) {
@@ -820,6 +880,11 @@ class ActiveTripVM extends ViewModelBase {
       statusId = 3;
       statusText = 'Поездка отменена';
       token = null;
+      _stopWaitingRuntime(preserveCharge: true);
+      if (result.response != null) {
+        _applyCancellationResult(result.response!);
+      }
+      _stopStatusPolling();
       _terminalResultPublished = true;
       await ActiveTripSessionStore.clear();
       return result.response ??
@@ -1094,6 +1159,8 @@ class ActiveTripVM extends ViewModelBase {
     baseTripPrice = _toDouble(activeOrder['total_price']) ??
         _toDouble(activeOrder['amount']) ??
         baseTripPrice;
+    serverCurrentTotalPrice =
+        _toDouble(activeOrder['current_total_price']) ?? serverCurrentTotalPrice;
     freeWaitingSecondsLimit =
         _toInt(activeOrder['free_wait_seconds']) ?? freeWaitingSecondsLimit;
     paidWaitingRatePerMinute =

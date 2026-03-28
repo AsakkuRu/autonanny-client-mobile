@@ -1,11 +1,12 @@
 import 'dart:ui';
 
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nanny_client/view_models/home_vm.dart';
 import 'package:nanny_client/views/pages/map.dart';
 import 'package:nanny_client/views/pages/balance.dart';
-import 'package:nanny_client/views/pages/graph.dart';
+import 'package:nanny_client/views/pages/contracts_view.dart';
 import 'package:nanny_client/views/pages/children_list.dart';
 import 'package:nanny_client/views/history/trip_history_view.dart';
 import 'package:nanny_client/views/support/support_chat_view.dart';
@@ -39,7 +40,7 @@ class _HomeViewState extends State<HomeView> {
     vm = HomeVM(context: context, update: setState);
     pages = [
       const ClientMapView(persistState: true),
-      const GraphView(persistState: true),
+      const ContractsView(persistState: true),
       const BalanceView(persistState: true),
       ChatsView(
         persistState: false,
@@ -316,12 +317,6 @@ class _ClientProfileViewState extends State<_ClientProfileView>
             NannyTheme.primaryDark,
           ],
         ),
-        leading: IconButton(
-          onPressed: vm.navigateToAppSettings,
-          icon: const Icon(Icons.settings),
-          splashRadius: 26,
-          color: Colors.white,
-        ),
         actions: [
           IconButton(
             onPressed: vm.logout,
@@ -347,12 +342,38 @@ class _ClientProfileViewState extends State<_ClientProfileView>
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    ProfileImage(
-                      url: user?.photoPath ?? '',
-                      radius: 72,
-                      initials: initials,
-                      showOnlineDot: true,
+                    GestureDetector(
                       onTap: vm.changeProfilePhoto,
+                      child: SizedBox(
+                        width: 72,
+                        height: 72,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            AutonannyAvatar(
+                              imageUrl:
+                                  NannyConsts.buildFileUrl(user?.photoPath),
+                              initials: initials,
+                              size: 72,
+                              borderRadius: BorderRadius.circular(36),
+                            ),
+                            Positioned(
+                              right: -1,
+                              bottom: -1,
+                              child: Container(
+                                width: 18,
+                                height: 18,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981),
+                                  shape: BoxShape.circle,
+                                  border:
+                                      Border.all(color: Colors.white, width: 2),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(

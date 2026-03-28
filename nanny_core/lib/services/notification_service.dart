@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -53,6 +54,8 @@ class NotificationService {
   // Колбэк для in-app уведомлений (устанавливается UI-слоем)
   void Function(String title, String body, InAppStyle style)?
       onInAppNotification;
+  FutureOr<void> Function(Map<String, dynamic> payload)? onLocalNotificationTap;
+  Map<String, dynamic>? _pendingLocalTapPayload;
 
   /// Инициализация.
   Future<void> init([GlobalKey<NavigatorState>? navigatorKey]) async {
@@ -76,6 +79,22 @@ class NotificationService {
     );
   }
 
+  void registerTapHandler(
+    FutureOr<void> Function(Map<String, dynamic> payload) handler,
+  ) {
+    onLocalNotificationTap = handler;
+
+    final pendingPayload = _pendingLocalTapPayload;
+    if (pendingPayload == null) {
+      return;
+    }
+
+    _pendingLocalTapPayload = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.sync(() => handler(pendingPayload));
+    });
+  }
+
   /// Обработать входящее WS-событие.
   void handleEvent(String event, Map<String, dynamic> data) {
     final config = _resolveConfig(event, data);
@@ -87,7 +106,7 @@ class NotificationService {
     if (AppLifecycleService.isForeground) {
       _showInApp(title, body, config.inAppStyle);
     } else {
-      _showLocalNotification(title, body, config);
+      _showLocalNotification(title, body, config, event: event, data: data);
     }
   }
 
@@ -249,8 +268,10 @@ class NotificationService {
   Future<void> _showLocalNotification(
     String title,
     String body,
-    NotificationConfig config,
-  ) async {
+    NotificationConfig config, {
+    required String event,
+    required Map<String, dynamic> data,
+  }) async {
     final importance = _mapImportance(config.priority);
     final priority = _mapPriority(config.priority);
 
@@ -268,11 +289,36 @@ class NotificationService {
         ),
         iOS: const DarwinNotificationDetails(),
       ),
+      payload: _buildLocalNotificationPayload(event, data),
     );
   }
 
   void _onNotificationTap(NotificationResponse response) {
-    // TODO: навигация по тапу на уведомление
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) {
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map) {
+        return;
+      }
+
+      final normalized = decoded.map(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+
+      final handler = onLocalNotificationTap;
+      if (handler == null) {
+        _pendingLocalTapPayload = normalized;
+        return;
+      }
+
+      Future.sync(() => handler(normalized));
+    } catch (_) {
+      // Игнорируем битый payload, чтобы не падать при тапе по уведомлению.
+    }
   }
 
   // ── Каталог уведомлений ───────────────────────────────────────
@@ -412,6 +458,35 @@ class NotificationService {
       result = result.replaceAll('{$key}', value?.toString() ?? '');
     });
     return result;
+  }
+
+  String _buildLocalNotificationPayload(
+    String event,
+    Map<String, dynamic> data,
+  ) {
+    return jsonEncode({
+      'event': event,
+      'data': _normalizePayloadValue(data),
+    });
+  }
+
+  dynamic _normalizePayloadValue(dynamic value) {
+    if (value == null || value is String || value is num || value is bool) {
+      return value;
+    }
+
+    if (value is Map) {
+      return value.map(
+        (key, nestedValue) =>
+            MapEntry(key.toString(), _normalizePayloadValue(nestedValue)),
+      );
+    }
+
+    if (value is Iterable) {
+      return value.map(_normalizePayloadValue).toList(growable: false);
+    }
+
+    return value.toString();
   }
 
   Importance _mapImportance(NotificationPriority p) {

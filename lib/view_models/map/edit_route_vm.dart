@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/google_map_api.dart';
@@ -22,7 +24,12 @@ class EditRouteVM {
 
   List<AddressData> addresses = [];
   double? priceChange;
+  double? nextTotalPrice;
+  double? currentTotalPrice;
+  String? pricePreviewError;
   bool isSaving = false;
+  bool isRecalculatingPrice = false;
+  int _pricePreviewRequestId = 0;
 
   bool get hasChanges {
     if (addresses.length != initialAddresses.length) return true;
@@ -33,9 +40,14 @@ class EditRouteVM {
   }
 
   void resetChanges() {
+    _pricePreviewRequestId++;
     update(() {
       addresses = List.from(initialAddresses);
       priceChange = null;
+      nextTotalPrice = null;
+      currentTotalPrice = null;
+      pricePreviewError = null;
+      isRecalculatingPrice = false;
     });
   }
 
@@ -66,7 +78,7 @@ class EditRouteVM {
       );
     });
 
-    _recalculatePrice();
+    unawaited(_recalculatePrice());
   }
 
   Future<void> editAddress(int index) async {
@@ -93,7 +105,7 @@ class EditRouteVM {
       );
     });
 
-    _recalculatePrice();
+    unawaited(_recalculatePrice());
   }
 
   void removeAddress(int index) {
@@ -103,15 +115,59 @@ class EditRouteVM {
       addresses.removeAt(index);
     });
 
-    _recalculatePrice();
+    unawaited(_recalculatePrice());
   }
 
-  void _recalculatePrice() {
-    // TODO: Call API to recalculate price based on new route
-    // For now, estimate based on address count change
-    final addressDiff = addresses.length - initialAddresses.length;
+  Future<void> _recalculatePrice() async {
+    if (!hasChanges) {
+      update(() {
+        priceChange = null;
+        nextTotalPrice = null;
+        currentTotalPrice = null;
+        pricePreviewError = null;
+        isRecalculatingPrice = false;
+      });
+      return;
+    }
+
+    final requestId = ++_pricePreviewRequestId;
     update(() {
-      priceChange = addressDiff * 100.0; // Placeholder: 100₽ per additional stop
+      isRecalculatingPrice = true;
+      pricePreviewError = null;
+    });
+
+    final routePoints = addresses
+        .map((a) => {
+              'address': a.address,
+              'lat': a.location.latitude,
+              'lng': a.location.longitude,
+            })
+        .toList(growable: false);
+
+    final result = await NannyOrdersApi.previewOrderRouteChange(
+      orderId: orderId,
+      addresses: routePoints,
+    );
+    if (requestId != _pricePreviewRequestId) {
+      return;
+    }
+
+    update(() {
+      isRecalculatingPrice = false;
+      if (result.success && result.response != null) {
+        priceChange = result.response!.priceDelta;
+        nextTotalPrice = result.response!.totalPrice;
+        currentTotalPrice = result.response!.currentTotalPrice;
+        pricePreviewError = null;
+        return;
+      }
+
+      priceChange = null;
+      nextTotalPrice = null;
+      currentTotalPrice = null;
+      pricePreviewError = result.errorMessage.isNotEmpty
+          ? result.errorMessage
+          : 'Не удалось пересчитать стоимость нового маршрута.';
     });
   }
 
@@ -120,9 +176,13 @@ class EditRouteVM {
 
     final confirmed = await NannyDialogs.confirmAction(
       context,
-      priceChange != null && priceChange! > 0
-          ? 'Стоимость поездки увеличится на ${priceChange!.toStringAsFixed(0)} ₽. Продолжить?'
-          : 'Сохранить изменения маршрута?',
+      priceChange == null
+          ? 'Сохранить изменения маршрута?'
+          : priceChange! > 0
+              ? 'Стоимость поездки изменится на +${priceChange!.toStringAsFixed(0)} ₽. Продолжить?'
+              : priceChange! < 0
+                  ? 'Стоимость поездки уменьшится на ${priceChange!.toStringAsFixed(0)} ₽. Продолжить?'
+                  : 'Маршрут обновится без изменения стоимости. Продолжить?',
     );
 
     if (!confirmed) return;

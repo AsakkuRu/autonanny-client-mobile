@@ -87,7 +87,7 @@ class GraphCreateVM extends ViewModelBase {
 
       // Заполнение других параметров, если они есть в schedule
       for (var param in schedule!.otherParametrs) {
-        editor.addParam(param);
+        editor.addParam(_resolveEditorParam(param));
       }
       // Заполнение маршрутов
       for (var road in schedule!.roads) {
@@ -179,7 +179,7 @@ class GraphCreateVM extends ViewModelBase {
   }
 
   void addParam(OtherParametr param) {
-    editor.addParam(param);
+    editor.addParam(_resolveEditorParam(param));
     update(() {});
   }
 
@@ -206,7 +206,12 @@ class GraphCreateVM extends ViewModelBase {
       selectedChildrenIds.add(childId);
     }
     editor.childCount = selectedChildrenIds.length;
+    _syncSelectedParamCounts();
     update(() {});
+  }
+
+  bool isParamSelected(OtherParametr param) {
+    return editor.params.any((selected) => selected.id == param.id);
   }
 
   List<NannyWeekday> get sortedSelectedWeekdays {
@@ -289,6 +294,15 @@ class GraphCreateVM extends ViewModelBase {
         .toList(growable: false);
   }
 
+  List<Child> get contractChildrenWithoutRoutes {
+    final usedChildIds =
+        editor.roads.expand((road) => routeChildIdsForRoad(road)).toSet();
+
+    return selectedContractChildren
+        .where((child) => child.id != null && !usedChildIds.contains(child.id))
+        .toList(growable: false);
+  }
+
   bool get hasRouteChildrenIssues => routesWithoutChildren.isNotEmpty;
 
   bool get canSubmit {
@@ -298,6 +312,7 @@ class GraphCreateVM extends ViewModelBase {
     if (editor.roads.isEmpty) return false;
     if (weekdaysWithoutRoutes.isNotEmpty) return false;
     if (routesWithoutChildren.isNotEmpty) return false;
+    if (contractChildrenWithoutRoutes.isNotEmpty) return false;
     if (tripsPerMonth < 4) return false;
     return true;
   }
@@ -328,13 +343,24 @@ class GraphCreateVM extends ViewModelBase {
           .join(', ');
       issues.add('Есть маршруты без выбранных детей: $dayLabels.');
     }
+    if (contractChildrenWithoutRoutes.isNotEmpty) {
+      final childLabels = contractChildrenWithoutRoutes
+          .map((child) => child.fullName.trim())
+          .where((label) => label.isNotEmpty)
+          .join(', ');
+      issues.add(
+        childLabels.isEmpty
+            ? 'Не все выбранные дети распределены по маршрутам.'
+            : 'Добавьте в маршруты всех выбранных детей: $childLabels.',
+      );
+    }
     if (tripsPerMonth > 0 && tripsPerMonth < 4) {
       issues.add('Для контракта нужно минимум 4 поездки в месяц.');
     }
     return issues;
   }
 
-  double? get estimatedMonthlyAmount {
+  double? get estimatedRoutesWeeklyAmount {
     if (editor.roads.isEmpty) {
       return null;
     }
@@ -351,12 +377,27 @@ class GraphCreateVM extends ViewModelBase {
     return amounts.fold<double>(0, (sum, amount) => sum + amount);
   }
 
+  double get selectedAdditionalServicesTotal {
+    return editor.params.fold<double>(
+      0,
+      (sum, param) => sum + ((param.amount ?? 0) * (param.count ?? 0)),
+    );
+  }
+
   double? get estimatedWeeklyAmount {
-    final monthly = estimatedMonthlyAmount;
-    if (monthly == null) {
+    final routesAmount = estimatedRoutesWeeklyAmount;
+    if (routesAmount == null) {
       return null;
     }
-    return monthly / 4;
+    return routesAmount + selectedAdditionalServicesTotal;
+  }
+
+  double? get estimatedMonthlyAmount {
+    final weekly = estimatedWeeklyAmount;
+    if (weekly == null) {
+      return null;
+    }
+    return weekly * 4;
   }
 
   String get selectedServicesLabel {
@@ -410,6 +451,38 @@ class GraphCreateVM extends ViewModelBase {
               .toList(growable: false);
       editor.addRoad(road.copyWith(children: routeChildren));
     }
+  }
+
+  void _syncSelectedParamCounts() {
+    if (editor.params.isEmpty) {
+      return;
+    }
+
+    final paramsSnapshot = List<OtherParametr>.from(editor.params);
+    for (final param in paramsSnapshot) {
+      editor.deleteParam(param);
+    }
+
+    for (final param in paramsSnapshot) {
+      editor.addParam(_resolveEditorParam(param));
+    }
+  }
+
+  OtherParametr _resolveEditorParam(OtherParametr param) {
+    final matchingCatalogParam = params.cast<OtherParametr?>().firstWhere(
+          (candidate) => candidate?.id == param.id,
+          orElse: () => null,
+        );
+
+    final resolvedCount =
+        selectedChildrenIds.isNotEmpty ? selectedChildrenIds.length : null;
+
+    return OtherParametr(
+      id: param.id ?? matchingCatalogParam?.id,
+      title: matchingCatalogParam?.title ?? param.title,
+      amount: matchingCatalogParam?.amount ?? param.amount,
+      count: resolvedCount ?? param.count,
+    );
   }
 
   void confirm() async {
@@ -476,6 +549,23 @@ class GraphCreateVM extends ViewModelBase {
       return;
     }
 
+    final unassignedChildren = contractChildrenWithoutRoutes;
+    if (unassignedChildren.isNotEmpty) {
+      final childLabels = unassignedChildren
+          .map((child) => child.fullName.trim())
+          .where((label) => label.isNotEmpty)
+          .join(", ");
+      NannyDialogs.showMessageBox(
+        context,
+        "Ошибка",
+        childLabels.isEmpty
+            ? "Все выбранные дети должны быть распределены по маршрутам."
+            : "Добавьте в маршруты всех выбранных детей.\n"
+                "Сейчас не распределены: $childLabels.",
+      );
+      return;
+    }
+
     // Нормализуем children у маршрутов перед отправкой,
     // не перетирая route-specific привязки.
     final roadsSnapshot = List<Road>.from(editor.roads);
@@ -505,12 +595,40 @@ class GraphCreateVM extends ViewModelBase {
           ? result.response
           : null;
     } else {
+      final scheduleId = schedule?.id;
+      if (scheduleId == null) {
+        if (context.mounted) {
+          LoadScreen.showLoad(context, false);
+          NannyDialogs.showMessageBox(
+            context,
+            "Ошибка",
+            "Не удалось определить контракт для обновления.",
+          );
+        }
+        return;
+      }
+
       final result = await NannyOrdersApi.updateScheduleById(
-          editor.createSchedule(selectedWeekday, id: schedule?.id));
+        editor.createSchedule(selectedWeekday, id: scheduleId),
+        includeRoads: false,
+      );
       if (!result.success) {
         if (context.mounted) {
           LoadScreen.showLoad(context, false);
           NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
+        }
+        return;
+      }
+
+      final routeSyncError = await _syncEditedScheduleRoutes(scheduleId);
+      if (routeSyncError != null) {
+        if (context.mounted) {
+          LoadScreen.showLoad(context, false);
+          NannyDialogs.showMessageBox(
+            context,
+            "Не удалось полностью обновить контракт",
+            routeSyncError,
+          );
         }
         return;
       }
@@ -527,5 +645,49 @@ class GraphCreateVM extends ViewModelBase {
         schedule == null ? (createdId ?? -1) : schedule?.id ?? -1;
     if (!context.mounted) return;
     Navigator.of(context).pop(resultToPop);
+  }
+
+  Future<String?> _syncEditedScheduleRoutes(int scheduleId) async {
+    final originalSchedule = schedule;
+    if (originalSchedule == null) {
+      return null;
+    }
+
+    final originalRoadIds =
+        originalSchedule.roads.map((road) => road.id).whereType<int>().toSet();
+    final editedRoadIds =
+        editor.roads.map((road) => road.id).whereType<int>().toSet();
+
+    final removedRoadIds = originalRoadIds.difference(editedRoadIds);
+    for (final roadId in removedRoadIds) {
+      final deleteResult = await NannyOrdersApi.deleteScheduleRoadById(roadId);
+      if (!deleteResult.success) {
+        return deleteResult.errorMessage.isNotEmpty
+            ? deleteResult.errorMessage
+            : 'Не удалось удалить один из маршрутов контракта.';
+      }
+    }
+
+    for (final road in editor.roads) {
+      if (road.id == null) {
+        final createResult =
+            await NannyOrdersApi.createScheduleRoadById(scheduleId, road);
+        if (!createResult.success) {
+          return createResult.errorMessage.isNotEmpty
+              ? createResult.errorMessage
+              : 'Не удалось добавить новый маршрут в контракт.';
+        }
+        continue;
+      }
+
+      final updateResult = await NannyOrdersApi.updateScheduleRoadById(road);
+      if (!updateResult.success) {
+        return updateResult.errorMessage.isNotEmpty
+            ? updateResult.errorMessage
+            : 'Не удалось обновить один из маршрутов контракта.';
+      }
+    }
+
+    return null;
   }
 }

@@ -1,3 +1,4 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nanny_components/base_views/view_models/driver_info_vm.dart';
@@ -74,6 +75,14 @@ class _DriverInfoViewState extends State<DriverInfoView> {
               final questionnaireAnswers =
                   _buildQuestionnaireAnswers(driverRoleData?.answers);
               final experienceYears = driverRoleData?.experienceYears;
+              final driverInitials = [
+                if (data.userData.name.trim().isNotEmpty)
+                  data.userData.name.trim().characters.first,
+                if (data.userData.surname.trim().isNotEmpty)
+                  data.userData.surname.trim().characters.first,
+              ].join().toUpperCase();
+              final driverPhotoUrl =
+                  NannyConsts.buildFileUrl(data.userData.photoPath);
 
               return Column(children: [
                 Padding(
@@ -81,7 +90,12 @@ class _DriverInfoViewState extends State<DriverInfoView> {
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
                   child: Row(
                     children: [
-                      ProfileImage(url: data.userData.photoPath, radius: 77),
+                      AutonannyAvatar(
+                        imageUrl: driverPhotoUrl,
+                        initials: driverInitials.isEmpty ? 'В' : driverInitials,
+                        size: 154,
+                        borderRadius: BorderRadius.circular(77),
+                      ),
                       const SizedBox(width: 29),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,7 +245,8 @@ class _DriverInfoViewState extends State<DriverInfoView> {
                                         child: ListView(
                                             shrinkWrap: true,
                                             children: [
-                                          if (questionnaireAnswers.isNotEmpty) ...[
+                                          if (questionnaireAnswers
+                                              .isNotEmpty) ...[
                                             Text("Ключевая информация",
                                                 style: Theme.of(context)
                                                     .textTheme

@@ -33,7 +33,6 @@ class SupportRatingVM extends ViewModelBase {
 
     update(() => isSubmitting = true);
 
-    // Mock-first: при отсутствии реального API считаем успешным
     final result = await NannyChatsApi.rateSupportChat(
       ticketId: ticketId,
       rating: rating,
@@ -46,8 +45,7 @@ class SupportRatingVM extends ViewModelBase {
 
     if (!context.mounted) return;
 
-    if (result.success || true) {
-      // true — временно, пока API не реализован на бэкенде
+    if (result.success) {
       Navigator.pop(context);
       onSubmitted?.call();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -56,7 +54,14 @@ class SupportRatingVM extends ViewModelBase {
           backgroundColor: Colors.green,
         ),
       );
+      return;
     }
+
+    NannyDialogs.showMessageBox(
+      context,
+      'Не удалось отправить оценку',
+      result.errorMessage,
+    );
   }
 
   void skip() {

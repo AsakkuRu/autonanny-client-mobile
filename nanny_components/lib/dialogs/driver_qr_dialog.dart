@@ -1,4 +1,6 @@
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
+import 'package:nanny_core/nanny_core.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 /// FE-MVP-017: Диалог с QR-кодом для верификации водителя (QR + PIN для ввода водителем)
@@ -8,6 +10,7 @@ class DriverQRDialog extends StatelessWidget {
   final String? carInfo;
   final String? photoPath;
   final String qrData;
+
   /// 4-значный код, который водитель может ввести вместо сканирования QR
   final String? meetingCodePin;
 
@@ -45,6 +48,16 @@ class DriverQRDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final initials = driverName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part.characters.first)
+        .join()
+        .toUpperCase();
+    final imageUrl = NannyConsts.buildFileUrl(photoPath);
+
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
@@ -76,17 +89,12 @@ class DriverQRDialog extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Фото водителя
-            if (photoPath != null)
-              CircleAvatar(
-                radius: 50,
-                backgroundImage: NetworkImage(photoPath!),
-              )
-            else
-              const CircleAvatar(
-                radius: 50,
-                backgroundColor: Color(0xFFE0E0E0),
-                child: Icon(Icons.person, size: 50, color: Color(0xFF757575)),
-              ),
+            AutonannyAvatar(
+              imageUrl: imageUrl,
+              initials: initials.isEmpty ? 'В' : initials,
+              size: 100,
+              borderRadius: BorderRadius.circular(50),
+            ),
             const SizedBox(height: 16),
 
             // Имя водителя
@@ -104,7 +112,8 @@ class DriverQRDialog extends StatelessWidget {
             // Информация об автомобиле
             if (carNumber != null) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(8),
@@ -112,7 +121,8 @@ class DriverQRDialog extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.directions_car, size: 20, color: Color(0xFF757575)),
+                    const Icon(Icons.directions_car,
+                        size: 20, color: Color(0xFF757575)),
                     const SizedBox(width: 8),
                     Text(
                       carNumber!,
@@ -159,7 +169,8 @@ class DriverQRDialog extends StatelessWidget {
             // PIN-код для ввода водителем (альтернатива QR)
             if (meetingCodePin != null && meetingCodePin!.isNotEmpty) ...[
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(12),

@@ -18,13 +18,30 @@ class ChatMessage {
   final bool edited;
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    final timestampSend = (json["timestamp_send"] as num?)?.toDouble() ??
+        (() {
+          final rawDatetime = json["datetime"]?.toString();
+          if (rawDatetime == null || rawDatetime.isEmpty) {
+            return 0.0;
+          }
+
+          final parsed = DateTime.tryParse(rawDatetime);
+          if (parsed == null) {
+            return 0.0;
+          }
+
+          return parsed.millisecondsSinceEpoch / 1000;
+        })();
+
+    final isFromSupport = json["is_from_support"];
+
     return ChatMessage(
       id: json["id"],
-      idChat: json["id_chat"] ?? 0,
-      msg: json["msg"] ?? "",
-      msgType: json["msgType"] ?? 0,
-      timestampSend: (json["timestamp_send"] as num?)?.toDouble() ?? 0,
-      isMe: json["isMe"] ?? false,
+      idChat: json["id_chat"] ?? json["chat_id"] ?? 0,
+      msg: json["msg"] ?? json["message"] ?? "",
+      msgType: json["msgType"] ?? json["msg_type"] ?? 0,
+      timestampSend: timestampSend,
+      isMe: json["isMe"] ?? (isFromSupport is bool ? !isFromSupport : false),
       edited: json["edited"] ?? false,
     );
   }

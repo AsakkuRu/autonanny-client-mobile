@@ -9,7 +9,7 @@ import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart'
 import 'package:nanny_client/views/new_main/new_client_map_view.dart';
 import 'package:nanny_client/views/new_main/profile/client_profile_v2_view.dart';
 import 'package:nanny_client/views/pages/balance.dart';
-import 'package:nanny_client/views/pages/graph.dart';
+import 'package:nanny_client/views/pages/contracts_view.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_components/base_views/views/pages/chats.dart';
@@ -56,7 +56,7 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
     );
     pages = [
       const NewClientMapView(),
-      const GraphView(persistState: true),
+      const ContractsView(persistState: true),
       const BalanceView(persistState: true),
       ChatsView(
         persistState: false,

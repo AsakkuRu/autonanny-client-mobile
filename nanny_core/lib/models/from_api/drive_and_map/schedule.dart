@@ -11,6 +11,13 @@ bool? _parseBool(dynamic value) {
   return null;
 }
 
+double _otherParamsWeeklyAmount(List<OtherParametr> params) {
+  return params.fold<double>(
+    0,
+    (sum, param) => sum + ((param.amount ?? 0) * (param.count ?? 0)),
+  );
+}
+
 class Schedule {
   Schedule({
     required this.title,
@@ -61,6 +68,15 @@ class Schedule {
     final roads = rawRoads == null
         ? <Road>[]
         : List<Road>.from(rawRoads.map((x) => Road.fromJson(x)));
+    final otherParams = json["other_parametrs"] == null
+        ? <OtherParametr>[]
+        : List<OtherParametr>.from(
+            json["other_parametrs"]!.map((x) => OtherParametr.fromJson(x)),
+          );
+    final weeklyAmount = roads.fold<double>(0, (sum, item) => sum + (item.amount ?? 0.0)) +
+        _otherParamsWeeklyAmount(otherParams);
+    final explicitWeeklyAmount = (json["amount_week"] as num?)?.toDouble();
+    final explicitMonthlyAmount = (json["amount_month"] as num?)?.toDouble();
 
     return Schedule(
       id: json["id"],
@@ -77,16 +93,12 @@ class Schedule {
           : List<NannyWeekday>.from(
               json["week_days"].map((x) => NannyWeekday.values[x])),
       tariff: DriveTariff(id: json["id_tariff"]),
-      otherParametrs: json["other_parametrs"] == null
-          ? []
-          : List<OtherParametr>.from(
-              json["other_parametrs"]!.map((x) => OtherParametr.fromJson(x))),
+      otherParametrs: otherParams,
       roads: roads,
       salary: json["salary"],
+      amountWeek: explicitWeeklyAmount ?? weeklyAmount,
       amountMonth:
-          roads.fold<double>(0, (sum, item) => sum + (item.amount ?? 0.0)),
-      amountWeek:
-          roads.fold<double>(0, (sum, item) => sum + (item.amount ?? 0.0)) / 4,
+          explicitMonthlyAmount ?? (explicitWeeklyAmount ?? weeklyAmount) * 4,
       // FIX-005: поля паузы от backend
       isPaused: _parseBool(json["is_paused"]),
       pauseFrom: json["pause_from"] as String?,
@@ -109,6 +121,28 @@ class Schedule {
         "other_parametrs":
             otherParametrs.map((x) => x.toGraphJson(childrenCount)).toList(),
         "roads": roads.map((x) => x.toJson()).toList(),
+      };
+
+  Map<String, dynamic> toCacheJson() => {
+        "id": id,
+        "title": title,
+        "description": description,
+        "isActive": isActive,
+        "duration": duration,
+        "children_count": childrenCount,
+        "datetime_create": datetimeCreate.toIso8601String(),
+        "week_days": weekdays.map((x) => x.index).toList(),
+        "id_tariff": tariff.id,
+        "other_parametrs": otherParametrs.map((x) => x.toCacheJson()).toList(),
+        "roads": roads.map((x) => x.toCacheJson()).toList(),
+        "salary": salary,
+        "amount_week": amountWeek,
+        "amount_month": amountMonth,
+        "is_paused": isPaused,
+        "pause_from": pauseFrom,
+        "pause_until": pauseUntil,
+        "pause_reason": pauseReason,
+        "pause_initiated_by": pauseInitiatedBy,
       };
 }
 
@@ -151,9 +185,9 @@ class Road {
           ? []
           : List<DriveType>.from(
               json["type_drive"].map((x) => DriveType.values.firstWhere(
-                (dt) => dt.id == x,
-                orElse: () => DriveType.oneWay,
-              ))),
+                    (dt) => dt.id == x,
+                    orElse: () => DriveType.oneWay,
+                  ))),
       children: json["children"] == null
           ? null
           : List<int>.from(json["children"]), // FE-MVP-015
@@ -169,6 +203,18 @@ class Road {
         "title": title,
         "type_drive": typeDrive.map((x) => x.id).toList(),
         if (children != null) "children": children, // FE-MVP-015
+      };
+
+  Map<String, dynamic> toCacheJson() => {
+        "id": id,
+        "amount": amount,
+        "week_day": weekDay.index,
+        "start_time": startTime.formatTime(),
+        "end_time": endTime.formatTime(),
+        "addresses": addresses.map((x) => x.toJson()).toList(),
+        "title": title,
+        "type_drive": typeDrive.map((x) => x.id).toList(),
+        if (children != null) "children": children,
       };
 
   // Метод copyWith

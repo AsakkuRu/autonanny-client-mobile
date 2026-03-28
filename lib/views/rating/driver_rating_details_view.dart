@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/rating/driver_rating_details_vm.dart';
+import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/models/from_api/driver_rating.dart';
 
 class DriverRatingDetailsView extends StatefulWidget {
@@ -101,14 +101,13 @@ class _DriverOverviewCard extends StatelessWidget {
     final resolvedName = (driverName?.trim().isNotEmpty ?? false)
         ? driverName!.trim()
         : 'Водитель';
+    final imageUrl = NannyConsts.buildFileUrl(driverPhoto);
 
     return AutonannyCard(
       child: Row(
         children: [
           AutonannyAvatar(
-            image: (driverPhoto?.trim().isNotEmpty ?? false)
-                ? NetworkImage(driverPhoto!)
-                : null,
+            imageUrl: imageUrl,
             initials: _initials(resolvedName),
             size: 68,
           ),
