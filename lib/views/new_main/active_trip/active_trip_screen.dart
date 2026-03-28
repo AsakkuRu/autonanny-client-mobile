@@ -8,7 +8,6 @@ import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dar
 import 'package:nanny_client/views/rating/driver_rating_view.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/dialogs/driver_qr_dialog.dart';
-import 'package:nanny_components/new_design/nd_primary_button.dart';
 import 'package:nanny_components/styles/new_design_app.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
@@ -61,12 +60,12 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       future: vm.loadRequest,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
+          return const AutonannyAppScaffold(
             body: Center(child: AutonannyLoadingState()),
           );
         }
         if (snapshot.hasError || snapshot.data != true) {
-          return Scaffold(
+          return AutonannyAppScaffold(
             body: Center(
               child: AutonannyErrorState(
                 title: 'Не удалось открыть поездку',
@@ -79,8 +78,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         _maybeShowTerminalResultSheet();
         _maybeShowRouteChangeResultSheet();
         _maybeShowInfoNoticeSheet();
-        return Scaffold(
-          backgroundColor: context.autonannyColors.surfaceSecondary,
+        return AutonannyAppScaffold(
           body: Stack(
             children: [
               _LiveTripMap(vm: vm),
@@ -330,9 +328,9 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                 ),
               ],
               const SizedBox(height: 16),
-              NdPrimaryButton(
+              AutonannyButton(
                 label: 'Подтвердить SOS',
-                onTap: () async {
+                onPressed: () async {
                   Navigator.of(context).pop();
                   await vm.confirmSos();
                 },
@@ -1224,9 +1222,16 @@ class _TripSheetState extends State<_TripSheet> {
     final vm = widget.vm;
     final route = _routeLabel(vm.addresses);
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 32,
+            offset: const Offset(0, -8),
+          ),
+        ],
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -1254,11 +1259,8 @@ class _TripSheetState extends State<_TripSheet> {
                 ),
               ),
               const SizedBox(height: 14),
-              TripProgressHeader(
-                data: vm.tripProgressHeaderData(routeLabel: route),
-              ),
-              const SizedBox(height: 12),
-              _statusBlocks(),
+              _tripHeroCard(route),
+              const SizedBox(height: 16),
               if (vm.driverContact != null) ...[
                 _driverCard(),
                 if (vm.driverContact?.phone.trim().isNotEmpty == true) ...[
@@ -1289,7 +1291,10 @@ class _TripSheetState extends State<_TripSheet> {
                   style: NDT.bodyM.copyWith(color: NDT.neutral500),
                 ),
                 const SizedBox(height: 12),
-                NdPrimaryButton(label: 'Закрыть', onTap: widget.onDonePressed),
+                AutonannyButton(
+                  label: 'Закрыть',
+                  onPressed: widget.onDonePressed,
+                ),
               ],
               if (vm.connectionTimedOut) ...[
                 Text(
@@ -1304,14 +1309,20 @@ class _TripSheetState extends State<_TripSheet> {
                   style: NDT.bodyM.copyWith(color: NDT.neutral500),
                 ),
                 const SizedBox(height: 12),
-                NdPrimaryButton(label: 'Закрыть', onTap: widget.onDonePressed),
+                AutonannyButton(
+                  label: 'Закрыть',
+                  onPressed: widget.onDonePressed,
+                ),
               ] else if (vm.statusId == 3 && !vm.noDriversFound) ...[
                 Text(
                   'Поездка уже отменена и больше не активна.',
                   style: NDT.bodyM.copyWith(color: NDT.neutral500),
                 ),
                 const SizedBox(height: 12),
-                NdPrimaryButton(label: 'Закрыть', onTap: widget.onDonePressed),
+                AutonannyButton(
+                  label: 'Закрыть',
+                  onPressed: widget.onDonePressed,
+                ),
               ] else if (vm.isFinished) ...[
                 Text(
                   'Поездка завершена. Вы можете сразу оценить водителя или вернуться к этому позже в истории.',
@@ -1319,15 +1330,16 @@ class _TripSheetState extends State<_TripSheet> {
                 ),
                 const SizedBox(height: 12),
                 if (vm.orderId != null) ...[
-                  NdPrimaryButton(
+                  AutonannyButton(
                     label: 'Оценить водителя',
-                    onTap: widget.onOpenDriverRating,
+                    onPressed: widget.onOpenDriverRating,
                   ),
                   const SizedBox(height: 8),
                 ],
-                OutlinedButton(
+                AutonannyButton(
+                  label: 'Закрыть',
+                  variant: AutonannyButtonVariant.secondary,
                   onPressed: widget.onDonePressed,
-                  child: const Text('Закрыть'),
                 ),
               ] else ...[
                 if (vm.isArrived) const SizedBox(height: 24),
@@ -1347,104 +1359,556 @@ class _TripSheetState extends State<_TripSheet> {
     );
   }
 
-  Widget _statusBlocks() {
+  Widget _tripHeroCard(String route) {
     final vm = widget.vm;
-    if (vm.isSearching) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: NDT.neutral100,
-            borderRadius: NDT.brMd,
-          ),
-          child: Text(
-            'Ищем ближайшего водителя. Обычно это занимает до 2 минут.',
-            style: NDT.bodyS.copyWith(color: NDT.neutral500),
-          ),
-        ),
-      );
-    }
+    final headerData = vm.tripProgressHeaderData(routeLabel: route);
+    final tripChildren = _extractTripChildren(vm.children);
+    final primaryChild = tripChildren.isNotEmpty ? tripChildren.first : null;
+    final useGradient = vm.isSearching || vm.isEnRoute;
+    final isArrived = vm.isArrived;
+    final onDark = useGradient;
 
-    if (vm.isEnRoute) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: _metricCard('До прибытия',
-                  vm.etaMinutes != null ? '${vm.etaMinutes} мин' : '—'),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _metricCard('Статус', 'Едет к вам'),
-            ),
-          ],
-        ),
-      );
-    }
+    final backgroundColor = switch ((useGradient, isArrived, vm.isInProgress)) {
+      (true, _, _) => null,
+      (_, true, _) => const Color(0xFFFFF7ED),
+      (_, _, true) => Colors.white,
+      _ => NDT.neutral50,
+    };
 
-    if (vm.isArrived) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0x14F59E0B),
-                borderRadius: NDT.brMd,
-                border: Border.all(color: const Color(0x44F59E0B)),
+    final borderColor = switch ((useGradient, isArrived, vm.isInProgress)) {
+      (true, _, _) => Colors.white.withOpacity(0.16),
+      (_, true, _) => const Color(0x33F59E0B),
+      (_, _, true) => const Color(0x3322C55E),
+      _ => NDT.neutral200,
+    };
+
+    final titleColor = onDark ? Colors.white : NDT.neutral900;
+    final subtitleColor = onDark ? const Color(0xD9FFFFFF) : NDT.neutral500;
+    final eyebrowColor = onDark ? const Color(0xB3FFFFFF) : NDT.neutral400;
+
+    final metric = _heroMetric(vm);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: useGradient
+            ? context.autonannyComponents.primaryActionGradient
+            : null,
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _heroEyebrow(vm),
+                      style: NDT.caption.copyWith(
+                        color: eyebrowColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _heroTitle(vm),
+                      style: NDT.h2.copyWith(color: titleColor),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _heroSubtitle(route, primaryChild),
+                      style: NDT.bodyS.copyWith(
+                        color: subtitleColor,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Text(
-                'Водитель прибыл и ожидает у подъезда',
-                style: NDT.bodyM.copyWith(color: const Color(0xFF92400E)),
-              ),
-            ),
-            if (vm.hasWaitingTimer) ...[
-              const SizedBox(height: 12),
-              _waitingTimerCard(vm),
+              if (metric != null) ...[
+                const SizedBox(width: 12),
+                _heroMetricPill(
+                  label: metric.label,
+                  value: metric.value,
+                  caption: metric.caption,
+                  onDark: onDark,
+                ),
+              ],
             ],
-            const SizedBox(height: 8),
-            Text(
-              'Покажите QR-код или PIN водителю для верификации. Без подтверждения водитель не сможет начать поездку («Ребёнок в машине»).',
-              style: NDT.bodyS.copyWith(color: NDT.neutral500),
+          ),
+          const SizedBox(height: 16),
+          _tripStepStrip(
+            headerData.steps,
+            onDark: onDark,
+            arrived: vm.isArrived,
+          ),
+          if (vm.isSearching) ...[
+            const SizedBox(height: 16),
+            _heroInfoPanel(
+              onDark: onDark,
+              icon: Icons.search_rounded,
+              title: 'Подбираем ближайшего водителя',
+              subtitle:
+                  'Обычно подтверждение занимает до 2 минут. Экран можно оставить открытым.',
             ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 4),
-              child: NdPrimaryButton(
-                label: 'Показать QR-код',
-                onTap: vm.isBusy ? null : widget.onShowQRPressed,
+          ] else if (vm.isArrived) ...[
+            const SizedBox(height: 16),
+            _heroArrivalPanel(onDark: onDark),
+          ] else if (primaryChild != null) ...[
+            const SizedBox(height: 16),
+            _heroChildPanel(primaryChild, onDark: onDark),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _heroEyebrow(ActiveTripVM vm) {
+    if (vm.isArrived) return 'Встреча и посадка';
+    if (vm.isInProgress) return 'Активная поездка';
+    if (vm.isEnRoute) return 'Водитель в пути';
+    if (vm.isSearching) return 'Поиск водителя';
+    return 'Поездка';
+  }
+
+  String _heroTitle(ActiveTripVM vm) {
+    if (vm.isArrived) return 'Водитель прибыл';
+    if (vm.isInProgress) return 'Ребенок в пути';
+    if (vm.isEnRoute) return 'Водитель едет к вам';
+    if (vm.isSearching) return 'Ищем водителя';
+    return vm.statusText;
+  }
+
+  String _heroSubtitle(String route, _TripChildSummary? child) {
+    final childName = child?.name.trim();
+    if (widget.vm.isArrived) {
+      return childName?.isNotEmpty == true
+          ? 'Назовите PIN или покажите QR для $childName. Маршрут: $route'
+          : 'Назовите PIN или покажите QR водителю. Маршрут: $route';
+    }
+    if (widget.vm.isInProgress) {
+      return childName?.isNotEmpty == true
+          ? '$childName уже в машине. $route'
+          : route;
+    }
+    if (widget.vm.isEnRoute) {
+      return childName?.isNotEmpty == true
+          ? '$childName готовится к поездке. $route'
+          : route;
+    }
+    return route;
+  }
+
+  ({String label, String value, String? caption})? _heroMetric(
+      ActiveTripVM vm) {
+    if (vm.isArrived && vm.hasWaitingTimer) {
+      return (
+        label: vm.isWithinFreeWaitingWindow
+            ? 'Бесплатное ожидание'
+            : 'Платное ожидание',
+        value: vm.waitingTimerLabel,
+        caption:
+            vm.isWithinFreeWaitingWindow ? 'идет таймер' : vm.waitingRateLabel,
+      );
+    }
+    if (vm.isEnRoute) {
+      return (
+        label: 'До прибытия',
+        value: vm.etaMinutes != null ? '${vm.etaMinutes}' : '—',
+        caption: 'мин',
+      );
+    }
+    if (vm.isInProgress) {
+      return (
+        label: 'До точки',
+        value: vm.etaMinutes != null ? '${vm.etaMinutes}' : '—',
+        caption: 'мин',
+      );
+    }
+    return null;
+  }
+
+  Widget _heroMetricPill({
+    required String label,
+    required String value,
+    required String? caption,
+    required bool onDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: onDark ? Colors.white.withOpacity(0.14) : NDT.primary100,
+        borderRadius: NDT.brLg,
+        border: Border.all(
+          color: onDark ? Colors.white.withOpacity(0.16) : NDT.primary100,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            label,
+            style: NDT.caption.copyWith(
+              color: onDark ? const Color(0xCCFFFFFF) : NDT.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                value,
+                style: NDT.h2.copyWith(
+                  color: onDark ? Colors.white : NDT.neutral900,
+                ),
+              ),
+              if (caption?.isNotEmpty == true) ...[
+                const SizedBox(width: 4),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    caption!,
+                    style: NDT.caption.copyWith(
+                      color: onDark ? const Color(0xCCFFFFFF) : NDT.neutral500,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tripStepStrip(
+    List<TripProgressStepData> steps, {
+    required bool onDark,
+    required bool arrived,
+  }) {
+    final activeColor = onDark ? Colors.white : NDT.primary;
+    final completedColor = onDark ? Colors.white : NDT.success;
+    final inactiveBorder =
+        onDark ? Colors.white.withOpacity(0.28) : NDT.neutral300;
+    final inactiveText = onDark ? const Color(0xB3FFFFFF) : NDT.neutral500;
+
+    return Row(
+      children: [
+        for (var i = 0; i < steps.length; i++) ...[
+          Expanded(
+            child: Column(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: steps[i].isCompleted
+                        ? completedColor
+                        : steps[i].isCurrent
+                            ? activeColor
+                            : Colors.transparent,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: steps[i].isCompleted || steps[i].isCurrent
+                          ? Colors.transparent
+                          : inactiveBorder,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: steps[i].isCompleted
+                      ? Icon(
+                          Icons.check_rounded,
+                          size: 16,
+                          color: onDark ? NDT.primary : Colors.white,
+                        )
+                      : Text(
+                          '${i + 1}',
+                          style: NDT.bodyS.copyWith(
+                            color: steps[i].isCurrent
+                                ? (onDark ? NDT.primary : Colors.white)
+                                : inactiveText,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _heroStepTitle(i, arrived),
+                  textAlign: TextAlign.center,
+                  style: NDT.caption.copyWith(
+                    color: steps[i].isCompleted || steps[i].isCurrent
+                        ? (onDark ? Colors.white : NDT.neutral900)
+                        : inactiveText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (i != steps.length - 1)
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 24),
+                height: 2,
+                color: steps[i].isCompleted
+                    ? (onDark ? Colors.white.withOpacity(0.7) : NDT.success)
+                    : (onDark
+                        ? Colors.white.withOpacity(0.18)
+                        : NDT.neutral200),
               ),
             ),
-          ],
-        ),
-      );
-    }
+        ],
+      ],
+    );
+  }
 
-    if (vm.isInProgress) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
+  String _heroStepTitle(int index, bool arrived) {
+    return switch (index) {
+      0 => 'Поиск',
+      1 => arrived ? 'Прибыл' : 'Едет',
+      2 => 'В пути',
+      _ => 'Доехал',
+    };
+  }
+
+  Widget _heroInfoPanel({
+    required bool onDark,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: onDark ? Colors.white.withOpacity(0.14) : Colors.white,
+        borderRadius: NDT.brLg,
+        border: Border.all(
+          color: onDark ? Colors.white.withOpacity(0.14) : NDT.neutral200,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: onDark ? Colors.white.withOpacity(0.16) : NDT.primary100,
+              borderRadius: NDT.brMd,
+            ),
+            child: Icon(
+              icon,
+              size: 18,
+              color: onDark ? Colors.white : NDT.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: NDT.bodyM.copyWith(
+                    color: onDark ? Colors.white : NDT.neutral900,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: NDT.bodyS.copyWith(
+                    color: onDark ? const Color(0xD9FFFFFF) : NDT.neutral500,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroChildPanel(_TripChildSummary child, {required bool onDark}) {
+    final vm = widget.vm;
+    final subtitle = vm.isInProgress
+        ? 'Верификация пройдена. Поездка уже активна.'
+        : vm.isEnRoute
+            ? 'Маршрут подтвержден. При встрече покажите PIN или QR.'
+            : 'Пассажир текущей поездки.';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: onDark ? Colors.white.withOpacity(0.14) : Colors.white,
+        borderRadius: NDT.brLg,
+        border: Border.all(
+          color: onDark ? Colors.white.withOpacity(0.14) : NDT.neutral200,
+        ),
+      ),
+      child: Row(
+        children: [
+          AutonannyAvatar(
+            imageUrl: child.photoUrl,
+            initials: child.initials,
+            size: 44,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  child.fullName.isNotEmpty
+                      ? child.fullName
+                      : 'Пассажир поездки',
+                  style: NDT.bodyM.copyWith(
+                    color: onDark ? Colors.white : NDT.neutral900,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: NDT.bodyS.copyWith(
+                    color: onDark ? const Color(0xD9FFFFFF) : NDT.neutral500,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (vm.isInProgress)
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: onDark
+                    ? Colors.white.withOpacity(0.16)
+                    : const Color(0x1422C55E),
+                borderRadius: NDT.brMd,
+              ),
+              child: Icon(
+                Icons.check_circle_rounded,
+                size: 18,
+                color: onDark ? Colors.white : NDT.success,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroArrivalPanel({required bool onDark}) {
+    final vm = widget.vm;
+    final pinLabel =
+        vm.pinCode == null ? '----' : vm.pinCode.toString().padLeft(4, '0');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _heroInfoPanel(
+          onDark: onDark,
+          icon: Icons.access_time_filled_rounded,
+          title: vm.waitingStatusTitle,
+          subtitle: vm.waitingStatusHint,
+        ),
+        const SizedBox(height: 12),
+        Row(
           children: [
             Expanded(
-              child: _metricCard('До точки',
-                  vm.etaMinutes != null ? '${vm.etaMinutes} мин' : '—'),
+              child: _heroMetricPill(
+                label: 'Таймер',
+                value: vm.waitingTimerLabel,
+                caption: vm.isWithinFreeWaitingWindow ? 'идет' : null,
+                onDark: false,
+              ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _metricCard('Статус', 'В пути'),
-            ),
+            if (vm.hasPaidWaiting) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: _heroMetricPill(
+                  label: 'Доплата',
+                  value: vm.waitingChargeLabel,
+                  caption: null,
+                  onDark: false,
+                ),
+              ),
+            ],
           ],
         ),
-      );
-    }
-
-    return const SizedBox.shrink();
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: NDT.brLg,
+            border: Border.all(color: const Color(0x33F59E0B)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: NDT.primary100,
+                  borderRadius: NDT.brMd,
+                ),
+                child: Text(
+                  pinLabel,
+                  style: NDT.h2.copyWith(
+                    color: NDT.primary,
+                    letterSpacing: 4,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PIN для водителя',
+                      style: NDT.bodyM.copyWith(
+                        color: NDT.neutral900,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Назовите код или откройте QR для верификации встречи.',
+                      style: NDT.bodyS.copyWith(
+                        color: NDT.neutral500,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        AutonannyButton(
+          label: 'Показать QR-код',
+          onPressed: vm.isBusy ? null : widget.onShowQRPressed,
+        ),
+      ],
+    );
   }
 
   Widget _tripActionsSection() {
@@ -1492,132 +1956,6 @@ class _TripSheetState extends State<_TripSheet> {
               subtitleColor: const Color(0xFFB91C1C),
               onTap: vm.isBusy ? null : widget.onCancelPressed,
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _metricCard(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: NDT.primary100,
-        borderRadius: NDT.brMd,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: NDT.caption.copyWith(color: NDT.neutral500)),
-          const SizedBox(height: 4),
-          Text(value, style: NDT.h3.copyWith(color: NDT.primary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _waitingTimerCard(ActiveTripVM vm) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: NDT.neutral50,
-        borderRadius: NDT.brMd,
-        border: Border.all(
-          color: vm.isWithinFreeWaitingWindow
-              ? const Color(0x33F59E0B)
-              : const Color(0x66F59E0B),
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      vm.waitingStatusTitle,
-                      style: NDT.h3.copyWith(color: NDT.neutral900),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      vm.waitingStatusHint,
-                      style: NDT.bodyS.copyWith(color: NDT.neutral500),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    vm.waitingTimerLabel,
-                    style: NDT.h2.copyWith(color: NDT.neutral900),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    vm.isWithinFreeWaitingWindow
-                        ? 'ожидание идет'
-                        : vm.waitingRateLabel,
-                    style: NDT.caption.copyWith(
-                      color: vm.isWithinFreeWaitingWindow
-                          ? const Color(0xFF92400E)
-                          : const Color(0xFFB45309),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          if (vm.hasPaidWaiting) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _waitingMetricTile(
-                    label: 'Доплата',
-                    value: vm.waitingChargeLabel,
-                    accentColor: const Color(0xFFB45309),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _waitingMetricTile(
-                    label: 'Текущая сумма',
-                    value: vm.currentTripTotalLabel,
-                    accentColor: NDT.neutral900,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _waitingMetricTile({
-    required String label,
-    required String value,
-    required Color accentColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: NDT.brMd,
-        border: Border.all(color: NDT.neutral200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: NDT.caption.copyWith(color: NDT.neutral500)),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: NDT.h3.copyWith(color: accentColor),
-          ),
         ],
       ),
     );

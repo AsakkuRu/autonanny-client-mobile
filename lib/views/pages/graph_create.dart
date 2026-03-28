@@ -311,13 +311,6 @@ class _GraphCreateState extends State<GraphCreate> {
   @override
   Widget build(BuildContext context) {
     return AutonannyAppScaffold(
-      appBar: AutonannyAppBar(
-        title: _isEditMode ? 'Редактирование контракта' : 'Новый контракт',
-        leading: AutonannyIconButton(
-          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-      ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
@@ -394,12 +387,12 @@ class _GraphCreateState extends State<GraphCreate> {
                 120,
               ),
               children: [
-                _GraphCreateHero(isEditMode: _isEditMode),
-                const SizedBox(height: AutonannySpacing.xl),
-                _CreateFlowHeader(
+                _ContractStepHeader(
                   currentStepIndex: _currentStepIndex,
                   titles: _stepTitles,
                   descriptions: _stepDescriptions,
+                  isEditMode: _isEditMode,
+                  onBackPressed: () => Navigator.of(context).maybePop(),
                 ),
                 if (stepIssues.isNotEmpty && !_isLastStep) ...[
                   const SizedBox(height: AutonannySpacing.lg),
@@ -470,7 +463,7 @@ class _DayRoutesPanel extends StatelessWidget {
               ),
               const SizedBox(width: AutonannySpacing.md),
               AutonannyButton(
-                label: 'Маршрут',
+                label: 'Добавить маршрут',
                 size: AutonannyButtonSize.medium,
                 variant: AutonannyButtonVariant.secondary,
                 expand: false,
@@ -511,10 +504,20 @@ class _DayRoutesPanel extends StatelessWidget {
   }
 }
 
-class _GraphCreateHero extends StatelessWidget {
-  const _GraphCreateHero({required this.isEditMode});
+class _ContractStepHeader extends StatelessWidget {
+  const _ContractStepHeader({
+    required this.currentStepIndex,
+    required this.titles,
+    required this.descriptions,
+    required this.isEditMode,
+    required this.onBackPressed,
+  });
 
+  final int currentStepIndex;
+  final List<String> titles;
+  final List<String> descriptions;
   final bool isEditMode;
+  final VoidCallback onBackPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -522,122 +525,116 @@ class _GraphCreateHero extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(AutonannySpacing.xl),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: AutonannyGradients.hero,
         borderRadius: AutonannyRadii.brLg,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
+          Row(
+            children: [
+              AutonannyIconButton(
+                icon: const AutonannyIcon(
+                  AutonannyIcons.arrowLeft,
+                  color: Colors.white,
+                ),
+                onPressed: onBackPressed,
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titles[currentStepIndex],
+                      style: AutonannyTypography.h2(
+                        color: colors.textInverse,
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      isEditMode
+                          ? 'Редактирование контракта'
+                          : 'Новый контракт',
+                      style: AutonannyTypography.caption(
+                        color: colors.textInverse.withValues(alpha: 0.72),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AutonannySpacing.md,
+                  vertical: AutonannySpacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: colors.textInverse.withValues(alpha: 0.14),
+                  borderRadius: AutonannyRadii.brFull,
+                  border: Border.all(
+                    color: colors.textInverse.withValues(alpha: 0.18),
+                  ),
+                ),
+                child: Text(
+                  '${currentStepIndex + 1}/${titles.length}',
+                  style: AutonannyTypography.labelM(
+                    color: colors.textInverse,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          Row(
+            children: List.generate(titles.length, (index) {
+              final isActive = index == currentStepIndex;
+              final isCompleted = index < currentStepIndex;
+
+              return Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(
+                    right: index == titles.length - 1 ? 0 : AutonannySpacing.xs,
+                  ),
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: isActive || isCompleted
+                        ? colors.textInverse
+                        : colors.textInverse.withValues(alpha: 0.22),
+                    borderRadius: AutonannyRadii.brFull,
+                  ),
+                ),
+              );
+            }),
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AutonannySpacing.lg),
+            decoration: BoxDecoration(
+              color: colors.textInverse.withValues(alpha: 0.12),
+              borderRadius: AutonannyRadii.brLg,
+              border: Border.all(
+                color: colors.textInverse.withValues(alpha: 0.16),
+              ),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isEditMode ? 'Обновление контракта' : 'Создание контракта',
-                  style: AutonannyTypography.h2(color: colors.textInverse),
+                  'Шаг ${currentStepIndex + 1}',
+                  style: AutonannyTypography.caption(
+                    color: colors.textInverse.withValues(alpha: 0.72),
+                  ),
                 ),
                 const SizedBox(height: AutonannySpacing.xs),
                 Text(
-                  isEditMode
-                      ? 'Настройте расписание и параметры регулярных поездок по контракту.'
-                      : 'Соберите недельный или долгосрочный контракт с регулярными поездками для ребёнка.',
+                  descriptions[currentStepIndex],
                   style: AutonannyTypography.bodyS(
-                    color: colors.textInverse.withValues(alpha: 0.84),
+                    color: colors.textInverse.withValues(alpha: 0.88),
                   ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: AutonannySpacing.lg),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: colors.textInverse.withValues(alpha: 0.16),
-              borderRadius: AutonannyRadii.brLg,
-            ),
-            alignment: Alignment.center,
-            child: const AutonannyIcon(
-              AutonannyIcons.calendar,
-              color: Colors.white,
-              size: 28,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CreateFlowHeader extends StatelessWidget {
-  const _CreateFlowHeader({
-    required this.currentStepIndex,
-    required this.titles,
-    required this.descriptions,
-  });
-
-  final int currentStepIndex;
-  final List<String> titles;
-  final List<String> descriptions;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.autonannyColors;
-
-    return AutonannySectionContainer(
-      title: 'Шаг ${currentStepIndex + 1} из ${titles.length}',
-      subtitle: descriptions[currentStepIndex],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: AutonannySpacing.sm,
-            runSpacing: AutonannySpacing.sm,
-            children: List.generate(
-              titles.length,
-              (index) {
-                final isActive = index == currentStepIndex;
-                final isCompleted = index < currentStepIndex;
-                final backgroundColor = isActive
-                    ? colors.actionPrimary
-                    : isCompleted
-                        ? colors.statusSuccessSurface
-                        : colors.surfaceSecondary;
-                final textColor = isActive
-                    ? colors.textInverse
-                    : isCompleted
-                        ? colors.statusSuccess
-                        : colors.textSecondary;
-                final label = '${index + 1}. ${titles[index]}';
-
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AutonannySpacing.md,
-                    vertical: AutonannySpacing.sm,
-                  ),
-                  decoration: BoxDecoration(
-                    color: backgroundColor,
-                    borderRadius: AutonannyRadii.brLg,
-                    border: Border.all(
-                      color:
-                          isActive ? colors.actionPrimary : colors.borderSubtle,
-                    ),
-                  ),
-                  child: Text(
-                    label,
-                    style: AutonannyTypography.labelM(
-                      color: textColor,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: AutonannySpacing.md),
-          Text(
-            titles[currentStepIndex],
-            style: AutonannyTypography.h3(
-              color: colors.textPrimary,
             ),
           ),
         ],
@@ -848,14 +845,16 @@ class _RouteDraftCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AutonannySpacing.md),
-          Text(
-            fromAddress,
-            style: AutonannyTypography.bodyM(color: colors.textPrimary),
+          _RouteAddressLine(
+            label: 'Откуда',
+            value: fromAddress,
+            color: colors.actionPrimary,
+            showConnector: true,
           ),
-          const SizedBox(height: AutonannySpacing.xs),
-          Text(
-            toAddress,
-            style: AutonannyTypography.bodyS(color: colors.textSecondary),
+          _RouteAddressLine(
+            label: 'Куда',
+            value: toAddress,
+            color: colors.statusDanger,
           ),
           const SizedBox(height: AutonannySpacing.md),
           Text(
@@ -913,6 +912,78 @@ class _RouteDraftCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RouteAddressLine extends StatelessWidget {
+  const _RouteAddressLine({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.showConnector = false,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+  final bool showConnector;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 18,
+          child: Column(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              if (showConnector)
+                Container(
+                  width: 2,
+                  height: 22,
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    color: context.autonannyColors.borderSubtle,
+                    borderRadius: AutonannyRadii.brFull,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: AutonannySpacing.md),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AutonannySpacing.sm),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AutonannyTypography.caption(
+                    color: context.autonannyColors.textTertiary,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.xxs),
+                Text(
+                  value,
+                  style: AutonannyTypography.bodyM(
+                    color: context.autonannyColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

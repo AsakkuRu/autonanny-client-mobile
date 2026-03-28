@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/child_edit_vm.dart';
-import 'package:nanny_components/styles/nanny_theme.dart';
-import 'package:nanny_components/widgets/nanny_text_forms.dart';
 import 'package:nanny_core/models/from_api/child.dart';
+import 'package:nanny_core/models/from_api/emergency_contact.dart';
 
 class ChildEditView extends StatefulWidget {
   final Child? child;
@@ -29,416 +28,216 @@ class _ChildEditViewState extends State<ChildEditView> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.autonannyColors;
+    final isEdit = widget.child != null;
 
-    return AutonannyAppScaffold(
+    return AutonannyListScreenShell(
       appBar: AutonannyAppBar(
-        title: widget.child == null ? "Добавить ребенка" : "Редактировать",
+        title: isEdit ? 'Профиль ребёнка' : 'Добавить ребёнка',
         leading: AutonannyIconButton(
           icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Фото ребенка
-            Center(
-              child: GestureDetector(
-                onTap: vm.pickPhoto,
-                child: Stack(
-                  children: [
-                    AutonannyAvatar(
-                      imageUrl: vm.photoPath,
-                      initials: _childInitials(),
-                      size: 100,
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: colors.actionPrimary,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: NannyTheme.shadow.withValues(alpha: 0.25),
-                              blurRadius: 6,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const AutonannyIcon(
-                          AutonannyIcons.edit,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+      header: _ChildEditHeader(isEdit: isEdit),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AutonannySpacing.xl,
+            0,
+            AutonannySpacing.xl,
+            AutonannySpacing.lg,
+          ),
+          child: AutonannyButton(
+            onPressed: vm.emergencyContacts.isEmpty ? null : vm.save,
+            label: isEdit ? 'Сохранить изменения' : 'Добавить ребёнка',
+            leading: const AutonannyIcon(
+              AutonannyIcons.checkCircle,
+              color: Colors.white,
             ),
-            const SizedBox(height: 24),
-
-            // Фамилия
-            NannyTextForm(
-              controller: vm.surnameController,
-              hintText: "Фамилия",
-              validator: (text) {
-                if (text == null || text.trim().isEmpty) {
-                  return "Введите фамилию";
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-
-            // Имя
-            NannyTextForm(
-              controller: vm.nameController,
-              hintText: "Имя",
-              validator: (text) {
-                if (text == null || text.trim().isEmpty) {
-                  return "Введите имя";
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 12),
-
-            // Отчество
-            NannyTextForm(
-              controller: vm.patronymicController,
-              hintText: "Отчество (необязательно)",
-            ),
-            const SizedBox(height: 12),
-
-            // Дата рождения
-            GestureDetector(
-              onTap: vm.pickBirthday,
-              child: AbsorbPointer(
-                child: NannyTextForm(
-                  controller: vm.birthdayController,
-                  hintText: "Дата рождения",
-                  validator: (text) {
-                    if (text == null || text.trim().isEmpty) {
-                      return "Выберите дату рождения";
-                    }
-                    return null;
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Пол
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: NannyTheme.shadow.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.wc, color: NannyTheme.neutral500),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Пол',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: NannyTheme.neutral700,
-                        ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: RadioListTile<String>(
-                            title: const Text('Мальчик'),
-                            value: 'M',
-                            groupValue: vm.gender,
-                            onChanged: (value) => vm.setGender(value),
-                            activeColor: NannyTheme.primary,
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                          ),
-                        ),
-                        Expanded(
-                          child: RadioListTile<String>(
-                            title: const Text('Девочка'),
-                            value: 'F',
-                            groupValue: vm.gender,
-                            onChanged: (value) => vm.setGender(value),
-                            activeColor: NannyTheme.primary,
-                            contentPadding: EdgeInsets.zero,
-                            dense: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Класс/Школа
-            NannyTextForm(
-              controller: vm.schoolClassController,
-              hintText: "Класс/Школа (например: 3 класс, школа №5)",
-            ),
-            const SizedBox(height: 12),
-
-            // Особенности характера
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: NannyTheme.shadow.withValues(alpha: 0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: TextField(
-                controller: vm.characterNotesController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText:
-                      "Особенности характера, интересы, важная информация...",
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(
-                    color: Color(0xFFBDBDBD),
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // FE-MVP-013: Медицинская информация
-            Text(
-              'Медицинская информация',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 16),
-
-            // Аллергии
-            NannyTextForm(
-              controller: vm.allergiesController,
-              hintText: "Аллергии (если есть)",
-              maxLines: 2,
-            ),
-            const SizedBox(height: 12),
-
-            // Хронические заболевания
-            NannyTextForm(
-              controller: vm.chronicDiseasesController,
-              hintText: "Хронические заболевания (если есть)",
-              maxLines: 2,
-            ),
-            const SizedBox(height: 12),
-
-            // Медикаменты
-            NannyTextForm(
-              controller: vm.medicationsController,
-              hintText: "Постоянные медикаменты (если есть)",
-              maxLines: 2,
-            ),
-            const SizedBox(height: 12),
-
-            // Группа крови и полис ОМС
-            Row(
+          ),
+        ),
+      ),
+      body: ListView(
+        children: [
+          _ChildPhotoSection(
+            imageUrl: vm.photoPath,
+            initials: _childInitials(),
+            onTap: vm.pickPhoto,
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          const AutonannyInlineBanner(
+            title: 'Экстренный контакт обязателен',
+            message:
+                'Перед сохранением добавьте минимум один контакт близкого взрослого на случай экстренной ситуации.',
+            tone: AutonannyBannerTone.info,
+            leading: AutonannyIcon(AutonannyIcons.info),
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          AutonannySectionContainer(
+            title: 'Основные данные',
+            subtitle: 'Имя, дата рождения и школьная информация ребёнка.',
+            child: Column(
               children: [
-                Expanded(
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+                AutonannyTextField(
+                  controller: vm.surnameController,
+                  labelText: 'Фамилия*',
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyTextField(
+                  controller: vm.nameController,
+                  labelText: 'Имя*',
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyTextField(
+                  controller: vm.patronymicController,
+                  labelText: 'Отчество',
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyTextField(
+                  controller: vm.birthdayController,
+                  labelText: 'Дата рождения*',
+                  readOnly: true,
+                  onTap: vm.pickBirthday,
+                  suffix: Padding(
+                    padding: const EdgeInsets.only(
+                      right: AutonannySpacing.md,
                     ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: vm.bloodType,
-                        hint: const Text('Группа крови'),
-                        isExpanded: true,
-                        items: const [
-                          DropdownMenuItem(value: 'O+', child: Text('I (O+)')),
-                          DropdownMenuItem(value: 'O-', child: Text('I (O-)')),
-                          DropdownMenuItem(value: 'A+', child: Text('II (A+)')),
-                          DropdownMenuItem(value: 'A-', child: Text('II (A-)')),
-                          DropdownMenuItem(
-                              value: 'B+', child: Text('III (B+)')),
-                          DropdownMenuItem(
-                              value: 'B-', child: Text('III (B-)')),
-                          DropdownMenuItem(
-                              value: 'AB+', child: Text('IV (AB+)')),
-                          DropdownMenuItem(
-                              value: 'AB-', child: Text('IV (AB-)')),
-                        ],
-                        onChanged: (value) {
-                          vm.bloodType = value;
-                          vm.update(() {});
-                        },
-                      ),
+                    child: AutonannyIcon(
+                      AutonannyIcons.calendar,
+                      color: context.autonannyColors.textTertiary,
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: NannyTextForm(
-                    controller: vm.policyNumberController,
-                    hintText: "Полис ОМС",
-                  ),
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyTextField(
+                  controller: vm.schoolClassController,
+                  labelText: 'Класс / школа',
+                  hintText: 'Например: 3 класс, школа №5',
                 ),
               ],
             ),
-            const SizedBox(height: 32),
-
-            // FE-MVP-014: Экстренные контакты
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          AutonannySectionContainer(
+            title: 'О ребёнке',
+            subtitle: 'Пол, характер и важные особенности для водителя.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Экстренные контакты',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  'Пол',
+                  style: AutonannyTypography.caption(
+                    color: context.autonannyColors.textTertiary,
+                  ),
                 ),
-                IconButton(
-                  onPressed: vm.addEmergencyContact,
-                  icon: const Icon(Icons.add_circle, color: NannyTheme.primary),
-                  tooltip: 'Добавить контакт',
+                const SizedBox(height: AutonannySpacing.sm),
+                AutonannySegmentedControl<String>(
+                  value: vm.gender ?? '',
+                  onChanged: vm.setGender,
+                  options: const [
+                    AutonannySegmentedOption(value: 'M', label: 'Мальчик'),
+                    AutonannySegmentedOption(value: 'F', label: 'Девочка'),
+                  ],
+                ),
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyTextField(
+                  controller: vm.characterNotesController,
+                  labelText: 'Особенности характера',
+                  hintText:
+                      'Интересы, привычки, важная информация для сопровождения...',
+                  maxLines: 4,
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // Список экстренных контактов
-            if (vm.emergencyContacts.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: NannyTheme.neutral50,
-                  borderRadius: BorderRadius.circular(16),
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          AutonannySectionContainer(
+            title: 'Медицинская информация',
+            subtitle:
+                'Заполните данные, которые важны в дороге и при сопровождении.',
+            child: Column(
+              children: [
+                AutonannyTextField(
+                  controller: vm.allergiesController,
+                  labelText: 'Аллергии',
+                  maxLines: 2,
                 ),
-                child: Row(
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyTextField(
+                  controller: vm.chronicDiseasesController,
+                  labelText: 'Хронические заболевания',
+                  maxLines: 2,
+                ),
+                const SizedBox(height: AutonannySpacing.md),
+                AutonannyTextField(
+                  controller: vm.medicationsController,
+                  labelText: 'Постоянные медикаменты',
+                  maxLines: 2,
+                ),
+                const SizedBox(height: AutonannySpacing.md),
+                Row(
                   children: [
-                    const Icon(Icons.info_outline,
-                        color: NannyTheme.neutral500, size: 20),
-                    const SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        'Добавьте контакты близких на случай экстренной ситуации',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: NannyTheme.neutral600),
+                      child: _BloodTypeField(
+                        value: vm.bloodType,
+                        onChanged: (value) =>
+                            setState(() => vm.bloodType = value),
+                      ),
+                    ),
+                    const SizedBox(width: AutonannySpacing.md),
+                    Expanded(
+                      child: AutonannyTextField(
+                        controller: vm.policyNumberController,
+                        labelText: 'Полис ОМС',
                       ),
                     ),
                   ],
                 ),
-              )
-            else
-              ...vm.emergencyContacts.map(
-                (contact) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: NannyTheme.shadow.withValues(alpha: 0.08),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.contact_emergency,
-                            color: NannyTheme.neutral500),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                contact.name,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${contact.relationship} • ${contact.phone}',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
-                                    ?.copyWith(
-                                      color: NannyTheme.neutral600,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => vm.editEmergencyContact(contact),
-                          icon: const Icon(Icons.edit, size: 20),
-                          color: NannyTheme.neutral500,
-                        ),
-                        if (vm.emergencyContacts.length > 1)
-                          IconButton(
-                            onPressed: () => vm.deleteEmergencyContact(contact),
-                            icon: const Icon(Icons.delete, size: 20),
-                            color: NannyTheme.danger,
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 24),
-
-            // Кнопка сохранения. NEW-008 / ТЗ: недоступна без минимум одного экстренного контакта (создание и редактирование)
-            SizedBox(
-              width: double.infinity,
-              child: AutonannyButton(
-                onPressed: vm.emergencyContacts.isEmpty ? null : vm.save,
-                label: widget.child == null ? 'Добавить' : 'Сохранить',
-                leading: const AutonannyIcon(
-                  AutonannyIcons.checkCircle,
-                  color: Colors.white,
-                ),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          AutonannySectionContainer(
+            title: 'Экстренные контакты',
+            subtitle:
+                'Их увидит водитель во время поездки, если понадобится срочная связь.',
+            trailing: AutonannyButton(
+              label: 'Добавить',
+              variant: AutonannyButtonVariant.secondary,
+              leading: const AutonannyIcon(AutonannyIcons.add),
+              onPressed: vm.addEmergencyContact,
+            ),
+            child: vm.emergencyContacts.isEmpty
+                ? const AutonannyEmptyState(
+                    title: 'Контакты пока не добавлены',
+                    description:
+                        'Добавьте хотя бы один контакт родственника или доверенного взрослого.',
+                    icon: AutonannyIcon(AutonannyIcons.phone, size: 36),
+                  )
+                : Column(
+                    children: vm.emergencyContacts
+                        .map(
+                          (contact) => Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AutonannySpacing.md,
+                            ),
+                            child: _EmergencyContactCard(
+                              contact: contact,
+                              canDelete: vm.emergencyContacts.length > 1,
+                              onEdit: () => vm.editEmergencyContact(contact),
+                              onDelete: () =>
+                                  vm.deleteEmergencyContact(contact),
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -459,5 +258,264 @@ class _ChildEditViewState extends State<ChildEditView> {
         : firstChar(widget.child?.surname);
     final initials = '$first$second'.trim().toUpperCase();
     return initials.isEmpty ? 'A' : initials;
+  }
+}
+
+class _ChildEditHeader extends StatelessWidget {
+  const _ChildEditHeader({required this.isEdit});
+
+  final bool isEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Container(
+      padding: const EdgeInsets.all(AutonannySpacing.xl),
+      decoration: const BoxDecoration(
+        gradient: AutonannyGradients.hero,
+        borderRadius: AutonannyRadii.brLg,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isEdit ? 'Профиль ребёнка' : 'Новый профиль ребёнка',
+                  style: AutonannyTypography.h2(color: colors.textInverse),
+                ),
+                const SizedBox(height: AutonannySpacing.xs),
+                Text(
+                  'Соберите данные для безопасных поездок: контакты, особенности и медицинскую информацию.',
+                  style: AutonannyTypography.bodyS(
+                    color: colors.textInverse.withValues(alpha: 0.82),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.lg),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: colors.textInverse.withValues(alpha: 0.16),
+              borderRadius: AutonannyRadii.brMd,
+            ),
+            alignment: Alignment.center,
+            child: const AutonannyIcon(
+              AutonannyIcons.child,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChildPhotoSection extends StatelessWidget {
+  const _ChildPhotoSection({
+    required this.imageUrl,
+    required this.initials,
+    required this.onTap,
+  });
+
+  final String? imageUrl;
+  final String initials;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Center(
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: onTap,
+            child: Stack(
+              children: [
+                AutonannyAvatar(
+                  imageUrl: imageUrl,
+                  initials: initials,
+                  size: 104,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(
+                      gradient: AutonannyGradients.primaryAction,
+                      shape: BoxShape.circle,
+                      boxShadow: AutonannyShadows.cta,
+                    ),
+                    child: const Center(
+                      child: AutonannyIcon(
+                        AutonannyIcons.edit,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          Text(
+            'Фото профиля',
+            style: AutonannyTypography.labelL(color: colors.textPrimary),
+          ),
+          const SizedBox(height: AutonannySpacing.xs),
+          Text(
+            'Помогает водителю быстрее узнать ребёнка при встрече.',
+            textAlign: TextAlign.center,
+            style: AutonannyTypography.bodyS(color: colors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BloodTypeField extends StatelessWidget {
+  const _BloodTypeField({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AutonannySpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: AutonannyRadii.brLg,
+        border: Border.all(color: colors.borderSubtle),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          hint: Text(
+            'Группа крови',
+            style: AutonannyTypography.bodyM(color: colors.textTertiary),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'O+', child: Text('I (O+)')),
+            DropdownMenuItem(value: 'O-', child: Text('I (O-)')),
+            DropdownMenuItem(value: 'A+', child: Text('II (A+)')),
+            DropdownMenuItem(value: 'A-', child: Text('II (A-)')),
+            DropdownMenuItem(value: 'B+', child: Text('III (B+)')),
+            DropdownMenuItem(value: 'B-', child: Text('III (B-)')),
+            DropdownMenuItem(value: 'AB+', child: Text('IV (AB+)')),
+            DropdownMenuItem(value: 'AB-', child: Text('IV (AB-)')),
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmergencyContactCard extends StatelessWidget {
+  const _EmergencyContactCard({
+    required this.contact,
+    required this.canDelete,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final EmergencyContact contact;
+  final bool canDelete;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return AutonannyCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: colors.statusInfoSurface,
+              borderRadius: AutonannyRadii.brMd,
+            ),
+            child: Center(
+              child: AutonannyIcon(
+                AutonannyIcons.phone,
+                color: colors.actionPrimary,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  contact.name,
+                  style: AutonannyTypography.labelL(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.xxs),
+                Text(
+                  contact.relationship,
+                  style: AutonannyTypography.bodyS(
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.xxs),
+                Text(
+                  contact.phone,
+                  style: AutonannyTypography.bodyM(
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.sm),
+          Column(
+            children: [
+              AutonannyIconButton(
+                icon: const AutonannyIcon(AutonannyIcons.edit),
+                tooltip: 'Редактировать контакт',
+                size: 40,
+                onPressed: onEdit,
+              ),
+              if (canDelete) ...[
+                const SizedBox(height: AutonannySpacing.sm),
+                AutonannyIconButton(
+                  icon: const AutonannyIcon(AutonannyIcons.close),
+                  tooltip: 'Удалить контакт',
+                  size: 40,
+                  variant: AutonannyIconButtonVariant.ghost,
+                  onPressed: onDelete,
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

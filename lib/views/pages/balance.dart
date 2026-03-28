@@ -128,9 +128,8 @@ class _BalanceViewState extends State<BalanceView>
   Widget _buildStatsRow(BuildContext context, BalanceStats stats) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: NDT.sp16),
-      child: Container(
+      child: AutonannyCard(
         padding: const EdgeInsets.symmetric(vertical: NDT.sp16),
-        decoration: NDT.cardDecoration,
         child: Row(
           children: [
             _statItem(
@@ -271,8 +270,8 @@ class _BalanceViewState extends State<BalanceView>
             onAction: vm.navigateToHistory,
           ),
           const SizedBox(height: NDT.sp8),
-          Container(
-            decoration: NDT.cardDecoration,
+          AutonannyCard(
+            padding: EdgeInsets.zero,
             child: ListView.separated(
               physics: const NeverScrollableScrollPhysics(),
               shrinkWrap: true,
@@ -445,26 +444,40 @@ class _BalanceViewState extends State<BalanceView>
     IconData? actionIcon,
     required VoidCallback onAction,
   }) {
+    final colors = context.autonannyColors;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: NDT.sectionCaption),
-        GestureDetector(
-          onTap: onAction,
-          child: Row(
-            children: [
-              if (actionIcon != null) ...[
-                Icon(actionIcon, size: 14, color: NDT.primary),
-                const SizedBox(width: 2),
-              ],
-              Text(
-                action,
-                style: NDT.bodyS.copyWith(
-                  color: NDT.primary,
-                  fontWeight: FontWeight.w700,
-                ),
+        Text(
+          title,
+          style: AutonannyTypography.caption(color: colors.textTertiary),
+        ),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: AutonannyRadii.brFull,
+            onTap: onAction,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AutonannySpacing.sm,
+                vertical: AutonannySpacing.xs,
               ),
-            ],
+              child: Row(
+                children: [
+                  if (actionIcon != null) ...[
+                    Icon(actionIcon, size: 14, color: colors.actionPrimary),
+                    const SizedBox(width: 2),
+                  ],
+                  Text(
+                    action,
+                    style: AutonannyTypography.labelM(
+                      color: colors.actionPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
