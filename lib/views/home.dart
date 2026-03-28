@@ -4,6 +4,14 @@ import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nanny_client/view_models/home_vm.dart';
+import 'package:nanny_components/styles/nanny_theme.dart';
+import 'package:nanny_components/text_masks.dart';
+import 'package:nanny_components/base_views/views/pages/chats.dart';
+import 'package:nanny_components/base_views/views/welcome.dart';
+import 'package:nanny_components/widgets/adapt_builder.dart';
+import 'package:nanny_components/widgets/nanny_app_bar.dart';
+import 'package:nanny_components/widgets/nanny_bottom_sheet.dart';
+import 'package:nanny_components/widgets/nanny_text_forms.dart';
 import 'package:nanny_client/views/pages/map.dart';
 import 'package:nanny_client/views/pages/balance.dart';
 import 'package:nanny_client/views/pages/contracts_view.dart';
@@ -19,7 +27,6 @@ import 'package:nanny_client/views/referral/referral_view.dart';
 import 'package:nanny_client/views/map/shared_ride_view.dart';
 import 'package:nanny_client/views/reg.dart';
 import 'package:nanny_client/main.dart' show themeNotifier, localeNotifier;
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_components/base_views/view_models/pages/profile_vm.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -215,7 +222,9 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    final color = isActive ? NannyTheme.primary : onSurface.withOpacity(0.6);
+    final color = isActive
+        ? context.autonannyColors.actionPrimary
+        : onSurface.withOpacity(0.6);
 
     Widget iconWidget = Icon(icon, size: 24, color: color);
     if (badgeText != null) {

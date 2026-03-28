@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:nanny_client/view_models/safety/route_deviations_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:intl/intl.dart';
 
 class RouteDeviationsView extends StatefulWidget {
@@ -42,25 +42,35 @@ class _RouteDeviationsViewState extends State<RouteDeviationsView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        title: const Text(
-          'История отклонений',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+    return AutonannyListScreenShell(
+      appBar: AutonannyAppBar(
+        title: 'История отклонений',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(
+            AutonannyIcons.arrowLeft,
+            size: 18,
+          ),
+          variant: AutonannyIconButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
-        iconTheme: const IconThemeData(color: Colors.black),
       ),
-      body: FutureLoader(
+      padding: const EdgeInsets.fromLTRB(
+        AutonannySpacing.lg,
+        0,
+        AutonannySpacing.lg,
+        AutonannySpacing.lg,
+      ),
+      body: FutureBuilder<bool>(
         future: vm.loadRequest,
-        completeView: (context, _) {
-          if (vm.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done &&
+              vm.deviations.isEmpty) {
+            return const AutonannyLoadingState(
+              label: 'Загружаем историю отклонений',
+            );
           }
 
-          if (vm.error != null) {
+          if (snapshot.hasError || vm.error != null) {
             return _buildErrorState();
           }
 
@@ -70,178 +80,180 @@ class _RouteDeviationsViewState extends State<RouteDeviationsView> {
 
           return RefreshIndicator(
             onRefresh: vm.refresh,
-            color: NannyTheme.primary,
+            color: context.autonannyColors.actionPrimary,
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(
+                top: AutonannySpacing.sm,
+                bottom: AutonannySpacing.xl,
+              ),
               itemCount: vm.deviations.length + (vm.hasMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == vm.deviations.length) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: CircularProgressIndicator(),
+                  return const Padding(
+                    padding: EdgeInsets.all(AutonannySpacing.lg),
+                    child: Center(
+                      child: AutonannyLoadingState(label: 'Загружаем ещё'),
                     ),
                   );
                 }
-                return _buildDeviationCard(vm.deviations[index]);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AutonannySpacing.md),
+                  child: _buildDeviationCard(vm.deviations[index]),
+                );
               },
             ),
           );
         },
-        errorView: (context, error) => ErrorView(errorText: error.toString()),
       ),
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.route, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            const Text(
-              'Отклонений не зафиксировано',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Все поездки прошли по запланированному маршруту',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-            ),
-          ],
-        ),
+    return const AutonannyEmptyState(
+      title: 'Отклонений не зафиксировано',
+      description: 'Все поездки прошли по запланированному маршруту.',
+      icon: AutonannyIcon(
+        AutonannyIcons.route,
+        size: 42,
       ),
     );
   }
 
   Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-            const SizedBox(height: 16),
-            const Text(
-              'Не удалось загрузить данные',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: vm.refresh,
-              icon: const Icon(Icons.refresh, color: Colors.white),
-              label: const Text('Повторить', style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: NannyTheme.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AutonannyErrorState(
+      title: 'Не удалось загрузить данные',
+      description: vm.error ?? 'Попробуйте повторить запрос ещё раз.',
+      actionLabel: 'Повторить',
+      onAction: vm.refresh,
     );
   }
 
   Widget _buildDeviationCard(RouteDeviation deviation) {
+    final colors = context.autonannyColors;
     final dateFmt = DateFormat('dd.MM.yyyy, HH:mm');
     final meters = deviation.deviationMeters.toStringAsFixed(0);
     final severity = _severity(deviation.deviationMeters);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: severity.color.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.warning_amber_rounded, color: severity.color, size: 20),
+    final accentColor = switch (severity.variant) {
+      AutonannyStatusVariant.success => colors.statusSuccess,
+      AutonannyStatusVariant.warning => colors.statusWarning,
+      AutonannyStatusVariant.danger => colors.statusDanger,
+      _ => colors.textSecondary,
+    };
+
+    final accentSurface = switch (severity.variant) {
+      AutonannyStatusVariant.success => colors.statusSuccessSurface,
+      AutonannyStatusVariant.warning => colors.statusWarningSurface,
+      AutonannyStatusVariant.danger => colors.statusDangerSurface,
+      _ => colors.surfaceSecondary,
+    };
+
+    return AutonannyCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: accentSurface,
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Отклонение на $meters м',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-                      ),
-                      Text(
-                        dateFmt.format(deviation.timestamp),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                    ],
+                child: Center(
+                  child: AutonannyIcon(
+                    AutonannyIcons.warning,
+                    size: 18,
+                    color: accentColor,
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: severity.color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    severity.label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: severity.color,
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Отклонение на $meters м',
+                      style: AutonannyTypography.labelL(
+                        color: colors.textPrimary,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      dateFmt.format(deviation.timestamp),
+                      style: AutonannyTypography.bodyS(
+                        color: colors.textTertiary,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            if (deviation.description != null) ...[
-              const SizedBox(height: 10),
-              Text(
-                deviation.description!,
-                style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+              ),
+              AutonannyStatusChip(
+                label: severity.label,
+                variant: severity.variant,
               ),
             ],
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Icon(Icons.receipt_long, size: 14, color: Colors.grey[500]),
-                const SizedBox(width: 4),
-                Text(
-                  'Заказ #${deviation.orderId}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ],
+          ),
+          if (deviation.description case final description?) ...[
+            const SizedBox(height: AutonannySpacing.md),
+            Text(
+              description,
+              style: AutonannyTypography.bodyM(
+                color: colors.textSecondary,
+              ),
             ),
           ],
-        ),
+          const SizedBox(height: AutonannySpacing.md),
+          Row(
+            children: [
+              AutonannyIcon(
+                AutonannyIcons.document,
+                size: 14,
+                color: colors.textTertiary,
+              ),
+              const SizedBox(width: AutonannySpacing.xs),
+              Text(
+                'Заказ #${deviation.orderId}',
+                style: AutonannyTypography.bodyS(
+                  color: colors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   _SeverityInfo _severity(double meters) {
     if (meters >= 1000) {
-      return _SeverityInfo(color: Colors.red, label: 'Критичное');
+      return const _SeverityInfo(
+        variant: AutonannyStatusVariant.danger,
+        label: 'Критичное',
+      );
     } else if (meters >= 500) {
-      return _SeverityInfo(color: Colors.orange, label: 'Значительное');
+      return const _SeverityInfo(
+        variant: AutonannyStatusVariant.warning,
+        label: 'Значительное',
+      );
     } else {
-      return _SeverityInfo(color: Colors.amber[700]!, label: 'Незначительное');
+      return const _SeverityInfo(
+        variant: AutonannyStatusVariant.success,
+        label: 'Незначительное',
+      );
     }
   }
 }
 
 class _SeverityInfo {
-  final Color color;
+  final AutonannyStatusVariant variant;
   final String label;
-  _SeverityInfo({required this.color, required this.label});
+  const _SeverityInfo({
+    required this.variant,
+    required this.label,
+  });
 }

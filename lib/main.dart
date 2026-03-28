@@ -11,7 +11,8 @@ import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/views/home.dart';
 import 'package:nanny_client/views/new_main/new_home_view.dart';
 import 'package:nanny_client/views/reg.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/base_views/admin_part/views/home.dart';
+import 'package:nanny_components/base_views/views/welcome.dart';
 import 'package:nanny_core/app_link_handler.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/nanny_local_auth.dart';
@@ -117,7 +118,10 @@ Future<void> _bootstrapApp() async {
   ]);
   await NannyConsts.initMarkerIcons();
   SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(statusBarColor: NannyTheme.background));
+    SystemUiOverlayStyle(
+      statusBarColor: ClientUiSdkTheme.lightTheme.scaffoldBackgroundColor,
+    ),
+  );
   NannyLocalAuth.init();
 
   await NannyStorage.init(isClient: true);

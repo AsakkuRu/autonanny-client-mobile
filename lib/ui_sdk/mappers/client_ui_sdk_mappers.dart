@@ -61,6 +61,42 @@ extension NewClientMainVmUiSdkMapper on NewClientMainVM {
 }
 
 extension DriveOrderVmUiSdkMapper on DriveOrderVM {
+  List<AddressEditorItemData> get addressEditorItems {
+    return List.generate(addresses.length, (index) {
+      final address = addresses[index];
+      final isFirst = index == 0;
+      final isLast = index == addresses.length - 1;
+
+      return AddressEditorItemData(
+        id: '$index',
+        title: address.address.trim().isEmpty
+            ? 'Адрес не указан'
+            : address.address.trim(),
+        subtitle: selectedAddressIndex == index
+            ? 'Нажмите на карту для уточнения'
+            : switch ((isFirst, isLast)) {
+                (true, _) => 'Точка отправления',
+                (_, true) => 'Точка прибытия',
+                _ => 'Промежуточная точка',
+              },
+        kind: switch ((isFirst, isLast)) {
+          (true, _) => AddressEditorItemKind.origin,
+          (_, true) => AddressEditorItemKind.destination,
+          _ => AddressEditorItemKind.waypoint,
+        },
+        isSelected: selectedAddressIndex == index,
+        canDelete: index > 1,
+      );
+    });
+  }
+
+  List<TariffOptionData> get tariffOptions => tariffs.map((tariff) {
+        return tariff.toUiSdkTariffOption(
+          isSelected: selectedTariff?.id == tariff.id,
+          routeCalculated: distance > 0 && duration > 0,
+        );
+      }).toList(growable: false);
+
   ChildSelectorData get childSelectorData => ChildSelectorData(
         children: children
             .map(

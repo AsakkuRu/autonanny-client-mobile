@@ -3,12 +3,15 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_resolver.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart';
-import 'package:nanny_components/dialogs/loading.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/onetime_drive_request.dart';
 import 'package:nanny_core/api/google_map_api.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
@@ -73,7 +76,7 @@ class DriveOrderVM extends ViewModelBase {
         Marker(
           markerId: MarkerId(address.address),
           icon: BitmapDescriptor.defaultMarkerWithHue(
-            HSLColor.fromColor(NannyTheme.primary).hue,
+            HSLColor.fromColor(context.autonannyColors.actionPrimary).hue,
           ),
           position: address.location,
         ),
@@ -463,9 +466,7 @@ class DriveOrderVM extends ViewModelBase {
 
   double get selectedAdditionalServicesTotal {
     final childCount = _selectedChildIds.isEmpty ? 1 : _selectedChildIds.length;
-    return additionalParams
-        .where(isAdditionalParamSelected)
-        .fold<double>(
+    return additionalParams.where(isAdditionalParamSelected).fold<double>(
           0,
           (sum, param) => sum + ((param.amount ?? 0) * childCount),
         );
@@ -485,6 +486,7 @@ class DriveOrderVM extends ViewModelBase {
   String _additionalParamKey(OtherParametr param) =>
       '${param.id ?? param.title}';
 
+  @override
   void dispose() {
     _mapTapSub?.cancel();
     _priceDebounce?.cancel();

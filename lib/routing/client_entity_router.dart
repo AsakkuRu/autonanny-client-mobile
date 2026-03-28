@@ -313,15 +313,26 @@ class ClientEntityRouter {
       case 'weekly_payment_failed':
         return 'wallet_operation';
       case 'message':
+      case 'chat.message_created':
+      case 'new_chat':
         return 'chat';
       case 'order':
+      case 'trip_status':
+      case 'trip_status_update':
+      case 'active_trip':
+      case 'trip.assigned':
+      case 'trip.cancelled':
+      case 'order.expired':
+      case 'route.change_requested':
+      case 'route.change_result':
+      case 'route_deviation':
+        return 'trip';
       case 'contract_resumed':
       case 'contract_suspended':
         return 'contract';
       case 'rating_request':
         return 'rating_request';
       case 'trip':
-      case 'active_trip':
         return 'trip';
       default:
         return null;

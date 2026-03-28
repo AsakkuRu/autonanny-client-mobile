@@ -1,16 +1,18 @@
 import 'dart:async';
 
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/views/map/drive_order.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/google_map_api.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class MapVM extends ViewModelBase {
   MapVM({
-    required super.context, 
+    required super.context,
     required super.update,
-  }) {  
+  }) {
     initLoad = initialLoad();
 
     NannyMapGlobals.markers.addListener(() {
@@ -23,43 +25,45 @@ class MapVM extends ViewModelBase {
 
   late GoogleMapController mapController;
   late final Future<LatLng> initLoad;
-  ScrollController? scrollController; 
+  ScrollController? scrollController;
   late final StreamSubscription<Position> locChange;
 
-  Position? lastLoc; 
+  Position? lastLoc;
   late Marker curPos;
-  final ValueNotifier< Set<Marker> > mapMarkers = NannyMapGlobals.markers;
+  final ValueNotifier<Set<Marker>> mapMarkers = NannyMapGlobals.markers;
   String curLocName = "Не определено";
 
   late Widget _panel;
   Widget get panel => _panel;
 
   void setPanelView(Widget view) => update(() {
-    _panel = view;
-  });
+        _panel = view;
+      });
 
-  void onMapCreated(GoogleMapController controller) => mapController = controller;
+  void onMapCreated(GoogleMapController controller) =>
+      mapController = controller;
 
   Future<LatLng> initialLoad() async {
     const defaultLocation = LatLng(55.751244, 37.618423); // Москва
-    
+
     try {
       // Проверяем и запрашиваем разрешения
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      
+
       // Если разрешения не даны - используем дефолтную позицию
-      if (permission == LocationPermission.denied || 
+      if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         curLocName = 'Москва (разрешите доступ к геолокации)';
-        
-        _panel = const ErrorView(
-          errorText: 'Для использования карты необходимо\n'
-            'разрешить доступ к геолокации в настройках'
+
+        _panel = const AutonannyErrorState(
+          title: 'Нет доступа к геолокации',
+          description:
+              'Для использования карты необходимо разрешить доступ к геолокации в настройках.',
         );
-        
+
         return defaultLocation;
       }
 
@@ -67,9 +71,10 @@ class MapVM extends ViewModelBase {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         curLocName = 'Москва (включите геолокацию)';
-        _panel = const ErrorView(
-          errorText: 'Для использования карты необходимо\n'
-            'включить геолокацию в настройках устройства'
+        _panel = const AutonannyErrorState(
+          title: 'Геолокация отключена',
+          description:
+              'Для использования карты необходимо включить геолокацию в настройках устройства.',
         );
         return defaultLocation;
       }
@@ -91,15 +96,16 @@ class MapVM extends ViewModelBase {
             ).timeout(const Duration(seconds: 10));
           } catch (_) {
             curLocName = 'Москва (не удалось определить позицию)';
-            _panel = const ErrorView(
-              errorText: 'Не удалось определить ваше местоположение.\n'
-                'Проверьте настройки геолокации.'
+            _panel = const AutonannyErrorState(
+              title: 'Не удалось определить местоположение',
+              description:
+                  'Проверьте настройки геолокации и попробуйте ещё раз.',
             );
             return defaultLocation;
           }
         }
       }
-      
+
       curPos = Marker(
         markerId: NannyConsts.curPosId,
         icon: NannyConsts.curPosIcon,
@@ -112,36 +118,39 @@ class MapVM extends ViewModelBase {
         distanceFilter: 10,
       );
 
-      locChange = Geolocator.getPositionStream(locationSettings: locationSettings)
-          .listen((Position loc) {
+      locChange =
+          Geolocator.getPositionStream(locationSettings: locationSettings)
+              .listen((Position loc) {
         mapMarkers.value.remove(curPos);
 
         lastLoc ??= loc;
         var newLoc = NannyMapUtils.filterMovement(
-          NannyMapUtils.position2LatLng(loc), 
+          NannyMapUtils.position2LatLng(loc),
           NannyMapUtils.position2LatLng(lastLoc!),
         );
         curPos = curPos.copyWith(positionParam: newLoc);
         mapMarkers.value.add(curPos);
-        if(context.mounted) update(() {});
+        if (context.mounted) update(() {});
       });
 
-      var geocodeData = await GoogleMapApi.reverseGeocode(loc: NannyMapUtils.position2LatLng(loc));
+      var geocodeData = await GoogleMapApi.reverseGeocode(
+          loc: NannyMapUtils.position2LatLng(loc));
 
-      if(geocodeData.success) {
-        var formatedAddress = NannyMapUtils.filterGeocodeData(geocodeData.response!);
+      if (geocodeData.success) {
+        var formatedAddress =
+            NannyMapUtils.filterGeocodeData(geocodeData.response!);
         curLocName = formatedAddress.simplifiedAddress;
 
         _panel = DriveOrderView(
           controller: scrollController,
           initAddress: formatedAddress.address,
         );
-      }
-      else {
+      } else {
         curLocName = 'Адрес не определён';
-        _panel = const ErrorView(
-          errorText: 'Не удалось определить адрес.\n'
-            'Попробуйте перезапустить приложение.'
+        _panel = const AutonannyErrorState(
+          title: 'Адрес не определён',
+          description:
+              'Не удалось определить адрес. Попробуйте перезапустить приложение.',
         );
       }
 
@@ -149,9 +158,10 @@ class MapVM extends ViewModelBase {
     } catch (e) {
       Logger().e('Map initialLoad error: $e');
       curLocName = 'Москва';
-      _panel = const ErrorView(
-        errorText: 'Произошла ошибка при загрузке карты.\n'
-          'Попробуйте перезапустить приложение.'
+      _panel = const AutonannyErrorState(
+        title: 'Ошибка загрузки карты',
+        description:
+            'Произошла ошибка при загрузке карты. Попробуйте перезапустить приложение.',
       );
       return defaultLocation;
     }

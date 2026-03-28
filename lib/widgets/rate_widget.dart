@@ -1,6 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 
 class RateWidget extends StatelessWidget {
   final Function(int) tapCallback;
@@ -11,16 +10,21 @@ class RateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
     return Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: List.generate(
             5,
             (i) => CupertinoButton(
-                child: Icon(Icons.star,
-                    color: i <= selected
-                        ? NannyTheme.primary
-                        : NannyTheme.background,
-                    size: 40),
+                padding: EdgeInsets.zero,
+                child: AutonannyIcon(
+                  AutonannyIcons.star,
+                  size: 34,
+                  color: i <= selected
+                      ? colors.actionPrimary
+                      : colors.borderStrong,
+                ),
                 onPressed: () => tapCallback(i))));
   }
 }

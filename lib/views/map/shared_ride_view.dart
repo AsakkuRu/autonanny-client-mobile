@@ -1,7 +1,6 @@
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/view_models/map/shared_ride_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 
 class SharedRideView extends StatefulWidget {
   const SharedRideView({super.key});
@@ -21,280 +20,215 @@ class _SharedRideViewState extends State<SharedRideView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NannyTheme.background,
-      appBar: const NannyAppBar.light(
+    return AutonannyListScreenShell(
+      appBar: AutonannyAppBar(
         title: 'Совместные поездки',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(
+            AutonannyIcons.arrowLeft,
+            size: 18,
+          ),
+          variant: AutonannyIconButtonVariant.ghost,
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
       ),
-      body: FutureLoader(
+      header: const AutonannyInlineBanner(
+        title: 'Как это работает',
+        message:
+            'Совместная поездка позволяет разделить стоимость с другим родителем на похожем маршруте.',
+        tone: AutonannyBannerTone.info,
+        leading: AutonannyIcon(
+          AutonannyIcons.info,
+          size: 18,
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(
+        AutonannySpacing.lg,
+        0,
+        AutonannySpacing.lg,
+        AutonannySpacing.lg,
+      ),
+      body: FutureBuilder<bool>(
         future: vm.loadRequest,
-        completeView: (context, data) {
-          if (vm.isLoading) {
-            return const Center(child: CircularProgressIndicator());
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done &&
+              vm.options.isEmpty) {
+            return const AutonannyLoadingState(
+              label: 'Загружаем совместные поездки',
+            );
           }
 
-          if (vm.error != null) {
-            return _buildErrorState(vm.error!);
+          if (snapshot.hasError || vm.error != null) {
+            return _buildErrorState(vm.error ?? 'Не удалось загрузить поездки');
           }
 
           if (vm.isEmpty) {
-            return _buildEmptyState();
+            return const AutonannyEmptyState(
+              title: 'Нет подходящих совместных поездок',
+              description:
+                  'Мы автоматически найдём родителей с похожими маршрутами и предложим объединить поездки.',
+              icon: AutonannyIcon(
+                AutonannyIcons.group,
+                size: 40,
+              ),
+            );
           }
 
-          return Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                color: NannyTheme.primary.withValues(alpha: 0.04),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        color: NannyTheme.primary, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Совместная поездка позволяет разделить стоимость с другим родителем на похожем маршруте.',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: NannyTheme.neutral700),
-                      ),
-                    ),
-                  ],
-                ),
+          return RefreshIndicator(
+            onRefresh: vm.refresh,
+            color: context.autonannyColors.actionPrimary,
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: AutonannySpacing.xl),
+              itemCount: vm.options.length,
+              itemBuilder: (context, index) => Padding(
+                padding: const EdgeInsets.only(bottom: AutonannySpacing.md),
+                child: _buildOptionCard(vm.options[index]),
               ),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: vm.refresh,
-                  color: NannyTheme.primary,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: vm.options.length,
-                    itemBuilder: (context, index) =>
-                        _buildOptionCard(vm.options[index]),
-                  ),
-                ),
-              ),
-            ],
+            ),
           );
         },
-        errorView: (context, error) => ErrorView(errorText: error.toString()),
       ),
     );
   }
 
   Widget _buildErrorState(String error) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline,
-                size: 64, color: NannyTheme.danger),
-            const SizedBox(height: 16),
-            Text(
-              'Не удалось загрузить поездки',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error,
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: NannyTheme.neutral500),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: vm.refresh,
-              icon: const Icon(Icons.refresh, color: Colors.white),
-              label: const Text(
-                'Повторить',
-                style: TextStyle(color: Colors.white),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: NannyTheme.primary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.people_outline,
-                size: 64, color: NannyTheme.neutral300),
-            const SizedBox(height: 16),
-            Text(
-              'Нет подходящих совместных поездок',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Мы автоматически найдём родителей с похожими маршрутами и предложим объединить поездки.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: NannyTheme.neutral500),
-            ),
-          ],
-        ),
-      ),
+    return AutonannyErrorState(
+      title: 'Не удалось загрузить поездки',
+      description: error,
+      actionLabel: 'Повторить',
+      onAction: vm.refresh,
     );
   }
 
   Widget _buildOptionCard(SharedRideOption option) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: NannyTheme.shadow.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+    final colors = context.autonannyColors;
+    final match = _matchSeverity(option.matchPercent);
+
+    return AutonannyCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AutonannyAvatar(
+                initials:
+                    option.parentName.isNotEmpty ? option.parentName[0] : 'Р',
+                size: 40,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    AutonannyAvatar(
-                      initials: option.parentName.isNotEmpty
-                          ? option.parentName[0]
-                          : 'Р',
-                      size: 36,
-                      borderRadius: BorderRadius.circular(18),
+                    Text(
+                      option.parentName,
+                      style: AutonannyTypography.labelL(
+                        color: colors.textPrimary,
+                      ),
                     ),
-                    const SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          option.parentName,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        Text(
-                          '${option.childName}, ${option.childAge} лет',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(color: NannyTheme.neutral600),
-                        ),
-                      ],
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      '${option.childName}, ${option.childAge} лет',
+                      style: AutonannyTypography.bodyS(
+                        color: colors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _matchColor(option.matchPercent)
-                            .withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${option.matchPercent}% совпадение',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: _matchColor(option.matchPercent),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _routeRow(
-                Icons.circle, option.addressFrom, NannyTheme.primary, 10),
-            Container(
-              margin: const EdgeInsets.only(left: 4),
-              height: 16,
+              ),
+              AutonannyStatusChip(
+                label: '${option.matchPercent}% совпадение',
+                variant: match,
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          _routeRow(
+            icon: AutonannyIcons.myLocation,
+            text: option.addressFrom,
+            color: colors.actionPrimary,
+          ),
+          const SizedBox(height: AutonannySpacing.sm),
+          Padding(
+            padding: const EdgeInsets.only(left: 7),
+            child: Container(
               width: 2,
-              color: NannyTheme.neutral200,
+              height: 18,
+              color: colors.borderSubtle,
             ),
-            _routeRow(Icons.location_on, option.addressTo,
-                NannyTheme.danger, 16),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.schedule,
-                    size: 14, color: NannyTheme.neutral600),
-                const SizedBox(width: 4),
-                Text(
-                  'Отправление: ${option.time}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: NannyTheme.neutral600),
+          ),
+          const SizedBox(height: AutonannySpacing.sm),
+          _routeRow(
+            icon: AutonannyIcons.location,
+            text: option.addressTo,
+            color: colors.statusDanger,
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          Row(
+            children: [
+              AutonannyIcon(
+                AutonannyIcons.timer,
+                size: 14,
+                color: colors.textTertiary,
+              ),
+              const SizedBox(width: AutonannySpacing.xs),
+              Text(
+                'Отправление: ${option.time}',
+                style: AutonannyTypography.bodyS(
+                  color: colors.textSecondary,
                 ),
-              ],
-            ),
-            const Divider(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          Container(
+            height: 1,
+            color: colors.borderSubtle,
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '${option.sharedPrice.toStringAsFixed(0)} ₽',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                      style: AutonannyTypography.h2(
+                        color: colors.textPrimary,
+                      ),
                     ),
-                    Row(
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Wrap(
+                      spacing: AutonannySpacing.sm,
+                      runSpacing: AutonannySpacing.xs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
                           '${option.originalPrice.toStringAsFixed(0)} ₽',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: NannyTheme.neutral400,
+                          style: AutonannyTypography.bodyS(
+                            color: colors.textTertiary,
+                          ).copyWith(
                             decoration: TextDecoration.lineThrough,
                           ),
                         ),
-                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
+                            horizontal: AutonannySpacing.sm,
+                            vertical: AutonannySpacing.xs,
+                          ),
                           decoration: BoxDecoration(
-                            color: NannyTheme.success.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(6),
+                            color: colors.statusSuccessSurface,
+                            borderRadius: AutonannyRadii.brMd,
                           ),
                           child: Text(
                             '-${option.savings.toStringAsFixed(0)} ₽',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: NannyTheme.success,
+                            style: AutonannyTypography.labelM(
+                              color: colors.statusSuccess,
                             ),
                           ),
                         ),
@@ -302,30 +236,48 @@ class _SharedRideViewState extends State<SharedRideView> {
                     ),
                   ],
                 ),
-                ElevatedButton(
-                  onPressed: vm.isRequesting
-                      ? null
-                      : () => vm.requestSharedRide(option),
-                  child: const Text('Присоединиться'),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              AutonannyButton(
+                label: 'Присоединиться',
+                expand: false,
+                isLoading: vm.isRequesting,
+                onPressed:
+                    vm.isRequesting ? null : () => vm.requestSharedRide(option),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _routeRow(IconData icon, String text, Color color, double iconSize) {
+  Widget _routeRow({
+    required AutonannyIconAsset icon,
+    required String text,
+    required Color color,
+  }) {
+    final colors = context.autonannyColors;
+
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: iconSize, color: color),
-        const SizedBox(width: 8),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: AutonannyIcon(
+            icon,
+            size: 16,
+            color: color,
+          ),
+        ),
+        const SizedBox(width: AutonannySpacing.sm),
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 14),
-            maxLines: 1,
+            style: AutonannyTypography.bodyM(
+              color: colors.textPrimary,
+            ),
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -333,9 +285,9 @@ class _SharedRideViewState extends State<SharedRideView> {
     );
   }
 
-  Color _matchColor(int percent) {
-    if (percent >= 85) return Colors.green;
-    if (percent >= 70) return Colors.orange;
-    return Colors.red;
+  AutonannyStatusVariant _matchSeverity(int percent) {
+    if (percent >= 85) return AutonannyStatusVariant.success;
+    if (percent >= 70) return AutonannyStatusVariant.warning;
+    return AutonannyStatusVariant.danger;
   }
 }

@@ -1,4 +1,5 @@
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/shared_ride.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 
@@ -97,7 +98,7 @@ class SharedRideVM extends ViewModelBase {
 
   List<SharedRideOption> _generateMockOptions() {
     return [
-      SharedRideOption(
+      const SharedRideOption(
         id: 1,
         parentName: 'Елена М.',
         addressFrom: 'ул. Ленина, 20',
@@ -110,7 +111,7 @@ class SharedRideVM extends ViewModelBase {
         savings: 180,
         matchPercent: 92,
       ),
-      SharedRideOption(
+      const SharedRideOption(
         id: 2,
         parentName: 'Ольга К.',
         addressFrom: 'ул. Мира, 5',
@@ -123,7 +124,7 @@ class SharedRideVM extends ViewModelBase {
         savings: 170,
         matchPercent: 85,
       ),
-      SharedRideOption(
+      const SharedRideOption(
         id: 3,
         parentName: 'Анна С.',
         addressFrom: 'ул. Гагарина, 12',

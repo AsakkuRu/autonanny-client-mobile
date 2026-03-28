@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/views/success_reg.dart';
-import 'package:nanny_components/dialogs/loading.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/base_views/views/first_pin_set.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class RegVM extends ViewModelBase {

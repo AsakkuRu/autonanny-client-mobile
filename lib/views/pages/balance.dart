@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/balance_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/styles/new_design_app.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class BalanceView extends StatefulWidget {
@@ -42,7 +42,7 @@ class _BalanceViewState extends State<BalanceView>
         header: _buildHeader(),
         body: RefreshIndicator(
           onRefresh: () async => vm.updateState(),
-          child: RequestLoader(
+          child: _ApiResponseLoader<UserMoney>(
             request: vm.getMoney,
             completeView: (context, data) {
               final money = data!;
@@ -203,7 +203,7 @@ class _BalanceViewState extends State<BalanceView>
             onAction: vm.navigateToWallet,
           ),
           const SizedBox(height: NDT.sp8),
-          RequestLoader(
+          _ApiResponseLoader<UserCards>(
             request: vm.cardsRequest,
             completeView: (context, data) {
               final cards = data?.cards ?? [];
@@ -473,6 +473,49 @@ class _BalanceViewState extends State<BalanceView>
 
   @override
   bool get wantKeepAlive => widget.persistState;
+}
+
+class _ApiResponseLoader<T> extends StatelessWidget {
+  const _ApiResponseLoader({
+    required this.request,
+    required this.completeView,
+    required this.errorView,
+  });
+
+  final Future<ApiResponse<T>> request;
+  final Widget Function(BuildContext context, T? data) completeView;
+  final Widget Function(BuildContext context, Object? error) errorView;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<ApiResponse<T>>(
+      future: request,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(AutonannySpacing.xl),
+              child: AutonannyLoadingState(label: 'Загружаем данные'),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return errorView(context, snapshot.error);
+        }
+
+        final response = snapshot.data;
+        if (response == null || !response.success) {
+          return errorView(
+            context,
+            response?.errorMessage ?? 'Не удалось загрузить данные',
+          );
+        }
+
+        return completeView(context, response.response);
+      },
+    );
+  }
 }
 
 class _HeroActionChip extends StatelessWidget {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_client/view_models/pages/map_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_components/widgets/map_viewer.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -32,29 +32,43 @@ class _ClientMapViewState extends State<ClientMapView>
     if (wantKeepAlive) super.build(context);
 
     return Scaffold(
-      body: FutureLoader(
+      body: FutureBuilder<LatLng>(
         future: vm.initLoad,
-        completeView: (context, data) => MapViewer(
-          onPosPressed: () => vm.mapController,
-          body: GoogleMap(
-            initialCameraPosition: CameraPosition(
-              target: data,
-              zoom: 15,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const AutonannyLoadingState(label: 'Загружаем карту');
+          }
+
+          if (snapshot.hasError || !snapshot.hasData) {
+            return AutonannyErrorState(
+              title: 'Не удалось загрузить карту',
+              description: snapshot.error?.toString() ??
+                  'Попробуйте перезапустить приложение.',
+            );
+          }
+
+          final data = snapshot.data!;
+
+          return MapViewer(
+            onPosPressed: () => vm.mapController,
+            body: GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: data,
+                zoom: 15,
+              ),
+              onMapCreated: vm.onMapCreated,
+              onTap: (latLng) => NannyMapGlobals.mapTapController.add(latLng),
+              markers: NannyMapGlobals.markers.value,
+              polylines: NannyMapGlobals.routes.value,
             ),
-            onMapCreated: vm.onMapCreated,
-            onTap: (latLng) =>
-                NannyMapGlobals.mapTapController.add(latLng),
-            markers: NannyMapGlobals.markers.value,
-            polylines: NannyMapGlobals.routes.value,
-          ),
-          onPanelBuild: (sc) => vm.scrollController,
-          panel: Navigator(
-            initialRoute: '/',
-            onGenerateRoute: onGen,
-          ),
-          currentLocName: vm.curLocName,
-        ),
-        errorView: (context, error) => ErrorView(errorText: error.toString()),
+            onPanelBuild: (sc) => vm.scrollController,
+            panel: Navigator(
+              initialRoute: '/',
+              onGenerateRoute: onGen,
+            ),
+            currentLocName: vm.curLocName,
+          );
+        },
       ),
     );
   }

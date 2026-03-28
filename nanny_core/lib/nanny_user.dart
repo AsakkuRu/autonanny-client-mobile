@@ -26,13 +26,16 @@ class NannyUser {
       throw Exception("Login error! No user info");
     }
 
+    await PushTokenSync.syncTokenWithBackend();
+
     for (var p in NannyConsts.availablePaths) {
       for (var r in userInfo!.role) {
         if (p.userType == r) {
           // if(!data.haveSetPincode) return FirstPinSet(nextView: p.path);
           // return PinLoginView(nextView: p.path, logoutView: defaultView);
-
-          // ignore: use_build_context_synchronously
+          if (!context.mounted) {
+            return false;
+          }
           Navigator.pushReplacement(
               context, MaterialPageRoute(builder: (context) => p.path));
           return true;

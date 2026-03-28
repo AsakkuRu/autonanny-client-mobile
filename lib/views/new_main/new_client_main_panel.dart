@@ -2,12 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/views/new_main/new_client_main_vm.dart';
 import 'package:nanny_client/views/pages/child_edit.dart';
-import 'package:nanny_components/new_design/nd_primary_button.dart';
 import 'package:nanny_components/styles/new_design_app.dart';
-import 'package:nanny_components/widgets/map/full_screen_map_address_picker.dart';
-import 'package:nanny_core/api/google_map_api.dart';
-import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
-import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class NewClientMainPanel extends StatelessWidget {
@@ -82,46 +77,6 @@ class _ErrorPanel extends StatelessWidget {
       description: message ?? 'Попробуйте обновить экран ещё раз.',
       actionLabel: onRetry == null ? null : 'Повторить',
       onAction: onRetry,
-    );
-  }
-}
-
-// ─── Общая action sheet для выбора адреса ───────────────────────────────────
-
-class _AddressPickChoiceSheet extends StatelessWidget {
-  const _AddressPickChoiceSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(AutonannySpacing.lg),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            NdPrimaryButton(
-              label: 'Поиск по адресу',
-              onTap: () => Navigator.of(context).pop('search'),
-            ),
-            const SizedBox(height: AutonannySpacing.md),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop('map'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: NDT.primary,
-                  side: const BorderSide(color: NDT.primary),
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: NDT.brXl,
-                  ),
-                ),
-                child: const Text('Указать на карте'),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -275,45 +230,15 @@ class _AddressCard extends StatelessWidget {
   }
 
   Future<void> _pickAddress(BuildContext context, int index) async {
-    // BUG-140326-001: диалог с выбором «Поиск» или «Указать на карте»
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => const _AddressPickChoiceSheet(),
+    final result = await showUiSdkAddressSearchOrMapPicker(
+      context,
+      title: 'Как выбрать адрес',
+      subtitle: 'Можно найти адрес через поиск или указать точку на карте.',
     );
-    if (choice == null || !context.mounted) return;
-    if (choice == 'map') {
-      final result = await Navigator.of(context).push<AddressData>(
-        MaterialPageRoute(
-          builder: (_) => const FullScreenMapAddressPicker(),
-        ),
-      );
-      if (result != null) {
-        if (index >= 0 && index < vm.addresses.length) {
-          vm.onChangeAtIndex(index, result);
-        } else {
-          vm.onAdd(result);
-        }
-      }
+    if (result == null || !context.mounted) {
       return;
     }
-    final result = await showSearch<GeocodeResult?>(
-      context: context,
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocode(address: query),
-        onResponse: (response) => response.response?.geocodeResults,
-        tileBuilder: (data, close) => ListTile(
-          title: Text(NannyMapUtils.buildStreetAddress(data)),
-          onTap: close,
-        ),
-      ),
-    );
-    if (result == null) return;
-    final location = result.geometry?.location;
-    if (location == null) return;
-    final newAddr = AddressData(
-      address: NannyMapUtils.buildStreetAddress(result),
-      location: location,
-    );
+    final newAddr = result;
     if (index >= 0 && index < vm.addresses.length) {
       vm.onChangeAtIndex(index, newAddr);
     } else {
@@ -322,40 +247,15 @@ class _AddressCard extends StatelessWidget {
   }
 
   Future<void> _pickWaypoint(BuildContext context) async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => const _AddressPickChoiceSheet(),
+    final result = await showUiSdkAddressSearchOrMapPicker(
+      context,
+      title: 'Добавить точку',
+      subtitle: 'Выберите адрес через поиск или поставьте точку на карте.',
     );
-    if (choice == null || !context.mounted) return;
-    if (choice == 'map') {
-      final result = await Navigator.of(context).push<AddressData>(
-        MaterialPageRoute(
-          builder: (_) => const FullScreenMapAddressPicker(),
-        ),
-      );
-      if (result != null) {
-        vm.insertWaypoint(result);
-      }
+    if (result == null || !context.mounted) {
       return;
     }
-    final result = await showSearch<GeocodeResult?>(
-      context: context,
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocode(address: query),
-        onResponse: (response) => response.response?.geocodeResults,
-        tileBuilder: (data, close) => ListTile(
-          title: Text(NannyMapUtils.buildStreetAddress(data)),
-          onTap: close,
-        ),
-      ),
-    );
-    if (result == null) return;
-    final location = result.geometry?.location;
-    if (location == null) return;
-    vm.insertWaypoint(AddressData(
-      address: NannyMapUtils.buildStreetAddress(result),
-      location: location,
-    ));
+    vm.insertWaypoint(result);
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:autonanny_ui_client/autonanny_ui_client.dart';
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_address_picker.dart';
 import 'package:nanny_client/ui_sdk/mappers/client_ui_sdk_mappers.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dart';
@@ -9,14 +10,9 @@ import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/dialogs/driver_qr_dialog.dart';
 import 'package:nanny_components/new_design/nd_primary_button.dart';
 import 'package:nanny_components/styles/new_design_app.dart';
-import 'package:nanny_components/widgets/map/full_screen_map_address_picker.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:nanny_core/api/google_map_api.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
-import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
-import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
-import 'package:nanny_core/nanny_core.dart';
 
 class ActiveTripScreen extends StatefulWidget {
   const ActiveTripScreen({
@@ -419,8 +415,9 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
             AutonannyInlineBanner(
               title: title,
               message: message,
-              tone:
-                  isError ? AutonannyBannerTone.danger : AutonannyBannerTone.info,
+              tone: isError
+                  ? AutonannyBannerTone.danger
+                  : AutonannyBannerTone.info,
               leading: AutonannyIcon(
                 isError ? AutonannyIcons.warning : AutonannyIcons.info,
               ),
@@ -822,35 +819,9 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
     if (choice == null || !mounted) return;
 
-    AddressData? selected;
-    if (choice == 'map') {
-      selected = await Navigator.of(context).push<AddressData>(
-        MaterialPageRoute(
-          builder: (_) => const FullScreenMapAddressPicker(),
-        ),
-      );
-    } else {
-      final result = await showSearch<GeocodeResult?>(
-        context: context,
-        delegate: NannySearchDelegate(
-          onSearch: (query) => GoogleMapApi.geocode(address: query),
-          onResponse: (response) => response.response?.geocodeResults,
-          tileBuilder: (data, close) => ListTile(
-            title: Text(NannyMapUtils.buildStreetAddress(data)),
-            onTap: close,
-          ),
-        ),
-      );
-      if (result != null) {
-        final location = result.geometry?.location;
-        if (location != null) {
-          selected = AddressData(
-            address: NannyMapUtils.buildStreetAddress(result),
-            location: location,
-          );
-        }
-      }
-    }
+    final selected = choice == 'map'
+        ? await showUiSdkAddressPicker(context)
+        : await showUiSdkAddressSearchPicker(context);
 
     if (selected == null || !mounted) return;
 

@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:logger/logger.dart';
+// ignore: depend_on_referenced_packages
+import 'package:nanny_client/routing/client_entity_router.dart';
+import 'package:nanny_core/nanny_core.dart';
 
 /// FE-MVP-019: Сервис для обработки уведомлений о статусе поездки
 class TripStatusNotifications {
@@ -13,7 +17,8 @@ class TripStatusNotifications {
   static Future<void> initialize() async {
     if (_initialized) return;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -37,7 +42,27 @@ class TripStatusNotifications {
   /// Обработка нажатия на уведомление
   static void _onNotificationTapped(NotificationResponse response) {
     Logger().i('Notification tapped: ${response.payload}');
-    // Здесь можно добавить навигацию к экрану поездки
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) {
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is! Map) {
+        return;
+      }
+
+      unawaited(
+        _openTripFromPayload(
+          decoded.map((key, value) => MapEntry(key.toString(), value)),
+        ),
+      );
+    } catch (error, stackTrace) {
+      Logger().e(
+        'Failed to handle trip status notification tap: $error\n$stackTrace',
+      );
+    }
   }
 
   /// Показать локальное уведомление о статусе поездки
@@ -45,6 +70,8 @@ class TripStatusNotifications {
     required String title,
     required String body,
     required int statusId,
+    int? orderId,
+    Map<String, dynamic>? payload,
   }) async {
     if (!_initialized) {
       await initialize();
@@ -81,7 +108,13 @@ class TripStatusNotifications {
       title,
       body,
       details,
-      payload: 'trip_status_$statusId',
+      payload: jsonEncode({
+        'target': 'trip',
+        'type': 'trip_status',
+        'status_id': statusId,
+        if (orderId != null) 'order_id': orderId,
+        ...?payload,
+      }),
     );
 
     Logger().i('Trip status notification shown: $title - $body');
@@ -92,19 +125,38 @@ class TripStatusNotifications {
     Logger().i('Handling Firebase message: ${message.data}');
 
     // Проверяем, что это уведомление о статусе поездки
-    if (message.data['type'] != 'trip_status') return;
+    final type = message.data['type']?.toString();
+    if (type != 'trip_status' && type != 'trip_status_update') return;
 
     final title = message.notification?.title ?? 'Обновление статуса';
     final body = message.notification?.body ?? '';
-    final statusId = int.tryParse(message.data['status_id']?.toString() ?? '0') ?? 0;
+    final statusId =
+        int.tryParse(message.data['status_id']?.toString() ?? '0') ?? 0;
+    final orderId = int.tryParse(message.data['order_id']?.toString() ?? '');
 
     if (statusId > 0) {
       await showTripStatusNotification(
         title: title,
         body: body,
         statusId: statusId,
+        orderId: orderId,
+        payload: Map<String, dynamic>.from(message.data),
       );
     }
+  }
+
+  static Future<void> _openTripFromPayload(Map<String, dynamic> payload) async {
+    final context = NannyGlobals.navKey.currentContext;
+    if (context == null) {
+      return;
+    }
+
+    await ClientEntityRouter.openEntity(
+      context,
+      payload: payload,
+      target: payload['target']?.toString() ?? 'trip',
+      type: payload['type']?.toString() ?? 'trip_status',
+    );
   }
 
   /// Определить важность уведомления по статусу

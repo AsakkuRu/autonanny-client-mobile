@@ -16,30 +16,20 @@ class FirebaseMessagingHandler {
       Logger().w(
           "Got message from firebase:\n${msg.data}\nNotification data:${msg.notification?.title}\n${msg.notification?.body}");
 
+      final type = msg.data['type']?.toString();
+
       // FE-MVP-019: Обработка уведомлений о статусе поездки
-      if (msg.data['type'] == 'trip_status') {
+      if (type == 'trip_status' || type == 'trip_status_update') {
         TripStatusNotifications.handleFirebaseMessage(msg);
       }
 
       // TASK-C1: Обработка уведомлений об отклонении от маршрута
-      if (msg.data['type'] == 'route_deviation') {
+      if (type == 'route_deviation') {
         RouteDeviationNotifications.handleFirebaseMessage(msg);
       }
     });
-    FirebaseMessaging.onMessageOpenedApp.listen((msg) {
-      // if(msg.notification == null) return;
-      if (msg.data["action"] == null) {
-        _handleTypeFallback(msg);
-        return;
-      }
-      var action = NotificationAction.values
-          .firstWhere((e) => e.name == msg.data["action"]);
-
-      // TODO: Restore notification action handling if needed
-      // NannyGlobals.notificationAction.value = action;
-      // NannyGlobals.notificationActionData.value = msg.data;
-
-      _handleAction(action, msg);
+    FirebaseMessaging.onMessageOpenedApp.listen((msg) async {
+      await _handleIncomingMessage(msg);
     });
 
     Logger().i("Inited firebase messages handler");
@@ -49,14 +39,7 @@ class FirebaseMessagingHandler {
     var msg = await FirebaseMessaging.instance.getInitialMessage();
     if (msg == null) return;
 
-    if (msg.data["action"] == null) {
-      _handleTypeFallback(msg);
-      return;
-    }
-    var action = NotificationAction.values
-        .firstWhere((e) => e.name == msg.data["action"]);
-
-    _handleAction(action, msg);
+    await _handleIncomingMessage(msg);
   }
 
   static Future<void> handleLocalNotificationTap(
@@ -99,34 +82,52 @@ class FirebaseMessagingHandler {
     }
   }
 
-  static void _handleTypeFallback(RemoteMessage msg) {
-    if (_handleTargetFallback(msg)) {
+  static Future<void> _handleIncomingMessage(RemoteMessage msg) async {
+    final actionName = msg.data["action"]?.toString();
+    if (actionName == null || actionName.isEmpty) {
+      await _handleTypeFallback(msg);
+      return;
+    }
+
+    final action =
+        NotificationAction.values.cast<NotificationAction?>().firstWhere(
+              (e) => e?.name == actionName,
+              orElse: () => null,
+            );
+    if (action == null) {
+      Logger().w('Unknown firebase notification action: $actionName');
+      await _handleTypeFallback(msg);
+      return;
+    }
+
+    await _handleAction(action, msg);
+  }
+
+  static Future<void> _handleTypeFallback(RemoteMessage msg) async {
+    if (await _handleTargetFallback(msg)) {
       return;
     }
 
     final type = msg.data['type']?.toString();
     final context = NannyGlobals.navKey.currentContext;
-    if (type == null || context == null) {
+    if (type == null || context == null || !context.mounted) {
       return;
     }
 
     switch (type) {
       case 'weekly_payment_success':
-        ClientEntityRouter.openEntity(
-          context,
-          payload: Map<String, dynamic>.from(msg.data),
-          type: type,
-        );
-        return;
       case 'weekly_payment_failed':
-        ClientEntityRouter.openEntity(
-          context,
-          payload: Map<String, dynamic>.from(msg.data),
-          type: type,
-        );
-        return;
       case 'contract_resumed':
-        ClientEntityRouter.openEntity(
+      case 'contract_suspended':
+      case 'trip_status':
+      case 'trip_status_update':
+      case 'active_trip':
+      case 'trip.assigned':
+      case 'trip.cancelled':
+      case 'order.expired':
+      case 'route.change_requested':
+      case 'route.change_result':
+        await ClientEntityRouter.openEntity(
           context,
           payload: Map<String, dynamic>.from(msg.data),
           type: type,
@@ -137,10 +138,13 @@ class FirebaseMessagingHandler {
     }
   }
 
-  static void _handleAction(NotificationAction action, RemoteMessage msg) {
+  static Future<void> _handleAction(
+    NotificationAction action,
+    RemoteMessage msg,
+  ) async {
     switch (action) {
       case NotificationAction.message:
-        ClientEntityRouter.openEntity(
+        await ClientEntityRouter.openEntity(
           NannyGlobals.currentContext,
           payload: Map<String, dynamic>.from(msg.data),
           target: 'chat',
@@ -155,22 +159,21 @@ class FirebaseMessagingHandler {
       case NotificationAction.orderRequestDenied:
       case NotificationAction.fine:
       case NotificationAction.replyOrder:
-        _handleTypeFallback(msg);
+        await _handleTypeFallback(msg);
         break;
     }
   }
 
-  static bool _handleTargetFallback(RemoteMessage msg) {
+  static Future<bool> _handleTargetFallback(RemoteMessage msg) async {
     final context = NannyGlobals.navKey.currentContext;
     if (context == null) {
       return false;
     }
-    ClientEntityRouter.openEntity(
+    return ClientEntityRouter.openEntity(
       context,
       payload: Map<String, dynamic>.from(msg.data),
       target: msg.data['target']?.toString(),
       type: msg.data['type']?.toString(),
     );
-    return true;
   }
 }

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/api/api_models/search_query_request.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/nanny_core.dart';
@@ -90,6 +90,7 @@ class HomeVM extends ViewModelBase {
     }
   }
 
+  @override
   void dispose() {
     for (final sub in _rootRealtimeSubs) {
       sub.cancel();

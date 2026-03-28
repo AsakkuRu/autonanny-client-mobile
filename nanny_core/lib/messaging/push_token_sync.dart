@@ -49,12 +49,33 @@ class PushTokenSync {
     final deviceToken = token ?? await getTokenOrEmpty();
     if (deviceToken.isEmpty) return;
 
-    await NannyStorage.ready;
-    final loginData = await NannyStorage.getLoginData();
-    if (loginData == null) return;
-
     _isSyncing = true;
     try {
+      if (DioRequest.authToken.isNotEmpty) {
+        final authorizedResponse = await NannyAuthApi.updatePushToken(
+          deviceToken,
+        );
+
+        if (authorizedResponse.success && authorizedResponse.response != null) {
+          DioRequest.updateToken(authorizedResponse.response!);
+          Logger().i('Firebase push token synchronized with backend');
+          return;
+        }
+
+        Logger().w(
+          'Authorized Firebase push token sync skipped: ${authorizedResponse.errorMessage}',
+        );
+      }
+
+      await NannyStorage.ready;
+      final loginData = await NannyStorage.getLoginData();
+      if (loginData == null) {
+        Logger().w(
+          'Firebase push token sync skipped: no saved login data for fallback login',
+        );
+        return;
+      }
+
       final response = await NannyAuthApi.login(
         LoginRequest(
           login: loginData.login,
