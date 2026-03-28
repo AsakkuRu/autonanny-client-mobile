@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nanny_components/nanny_components.dart';
+import 'package:nanny_components/styles/new_design_auth.dart';
 
 class FourDigitKeyboard extends StatefulWidget {
   final Widget? topChild;
@@ -90,35 +91,32 @@ class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
   }
 
   Widget digitBox(String value, Size size) {
-    return Material(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+    return Container(
+      height: size.width * .21,
+      decoration: BoxDecoration(
+        color: value.isNotEmpty ? NewDesignAuthTokens.primary100 : Colors.white,
+        borderRadius: NewDesignAuthTokens.radiusMd,
+        border: Border.all(
+          color: value.isNotEmpty
+              ? NewDesignAuthTokens.primary
+              : NewDesignAuthTokens.neutral200,
+          width: value.isNotEmpty ? 1.8 : 1.2,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color.fromRGBO(15, 15, 30, 0.06),
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
       ),
-      elevation: 0,
-      child: Container(
-        height: size.width * .23,
-        decoration: BoxDecoration(
-            color: value.isNotEmpty
-                ? NannyTheme.lightGreen
-                : const Color(0xFFF7F7F7),
-            borderRadius: BorderRadius.circular(10),
-            boxShadow: [
-              value.isNotEmpty
-                  ? BoxShadow(
-                      offset: const Offset(0, 5),
-                      blurRadius: 11,
-                      spreadRadius: -6,
-                      color: const Color(0xFF0D5118).withOpacity(.5),
-                    )
-                  : BoxShadow(
-                      offset: const Offset(0, 10),
-                      blurRadius: 14,
-                      spreadRadius: -9,
-                      color: const Color(0xFF021C3B).withOpacity(.25),
-                    ),
-            ]),
-        child: Center(
-          child: Text(value, textScaleFactor: 2),
+      child: Center(
+        child: Text(
+          value,
+          textScaler: const TextScaler.linear(1.7),
+          style: NewDesignAuthTokens.titleXL.copyWith(
+            color: NewDesignAuthTokens.neutral900,
+          ),
         ),
       ),
     );
@@ -126,16 +124,42 @@ class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
 
   Widget numButton(String setValue, Size size) {
     return ElevatedButton(
-        onPressed: () => setDigit(setValue),
-        style: NannyButtonStyles.transparent,
-        child: Text(setValue, textScaleFactor: 2));
+      onPressed: () => setDigit(setValue),
+      style: ElevatedButton.styleFrom(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: NewDesignAuthTokens.neutral900,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(
+            color: NewDesignAuthTokens.neutral200,
+          ),
+        ),
+      ),
+      child: Text(
+        setValue,
+        textScaler: const TextScaler.linear(1.9),
+        style: NewDesignAuthTokens.titleM,
+      ),
+    );
   }
 
   Widget deleteButton() {
     return ElevatedButton(
-        onPressed: deleteDigit,
-        style: NannyButtonStyles.transparent,
-        child: const Icon(Icons.backspace_outlined));
+      onPressed: deleteDigit,
+      style: ElevatedButton.styleFrom(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: NewDesignAuthTokens.neutral700,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(
+            color: NewDesignAuthTokens.neutral200,
+          ),
+        ),
+      ),
+      child: const Icon(Icons.backspace_outlined),
+    );
   }
 
   void setDigit(String value) {

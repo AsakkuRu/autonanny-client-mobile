@@ -23,9 +23,8 @@ class LoginVM extends ViewModelBase {
   final GlobalKey<FormState> passwordState = GlobalKey();
 
   String get phone => "7${phoneMask.getUnmaskedText()}";
-  bool get canOauth => NannyConsts.availablePaths
-      .where((e) => e.userType == UserType.client)
-      .isNotEmpty;
+  bool get canOauth =>
+      availableRoleLogin.any((e) => e.userType == UserType.client);
 
   void toPasswordReset() => Navigator.push(
         context,
@@ -42,31 +41,6 @@ class LoginVM extends ViewModelBase {
       );
 
   void tryLogin() async {
-    // MOCK AUTH: временный обход авторизации — удалить перед релизом
-    const bool _mockAuth = false;
-    if (_mockAuth) {
-      NannyUser.userInfo = UserInfo(
-        id: 1,
-        surname: "Тест",
-        name: "Пользователь",
-        phone: "79001234567",
-        role: availableRoleLogin.map((e) => e.userType).toList(),
-        photoPath: "",
-        videoPath: "",
-        hasAuth: true,
-      );
-      if (!context.mounted) return;
-      for (var e in availableRoleLogin) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => e.path),
-          (route) => false,
-        );
-        break;
-      }
-      return;
-    }
-
     update(() => isLoading = true);
     if (!phoneState.currentState!.validate() ||
         !passwordState.currentState!.validate()) {

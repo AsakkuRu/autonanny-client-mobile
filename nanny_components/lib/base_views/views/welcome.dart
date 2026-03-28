@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:nanny_components/base_views/view_models/welcome_vm.dart';
-import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_components/styles/new_design_auth.dart';
 
@@ -35,90 +33,161 @@ class _WelcomeViewState extends State<WelcomeView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NewDesignAuthTokens.neutral50,
+      backgroundColor: NewDesignAuthTokens.primaryDark,
       body: SafeArea(
-        child: Center(
+        child: Container(
+          decoration: const BoxDecoration(
+            gradient: NewDesignAuthTokens.primaryGradient,
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const Spacer(),
-                Image.asset(
-                  "packages/nanny_components/assets/images/icon.png",
-                  height: 120,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  "АвтоНяня",
-                  style: NewDesignAuthTokens.titleXL.copyWith(
-                    color: NewDesignAuthTokens.primaryDark,
+                Container(
+                  width: 88,
+                  height: 88,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.28),
+                    ),
+                  ),
+                  child: Image.asset(
+                    "packages/nanny_components/assets/images/icon.png",
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 28),
                 Text(
-                  "Безопасные поездки для детей и спокойствие для родителей.",
+                  "Безопасные поездки\nдля ваших детей",
                   textAlign: TextAlign.center,
-                  style: NewDesignAuthTokens.bodyM,
+                  style: NewDesignAuthTokens.titleXL.copyWith(
+                    color: Colors.white,
+                    fontSize: 28,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "Проверенные водители-няни, GPS-отслеживание и спокойствие родителей в каждой поездке.",
+                  textAlign: TextAlign.center,
+                  style: NewDesignAuthTokens.bodyM.copyWith(
+                    color: Colors.white.withValues(alpha: 0.78),
+                  ),
+                ),
+                const SizedBox(height: 28),
+                const Row(
+                  children: [
+                    Expanded(
+                      child: _TrustMetric(value: '1 200+', label: 'водителей'),
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: _TrustMetric(value: '4.97', label: 'рейтинг'),
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: _TrustMetric(value: '50К+', label: 'поездок'),
+                    ),
+                  ],
                 ),
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: vm.navigateToLogin,
-                    style: ButtonStyle(
-                      elevation: const WidgetStatePropertyAll(0),
-                      backgroundColor: const WidgetStatePropertyAll(
-                        NewDesignAuthTokens.primary,
-                      ),
-                      shape: const WidgetStatePropertyAll(
-                        RoundedRectangleBorder(
-                          borderRadius: NewDesignAuthTokens.radiusLg,
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      "Войти",
-                      style: NewDesignAuthTokens.bodyS.copyWith(
-                        color: Colors.white,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: OutlinedButton(
                     onPressed: vm.navigateToReg,
-                    style: ButtonStyle(
-                      side: const WidgetStatePropertyAll(
-                        BorderSide(color: NewDesignAuthTokens.primary200, width: 1.5),
+                    style: const ButtonStyle(
+                      elevation: WidgetStatePropertyAll(0),
+                      backgroundColor: WidgetStatePropertyAll(
+                        Colors.white,
                       ),
-                      shape: const WidgetStatePropertyAll(
+                      shape: WidgetStatePropertyAll(
                         RoundedRectangleBorder(
                           borderRadius: NewDesignAuthTokens.radiusLg,
                         ),
-                      ),
-                      backgroundColor: const WidgetStatePropertyAll(
-                        NewDesignAuthTokens.neutral0,
                       ),
                     ),
                     child: Text(
                       "Зарегистрироваться",
                       style: NewDesignAuthTokens.bodyS.copyWith(
-                        color: NewDesignAuthTokens.primary,
+                        color: NewDesignAuthTokens.primaryDark,
+                        fontSize: 16,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
+                TextButton(
+                  onPressed: vm.navigateToLogin,
+                  child: RichText(
+                    text: TextSpan(
+                      style: NewDesignAuthTokens.bodyS.copyWith(
+                        color: Colors.white.withValues(alpha: 0.86),
+                      ),
+                      children: [
+                        const TextSpan(text: "Уже есть аккаунт? "),
+                        TextSpan(
+                          text: "Войти",
+                          style: NewDesignAuthTokens.bodyS.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _TrustMetric extends StatelessWidget {
+  const _TrustMetric({
+    required this.value,
+    required this.label,
+  });
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: NewDesignAuthTokens.radiusMd,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.16),
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: NewDesignAuthTokens.titleM.copyWith(
+              color: Colors.white,
+              fontSize: 20,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: NewDesignAuthTokens.captionS.copyWith(
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
       ),
     );
   }
