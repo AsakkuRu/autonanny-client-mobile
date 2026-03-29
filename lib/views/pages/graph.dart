@@ -6,7 +6,6 @@ import 'package:nanny_client/view_models/pages/graph_vm.dart';
 import 'package:nanny_client/views/pages/autopay_settings.dart';
 import 'package:nanny_client/views/pages/contract_details_view.dart';
 import 'package:nanny_components/base_views/views/pages/wallet.dart';
-import 'package:nanny_components/widgets/date_selector.dart';
 import 'package:nanny_components/widgets/driver_contact_card.dart';
 import 'package:nanny_components/widgets/schedule_viewer.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
@@ -180,123 +179,108 @@ class _GraphViewState extends State<GraphView>
   }
 
   Widget _buildScheduleTab() {
-    return Column(
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(
+        AutonannySpacing.xl,
+        0,
+        AutonannySpacing.xl,
+        AutonannySpacing.xl,
+      ),
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AutonannySpacing.xl,
-            0,
-            AutonannySpacing.xl,
-            0,
-          ),
-          child: _GraphHeader(
-            vm: vm,
-            onPickSchedule: _openSchedulePicker,
-            onOpenDetails: vm.selectedSchedule == null
-                ? null
-                : () => _openContractDetails(vm.selectedSchedule!),
+        _GraphHeader(
+          vm: vm,
+          onPickSchedule: _openSchedulePicker,
+          onOpenDetails:
+              vm.selectedSchedule == null ? null : () => _openContractDetails(vm.selectedSchedule!),
+        ),
+        const SizedBox(height: AutonannySpacing.lg),
+        AutonannySectionContainer(
+          title: 'Выбранный день',
+          subtitle:
+              'Переключайте дни недели, чтобы посмотреть расписание маршрутов.',
+          child: _ContractWeekPicker(
+            selectedWeekday:
+                vm.selectedWeekday.isEmpty ? null : vm.selectedWeekday.first,
+            onDateSelected: vm.weekdaySelected,
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AutonannySpacing.xl,
-            AutonannySpacing.lg,
-            AutonannySpacing.xl,
-            AutonannySpacing.md,
+        const SizedBox(height: AutonannySpacing.lg),
+        _ContractStatusSection(vm: vm),
+        if (vm.selectedSchedule?.isPaused == true) ...[
+          const SizedBox(height: AutonannySpacing.lg),
+          _PausedContractBanner(
+            schedule: vm.selectedSchedule!,
+            onResumed: vm.reloadPage,
+            onResumeContract: vm.selectedSchedule?.pauseInitiatedBy == 2 &&
+                    !_PausedContractBanner.isBalancePause(
+                      vm.selectedSchedule?.pauseReason,
+                    )
+                ? () => vm.resumeSchedulePause(
+                      vm.selectedSchedule!,
+                      requireConfirmation: false,
+                      showErrorDialogs: false,
+                    )
+                : null,
           ),
-          child: AutonannySectionContainer(
-            title: 'Выбранный день',
-            subtitle:
-                'Переключайте дни недели, чтобы посмотреть расписание маршрутов.',
-            child: DateSelector(onDateSelected: vm.weekdaySelected),
+        ],
+        if (vm.responses
+            .where((r) => r.idSchedule == vm.selectedSchedule?.id)
+            .isNotEmpty) ...[
+          const SizedBox(height: AutonannySpacing.lg),
+          _ResponsesSection(vm: vm),
+        ],
+        if (vm.driverContact != null) ...[
+          const SizedBox(height: AutonannySpacing.lg),
+          DriverContactCard(
+            driver: vm.driverContact!,
+            onChatPressed: vm.openDriverChat,
+            onShowQR: vm.showDriverQR,
           ),
-        ),
-        Expanded(
-          child: AutonannyBottomSheetShell(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                _ContractStatusSection(vm: vm),
-                if (vm.selectedSchedule?.isPaused == true) ...[
-                  const SizedBox(height: AutonannySpacing.lg),
-                  _PausedContractBanner(
-                    schedule: vm.selectedSchedule!,
-                    onResumed: vm.reloadPage,
-                    onResumeContract:
-                        vm.selectedSchedule?.pauseInitiatedBy == 2 &&
-                                !_PausedContractBanner.isBalancePause(
-                                  vm.selectedSchedule?.pauseReason,
-                                )
-                            ? () => vm.resumeSchedulePause(
-                                  vm.selectedSchedule!,
-                                  requireConfirmation: false,
-                                  showErrorDialogs: false,
-                                )
-                            : null,
-                  ),
-                ],
-                if (vm.responses
-                    .where((r) => r.idSchedule == vm.selectedSchedule?.id)
-                    .isNotEmpty) ...[
-                  const SizedBox(height: AutonannySpacing.lg),
-                  _ResponsesSection(vm: vm),
-                ],
-                if (vm.driverContact != null) ...[
-                  const SizedBox(height: AutonannySpacing.lg),
-                  DriverContactCard(
-                    driver: vm.driverContact!,
-                    onChatPressed: vm.openDriverChat,
-                    onShowQR: vm.showDriverQR,
-                  ),
-                ],
-                const SizedBox(height: AutonannySpacing.lg),
-                AutonannySectionContainer(
-                  title: 'Маршруты контракта',
-                  subtitle: 'Маршруты отображаются для выбранного дня недели.',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!vm.hasRoutesForSelectedDay) ...[
-                        AutonannyInlineBanner(
-                          title: 'На выбранный день маршрутов нет',
-                          message: vm.selectedDayEmptyMessage,
-                          tone: AutonannyBannerTone.info,
-                          leading: const AutonannyIcon(
-                            AutonannyIcons.calendar,
-                          ),
-                        ),
-                        const SizedBox(height: AutonannySpacing.md),
-                      ],
-                      ScheduleViewer(
-                        schedule: vm.selectedSchedule,
-                        selectedWeedkays: vm.selectedWeekday,
-                      ),
-                    ],
+        ],
+        const SizedBox(height: AutonannySpacing.lg),
+        AutonannySectionContainer(
+          title: 'Маршруты контракта',
+          subtitle: 'Маршруты отображаются для выбранного дня недели.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!vm.hasRoutesForSelectedDay) ...[
+                AutonannyInlineBanner(
+                  title: 'На выбранный день маршрутов нет',
+                  message: vm.selectedDayEmptyMessage,
+                  tone: AutonannyBannerTone.info,
+                  leading: const AutonannyIcon(
+                    AutonannyIcons.calendar,
                   ),
                 ),
-                const SizedBox(height: AutonannySpacing.lg),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _BudgetCard(
-                        title: 'Расходы в неделю',
-                        amount: vm.spentsInWeek,
-                        tone: _BudgetCardTone.primary,
-                      ),
-                    ),
-                    const SizedBox(width: AutonannySpacing.md),
-                    Expanded(
-                      child: _BudgetCard(
-                        title: 'Расходы в месяц',
-                        amount: vm.spentsInMonth,
-                        tone: _BudgetCardTone.neutral,
-                      ),
-                    ),
-                  ],
-                ),
+                const SizedBox(height: AutonannySpacing.md),
               ],
-            ),
+              ScheduleViewer(
+                schedule: vm.selectedSchedule,
+                selectedWeedkays: vm.selectedWeekday,
+              ),
+            ],
           ),
+        ),
+        const SizedBox(height: AutonannySpacing.lg),
+        Row(
+          children: [
+            Expanded(
+              child: _BudgetCard(
+                title: 'Расходы в неделю',
+                amount: vm.spentsInWeek,
+                tone: _BudgetCardTone.primary,
+              ),
+            ),
+            const SizedBox(width: AutonannySpacing.md),
+            Expanded(
+              child: _BudgetCard(
+                title: 'Расходы в месяц',
+                amount: vm.spentsInMonth,
+                tone: _BudgetCardTone.neutral,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -847,6 +831,219 @@ class _EmptyContractsState extends StatelessWidget {
   }
 }
 
+class _ContractWeekPicker extends StatefulWidget {
+  const _ContractWeekPicker({
+    required this.onDateSelected,
+    this.selectedWeekday,
+  });
+
+  final ValueChanged<DateTime> onDateSelected;
+  final NannyWeekday? selectedWeekday;
+
+  @override
+  State<_ContractWeekPicker> createState() => _ContractWeekPickerState();
+}
+
+class _ContractWeekPickerState extends State<_ContractWeekPicker> {
+  late DateTime _selectedDate;
+  late DateTime _currentDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncFromWidget();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ContractWeekPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedWeekday != widget.selectedWeekday) {
+      _syncFromWidget();
+    }
+  }
+
+  void _syncFromWidget() {
+    final referenceDate = _dateForWeekday(widget.selectedWeekday);
+    _selectedDate = referenceDate;
+    _currentDate = referenceDate;
+  }
+
+  DateTime _dateForWeekday(NannyWeekday? weekday) {
+    final now = DateTime.now();
+    if (weekday == null) {
+      return DateUtils.dateOnly(now);
+    }
+
+    final todayIndex = now.weekday - 1;
+    final targetIndex = weekday.index;
+    final daysDifference = (targetIndex - todayIndex) % 7;
+
+    return DateUtils.dateOnly(now.add(Duration(days: daysDifference)));
+  }
+
+  DateTime get _weekStart {
+    final daysAfterMonday = _currentDate.weekday - 1;
+    return DateUtils.dateOnly(
+      _currentDate.subtract(Duration(days: daysAfterMonday)),
+    );
+  }
+
+  List<DateTime> get _visibleWeek {
+    final start = _weekStart;
+    return List<DateTime>.generate(
+      7,
+      (index) => DateUtils.dateOnly(start.add(Duration(days: index))),
+      growable: false,
+    );
+  }
+
+  void _shiftWeek(bool forward) {
+    setState(() {
+      _currentDate = _currentDate.add(Duration(days: forward ? 7 : -7));
+      final visibleWeek = _visibleWeek;
+      final matchesSelectedWeek = visibleWeek.any(
+        (date) => DateUtils.isSameDay(date, _selectedDate),
+      );
+      if (!matchesSelectedWeek) {
+        _selectedDate = visibleWeek.first;
+      }
+    });
+  }
+
+  void _selectDate(DateTime date) {
+    setState(() {
+      _selectedDate = DateUtils.dateOnly(date);
+      _currentDate = _selectedDate;
+    });
+    widget.onDateSelected(_selectedDate);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final monthLabel = DateFormat('LLLL', 'ru_RU').format(_currentDate);
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            AutonannyIconButton(
+              size: 40,
+              variant: AutonannyIconButtonVariant.ghost,
+              icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+              onPressed: () => _shiftWeek(false),
+              tooltip: 'Предыдущая неделя',
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    monthLabel[0].toUpperCase() + monthLabel.substring(1),
+                    style: AutonannyTypography.h3(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AutonannySpacing.xs),
+                  Text(
+                    '${_currentDate.year}',
+                    style: AutonannyTypography.bodyS(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AutonannyIconButton(
+              size: 40,
+              variant: AutonannyIconButtonVariant.ghost,
+              icon: const AutonannyIcon(AutonannyIcons.arrowRight),
+              onPressed: () => _shiftWeek(true),
+              tooltip: 'Следующая неделя',
+            ),
+          ],
+        ),
+        const SizedBox(height: AutonannySpacing.lg),
+        Row(
+          children: [
+            for (var index = 0; index < _visibleWeek.length; index++) ...[
+              Expanded(
+                child: _ContractWeekdayTile(
+                  date: _visibleWeek[index],
+                  isSelected: DateUtils.isSameDay(
+                    _visibleWeek[index],
+                    _selectedDate,
+                  ),
+                  onTap: () => _selectDate(_visibleWeek[index]),
+                ),
+              ),
+              if (index != _visibleWeek.length - 1)
+                const SizedBox(width: AutonannySpacing.xs),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ContractWeekdayTile extends StatelessWidget {
+  const _ContractWeekdayTile({
+    required this.date,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final DateTime date;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final weekdayLabel = DateFormat('EE', 'ru_RU').format(date);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AutonannyRadii.brMd,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.xs,
+            vertical: AutonannySpacing.md,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected ? colors.actionPrimary : colors.surfaceSecondary,
+            borderRadius: AutonannyRadii.brMd,
+            boxShadow: isSelected ? AutonannyShadows.card : null,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                weekdayLabel[0].toUpperCase() + weekdayLabel.substring(1),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AutonannyTypography.labelM(
+                  color: isSelected ? colors.textInverse : colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AutonannySpacing.xs),
+              Text(
+                '${date.day}',
+                style: AutonannyTypography.labelL(
+                  color: isSelected ? colors.textInverse : colors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GraphHeader extends StatelessWidget {
   const _GraphHeader({
     required this.vm,
@@ -866,10 +1063,10 @@ class _GraphHeader extends StatelessWidget {
         schedule != null && vm.canEditSchedule(schedule);
     final editButtonLabel = canEditSelectedSchedule
         ? 'Редактировать'
-        : 'Почему нельзя редактировать';
+        : 'Почему нельзя?';
 
     return Container(
-      padding: const EdgeInsets.all(AutonannySpacing.xl),
+      padding: const EdgeInsets.all(AutonannySpacing.lg),
       decoration: const BoxDecoration(
         gradient: AutonannyGradients.hero,
         borderRadius: AutonannyRadii.brLg,
@@ -884,6 +1081,13 @@ class _GraphHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      'Текущий контракт',
+                      style: AutonannyTypography.caption(
+                        color: colors.textInverse.withValues(alpha: 0.72),
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
                     Text(
                       schedule?.title ?? 'Контракт не выбран',
                       style: AutonannyTypography.h2(
@@ -901,32 +1105,40 @@ class _GraphHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AutonannySpacing.md),
-              Column(
-                children: [
-                  AutonannyIconButton(
-                    icon: const AutonannyIcon(
-                      AutonannyIcons.list,
-                      color: Colors.white,
+              SizedBox(
+                width: 148,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AutonannyButton(
+                      label: 'Мои контракты',
+                      variant: AutonannyButtonVariant.secondary,
+                      size: AutonannyButtonSize.medium,
+                      expand: true,
+                      leading: AutonannyIcon(
+                        AutonannyIcons.list,
+                        color: colors.actionPrimary,
+                      ),
+                      onPressed: onPickSchedule,
                     ),
-                    onPressed: onPickSchedule,
-                    variant: AutonannyIconButtonVariant.primary,
-                    tooltip: 'Сменить контракт',
-                  ),
-                  const SizedBox(height: AutonannySpacing.sm),
-                  AutonannyIconButton(
-                    icon: const AutonannyIcon(
-                      AutonannyIcons.add,
-                      color: Colors.white,
+                    const SizedBox(height: AutonannySpacing.sm),
+                    AutonannyButton(
+                      label: 'Новый',
+                      variant: AutonannyButtonVariant.secondary,
+                      size: AutonannyButtonSize.medium,
+                      expand: true,
+                      leading: AutonannyIcon(
+                        AutonannyIcons.add,
+                        color: colors.actionPrimary,
+                      ),
+                      onPressed: vm.toGraphCreate,
                     ),
-                    onPressed: vm.toGraphCreate,
-                    variant: AutonannyIconButtonVariant.primary,
-                    tooltip: 'Новый контракт',
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: AutonannySpacing.lg),
+          const SizedBox(height: AutonannySpacing.md),
           Wrap(
             spacing: AutonannySpacing.sm,
             runSpacing: AutonannySpacing.sm,
@@ -948,44 +1160,36 @@ class _GraphHeader extends StatelessWidget {
           ),
           if (schedule != null) ...[
             const SizedBox(height: AutonannySpacing.lg),
-            Row(
-              children: [
-                if (onOpenDetails != null)
-                  Expanded(
-                    child: AutonannyButton(
-                      label: 'Детали контракта',
-                      variant: AutonannyButtonVariant.primary,
-                      expand: false,
-                      leading: const AutonannyIcon(
-                        AutonannyIcons.list,
-                        color: Colors.white,
-                      ),
-                      onPressed: onOpenDetails,
-                    ),
-                  ),
-                if (onOpenDetails != null)
-                  const SizedBox(width: AutonannySpacing.md),
-                Expanded(
-                  child: AutonannyButton(
-                    label: editButtonLabel,
-                    variant: AutonannyButtonVariant.secondary,
-                    expand: false,
-                    leading: AutonannyIcon(
-                      canEditSelectedSchedule
-                          ? AutonannyIcons.edit
-                          : AutonannyIcons.warning,
-                      color: colors.actionPrimary,
-                    ),
-                    onPressed: () async {
-                      if (canEditSelectedSchedule) {
-                        vm.toGraphEdit(schedule: schedule);
-                        return;
-                      }
-                      await vm.showScheduleEditLockedInfo(schedule);
-                    },
-                  ),
+            if (onOpenDetails != null)
+              AutonannyButton(
+                label: 'Открыть детали',
+                variant: AutonannyButtonVariant.primary,
+                expand: true,
+                leading: const AutonannyIcon(
+                  AutonannyIcons.list,
+                  color: Colors.white,
                 ),
-              ],
+                onPressed: onOpenDetails,
+              ),
+            if (onOpenDetails != null)
+              const SizedBox(height: AutonannySpacing.md),
+            AutonannyButton(
+              label: editButtonLabel,
+              variant: AutonannyButtonVariant.secondary,
+              expand: true,
+              leading: AutonannyIcon(
+                canEditSelectedSchedule
+                    ? AutonannyIcons.edit
+                    : AutonannyIcons.warning,
+                color: colors.actionPrimary,
+              ),
+              onPressed: () async {
+                if (canEditSelectedSchedule) {
+                  vm.toGraphEdit(schedule: schedule);
+                  return;
+                }
+                await vm.showScheduleEditLockedInfo(schedule);
+              },
             ),
           ],
         ],

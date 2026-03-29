@@ -133,18 +133,21 @@ class _BalanceViewState extends State<BalanceView>
         child: Row(
           children: [
             _statItem(
+              context: context,
               label: "СПИСАНО",
               value: "${_compact(stats.totalSpent)} ₽",
               sub: "за загруженный период",
             ),
-            _statDivider(),
+            _statDivider(context),
             _statItem(
+              context: context,
               label: "ПОЕЗДКИ",
               value: "${stats.tripsCount}",
               sub: "в загруженной истории",
             ),
-            _statDivider(),
+            _statDivider(context),
             _statItem(
+              context: context,
               label: "СРЕДНЯЯ",
               value: "${_compact(stats.avgPrice)} ₽",
               sub: "по списаниям",
@@ -156,27 +159,47 @@ class _BalanceViewState extends State<BalanceView>
   }
 
   Widget _statItem({
+    required BuildContext context,
     required String label,
     required String value,
     required String sub,
   }) {
+    final colors = context.autonannyColors;
+
     return Expanded(
       child: Column(
         children: [
-          Text(label, style: NDT.sectionCaption),
+          Text(
+            label,
+            style: AutonannyTypography.caption(
+              color: colors.textTertiary,
+            ).copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
           const SizedBox(height: NDT.sp4),
-          Text(value, style: NDT.h3),
+          Text(
+            value,
+            style: AutonannyTypography.h3(color: colors.textPrimary),
+          ),
           const SizedBox(height: NDT.sp2),
-          Text(sub, style: NDT.caption),
+          Text(
+            sub,
+            style: AutonannyTypography.caption(
+              color: colors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
   }
 
-  Widget _statDivider() => Container(
+  Widget _statDivider(BuildContext context) => Container(
         width: 1,
         height: 40,
-        color: NDT.neutral200,
+        color: context.autonannyColors.borderSubtle,
       );
 
   String _compact(double v) {
@@ -234,7 +257,12 @@ class _BalanceViewState extends State<BalanceView>
               color: context.autonannyColors.textTertiary),
           const SizedBox(width: NDT.sp12),
           Expanded(
-            child: Text("Добавьте карту для оплаты", style: NDT.bodyS),
+            child: Text(
+              "Добавьте карту для оплаты",
+              style: AutonannyTypography.bodyS(
+                color: context.autonannyColors.textSecondary,
+              ),
+            ),
           ),
           AutonannyIcon(
             AutonannyIcons.chevronRight,
@@ -256,6 +284,7 @@ class _BalanceViewState extends State<BalanceView>
 
   Widget _buildRecentOperations(BuildContext context, List<History> history) {
     if (history.isEmpty) return const SizedBox.shrink();
+    final colors = context.autonannyColors;
 
     final recent = history.take(5).toList();
 
@@ -277,7 +306,7 @@ class _BalanceViewState extends State<BalanceView>
               shrinkWrap: true,
               itemCount: recent.length,
               separatorBuilder: (_, __) =>
-                  const Divider(height: 1, color: NDT.neutral100),
+                  Divider(height: 1, color: colors.borderSubtle),
               itemBuilder: (context, index) =>
                   _operationTile(recent[index], index),
             ),
@@ -288,6 +317,7 @@ class _BalanceViewState extends State<BalanceView>
   }
 
   Widget _operationTile(History item, int index) {
+    final colors = context.autonannyColors;
     final isDebit = item.amount.contains('-');
     final isExpanded = _expandedOps.contains(index);
 
@@ -317,16 +347,18 @@ class _BalanceViewState extends State<BalanceView>
                   height: 36,
                   decoration: BoxDecoration(
                     color: isDebit
-                        ? NDT.primary100
-                        : NDT.success.withValues(alpha: 0.1),
-                    borderRadius: NDT.brSm,
+                        ? colors.statusInfoSurface
+                        : colors.statusSuccessSurface,
+                    borderRadius: AutonannyRadii.brMd,
                   ),
                   child: Icon(
                     isDebit
                         ? Icons.arrow_upward_rounded
                         : Icons.arrow_downward_rounded,
                     size: 18,
-                    color: isDebit ? NDT.primary : NDT.success,
+                    color: isDebit
+                        ? colors.actionPrimary
+                        : colors.statusSuccess,
                   ),
                 ),
                 const SizedBox(width: NDT.sp12),
@@ -334,11 +366,18 @@ class _BalanceViewState extends State<BalanceView>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.title, style: NDT.bodyM),
+                      Text(
+                        item.title,
+                        style: AutonannyTypography.bodyM(
+                          color: colors.textPrimary,
+                        ),
+                      ),
                       if (item.description.isNotEmpty)
                         Text(
                           item.description,
-                          style: NDT.bodyS,
+                          style: AutonannyTypography.bodyS(
+                            color: colors.textSecondary,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -348,18 +387,20 @@ class _BalanceViewState extends State<BalanceView>
                 const SizedBox(width: NDT.sp8),
                 Text(
                   "${item.amount} ₽",
-                  style: NDT.labelL.copyWith(
-                    color: isDebit ? NDT.neutral700 : NDT.success,
+                  style: AutonannyTypography.labelL(
+                    color: isDebit
+                        ? colors.textPrimary
+                        : colors.statusSuccess,
                   ),
                 ),
                 const SizedBox(width: NDT.sp4),
                 AnimatedRotation(
                   turns: isExpanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 250),
-                  child: const Icon(
+                  child: Icon(
                     Icons.keyboard_arrow_down_rounded,
                     size: 18,
-                    color: NDT.neutral400,
+                    color: colors.textTertiary,
                   ),
                 ),
               ],
@@ -380,31 +421,37 @@ class _BalanceViewState extends State<BalanceView>
   }
 
   Widget _operationDetails(History item, bool isDebit) {
+    final colors = context.autonannyColors;
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(NDT.sp16, 0, NDT.sp16, NDT.sp12),
       padding: const EdgeInsets.all(NDT.sp12),
       decoration: BoxDecoration(
-        color: NDT.neutral50,
-        borderRadius: NDT.brMd,
-        border: Border.all(color: NDT.neutral200),
+        color: colors.surfaceSecondary,
+        borderRadius: AutonannyRadii.brMd,
+        border: Border.all(color: colors.borderSubtle),
       ),
       child: Column(
         children: [
           _detailRow(
+            context,
             Icons.receipt_long_rounded,
             "Описание",
             item.description.isNotEmpty ? item.description : item.title,
           ),
           _detailDivider(),
           _detailRow(
+            context,
             Icons.payments_rounded,
             "Сумма",
             "${item.amount} ₽",
-            valueColor: isDebit ? NDT.neutral700 : NDT.success,
+            valueColor:
+                isDebit ? colors.textPrimary : colors.statusSuccess,
           ),
           _detailDivider(),
           _detailRow(
+            context,
             Icons.info_outline_rounded,
             "Тип операции",
             isDebit ? "Списание" : "Пополнение",
@@ -414,19 +461,33 @@ class _BalanceViewState extends State<BalanceView>
     );
   }
 
-  Widget _detailRow(IconData icon, String label, String value,
-      {Color? valueColor}) {
+  Widget _detailRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
+    final colors = context.autonannyColors;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: NDT.sp6),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: NDT.neutral400),
+          Icon(icon, size: 16, color: colors.textTertiary),
           const SizedBox(width: NDT.sp8),
-          Text(label, style: NDT.bodyS),
+          Text(
+            label,
+            style: AutonannyTypography.bodyS(
+              color: colors.textSecondary,
+            ),
+          ),
           const Spacer(),
           Text(
             value,
-            style: NDT.labelL.copyWith(color: valueColor ?? NDT.neutral700),
+            style: AutonannyTypography.labelL(
+              color: valueColor ?? colors.textPrimary,
+            ),
             textAlign: TextAlign.right,
           ),
         ],
@@ -434,7 +495,10 @@ class _BalanceViewState extends State<BalanceView>
     );
   }
 
-  Widget _detailDivider() => const Divider(height: 1, color: NDT.neutral200);
+  Widget _detailDivider() => Divider(
+        height: 1,
+        color: context.autonannyColors.borderSubtle,
+      );
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 

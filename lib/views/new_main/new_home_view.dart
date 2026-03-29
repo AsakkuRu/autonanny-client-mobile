@@ -144,11 +144,15 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
         if (activeOrder != null) {
           final orderToken = activeOrder['token']?.toString();
           if (orderToken != null && orderToken.isNotEmpty) {
+            final resolvedStatusId = _preferMoreSpecificStatus(
+              _toInt(activeOrder['id_status']),
+              cached?.statusId,
+            );
             await ActiveTripSessionStore.save(
               ActiveTripSessionData(
                 token: orderToken,
                 orderId: _toInt(activeOrder['id_order']),
-                statusId: _toInt(activeOrder['id_status']),
+                statusId: resolvedStatusId,
                 chatId: _toInt(activeOrder['id_chat']),
               ),
             );
@@ -156,7 +160,10 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
             setState(() {
               _hasActiveTrip = true;
               _activeToken = orderToken;
-              _activeTripBannerData = _buildActiveTripBannerData(activeOrder);
+              _activeTripBannerData = _buildActiveTripBannerData(
+                activeOrder,
+                cachedStatusId: cached?.statusId,
+              );
             });
             return;
           }
@@ -198,8 +205,13 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
 
   ActiveTripBannerData _buildActiveTripBannerData(
     Map<String, dynamic> activeOrder,
-  ) {
-    final statusId = _toInt(activeOrder['id_status']);
+    {
+    int? cachedStatusId,
+  }) {
+    final statusId = _preferMoreSpecificStatus(
+      _toInt(activeOrder['id_status']),
+      cachedStatusId,
+    );
     final driver = activeOrder['driver'];
     final driverMap = driver is Map ? Map<String, dynamic>.from(driver) : null;
     final driverName = _driverName(driverMap);
@@ -212,6 +224,27 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
       avatarImageUrl: driverMap?['photo']?.toString(),
       avatarInitials: _driverInitials(driverMap),
     );
+  }
+
+  int? _preferMoreSpecificStatus(int? apiStatusId, int? cachedStatusId) {
+    if (apiStatusId == null) return cachedStatusId;
+    if (cachedStatusId == null) return apiStatusId;
+
+    return _statusProgressRank(cachedStatusId) > _statusProgressRank(apiStatusId)
+        ? cachedStatusId
+        : apiStatusId;
+  }
+
+  int _statusProgressRank(int? statusId) {
+    return switch (statusId) {
+      4 => 1,
+      13 || 5 => 2,
+      7 => 3,
+      6 => 4,
+      14 => 5,
+      15 => 6,
+      _ => 0,
+    };
   }
 
   String _activeTripTitle(int? statusId) {

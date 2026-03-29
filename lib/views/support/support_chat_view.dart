@@ -1,5 +1,6 @@
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:nanny_client/view_models/support/support_chat_vm.dart';
 import 'package:nanny_client/views/support/support_rating_view.dart';
 
@@ -31,18 +32,12 @@ class _SupportChatViewState extends State<SupportChatView> {
     final colors = context.autonannyColors;
 
     return AutonannyAppScaffold(
-      appBar: AutonannyAppBar(
-        title: 'Поддержка',
-        leading: AutonannyIconButton(
-          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
-          onPressed: () => Navigator.of(context).maybePop(),
-          tooltip: 'Назад',
-        ),
-      ),
       body: SafeArea(
-        top: false,
         child: Column(
           children: [
+            _SupportChatHeader(
+              onBack: () => Navigator.of(context).maybePop(),
+            ),
             Expanded(
               child: vm.isLoading
                   ? Center(
@@ -86,11 +81,30 @@ class _SupportChatViewState extends State<SupportChatView> {
                                 itemCount: vm.messages.length,
                                 itemBuilder: (context, index) {
                                   final message = vm.messages[index];
-                                  return Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: AutonannySpacing.sm,
-                                    ),
-                                    child: _MessageBubble(message: message),
+                                  final previousMessage =
+                                      index + 1 < vm.messages.length
+                                          ? vm.messages[index + 1]
+                                          : null;
+                                  final showDateDivider =
+                                      previousMessage == null ||
+                                          !_isSameSupportDay(
+                                            message.timestamp,
+                                            previousMessage.timestamp,
+                                          );
+
+                                  return Column(
+                                    children: [
+                                      if (showDateDivider)
+                                        _SupportDateDivider(
+                                          timestamp: message.timestamp,
+                                        ),
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: AutonannySpacing.sm,
+                                        ),
+                                        child: _MessageBubble(message: message),
+                                      ),
+                                    ],
                                   );
                                 },
                               ),
@@ -121,6 +135,158 @@ class _SupportChatViewState extends State<SupportChatView> {
               ),
             _ChatComposer(vm: vm),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+bool _isSameSupportDay(DateTime left, DateTime right) {
+  return left.year == right.year &&
+      left.month == right.month &&
+      left.day == right.day;
+}
+
+class _SupportChatHeader extends StatelessWidget {
+  const _SupportChatHeader({
+    required this.onBack,
+  });
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AutonannySpacing.lg,
+        AutonannySpacing.md,
+        AutonannySpacing.lg,
+        AutonannySpacing.sm,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AutonannySpacing.md,
+          vertical: AutonannySpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: AutonannyRadii.brFull,
+          boxShadow: AutonannyShadows.card,
+        ),
+        child: Row(
+          children: [
+            AutonannyIconButton(
+              icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+              onPressed: onBack,
+              tooltip: 'Назад',
+            ),
+            const SizedBox(width: AutonannySpacing.sm),
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                ),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              alignment: Alignment.center,
+              child: const AutonannyIcon(
+                AutonannyIcons.chat,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: AutonannySpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Поддержка',
+                        style: AutonannyTypography.labelL(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: AutonannySpacing.xs),
+                      const _SupportPill(),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Мы на связи',
+                    style: AutonannyTypography.caption(
+                      color: colors.statusSuccess,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SupportPill extends StatelessWidget {
+  const _SupportPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: const BoxDecoration(
+        color: Color(0x1FF59E0B),
+        borderRadius: AutonannyRadii.brFull,
+      ),
+      child: const Text(
+        'АвтоНяня',
+        style: TextStyle(
+          color: Color(0xFFD97706),
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _SupportDateDivider extends StatelessWidget {
+  const _SupportDateDivider({
+    required this.timestamp,
+  });
+
+  final DateTime timestamp;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AutonannySpacing.sm),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.md,
+            vertical: 4,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surfaceSecondary.withValues(alpha: 0.92),
+            borderRadius: AutonannyRadii.brFull,
+          ),
+          child: Text(
+            DateFormat('d MMMM', 'ru_RU').format(timestamp),
+            style: AutonannyTypography.caption(
+              color: colors.textTertiary,
+            ).copyWith(fontWeight: FontWeight.w700),
+          ),
         ),
       ),
     );

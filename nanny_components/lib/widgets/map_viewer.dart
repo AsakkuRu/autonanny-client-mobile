@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_components/styles/new_design_auth.dart';
@@ -119,6 +119,8 @@ class _MapViewerState extends State<MapViewer> {
   @override
   Widget build(BuildContext context) {
     return AdaptBuilder(builder: (context, size) {
+      final colors = context.autonannyColors;
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       minHeight = size.height * widget.minExtent;
       _absoluteMaxHeight = size.height * widget.maxExtent;
       final maxHeight = _effectiveMaxHeight;
@@ -139,6 +141,16 @@ class _MapViewerState extends State<MapViewer> {
             controller: _panelController,
             minHeight: minHeight,
             maxHeight: maxHeight,
+            color: colors.surfaceBase,
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.28)
+                    : const Color.fromRGBO(0, 0, 0, 0.18),
+                blurRadius: 18,
+                offset: const Offset(0, -4),
+              ),
+            ],
             borderRadius:
                 const BorderRadius.vertical(top: Radius.circular(32)),
             parallaxEnabled: false,
@@ -169,7 +181,7 @@ class _MapViewerState extends State<MapViewer> {
                       width: 36,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: NewDesignAuthTokens.neutral200,
+                        color: colors.borderSubtle,
                         borderRadius: BorderRadius.circular(999),
                       ),
                     ),
@@ -259,6 +271,8 @@ class _GreetingAndControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = NannyUser.userInfo;
     final name = user?.name ?? '';
 
@@ -268,11 +282,15 @@ class _GreetingAndControls extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.95),
+            color: colors.surfaceElevated.withValues(
+              alpha: isDark ? 0.94 : 0.95,
+            ),
             borderRadius: BorderRadius.circular(999),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color.fromRGBO(91, 79, 207, 0.08),
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.22)
+                    : const Color.fromRGBO(91, 79, 207, 0.08),
                 blurRadius: 8,
                 offset: Offset(0, 2),
               ),
@@ -308,10 +326,11 @@ class _GreetingAndControls extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 name.isNotEmpty ? "Привет, $name" : "Привет",
-                style: NewDesignAuthTokens.bodyM.copyWith(
+                style: AutonannyTypography.bodyM(
+                  color: colors.textPrimary,
+                ).copyWith(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: NewDesignAuthTokens.neutral700,
                 ),
               ),
             ],
@@ -366,10 +385,14 @@ class _CircleIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isDanger ? NewDesignAuthTokens.danger : Colors.white;
+    final colors = context.autonannyColors;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDanger ? NewDesignAuthTokens.danger : colors.surfaceElevated;
     final shadowColor = isDanger
         ? const Color.fromRGBO(239, 68, 68, 0.4)
-        : const Color.fromRGBO(15, 15, 30, 0.10);
+        : isDark
+            ? Colors.black.withValues(alpha: 0.24)
+            : const Color.fromRGBO(15, 15, 30, 0.10);
 
     return GestureDetector(
       onTap: onTap,
@@ -396,7 +419,7 @@ class _CircleIconButton extends StatelessWidget {
                 size: 20,
                 color: isDanger
                     ? Colors.white
-                    : NewDesignAuthTokens.neutral700,
+                    : colors.textPrimary,
               ),
             if (label != null)
               Text(
@@ -418,7 +441,7 @@ class _CircleIconButton extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: NewDesignAuthTokens.danger,
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white, width: 2),
+                    border: Border.all(color: bgColor, width: 2),
                   ),
                 ),
               ),

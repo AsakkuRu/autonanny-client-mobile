@@ -142,6 +142,7 @@ class _AddressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
     final addrs = vm.addresses;
     // Всегда показываем минимум 2 ряда: ОТКУДА и КУДА
     final rows = <Widget>[];
@@ -170,7 +171,11 @@ class _AddressCard extends StatelessWidget {
     if (addrs.length > 2) {
       for (var i = 1; i < addrs.length - 1; i++) {
         final idx = i;
-        rows.add(const Divider(height: 1, thickness: 1, color: NDT.neutral100));
+        rows.add(Divider(
+          height: 1,
+          thickness: 1,
+          color: colors.borderSubtle,
+        ));
         rows.add(_AddressRow(
           label: 'ЧЕРЕЗ $idx',
           text: NannyMapUtils.simplifyAddress(addrs[idx].address),
@@ -187,9 +192,13 @@ class _AddressCard extends StatelessWidget {
               : vm.selectAddress(idx),
           trailing: GestureDetector(
             onTap: () => vm.onDelete(addrs[idx]),
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(Icons.close_rounded, size: 16, color: NDT.neutral400),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                Icons.close_rounded,
+                size: 16,
+                color: colors.textTertiary,
+              ),
             ),
           ),
         ));
@@ -197,7 +206,11 @@ class _AddressCard extends StatelessWidget {
     }
 
     // КУДА
-    rows.add(const Divider(height: 1, thickness: 1, color: NDT.neutral100));
+    rows.add(Divider(
+      height: 1,
+      thickness: 1,
+      color: colors.borderSubtle,
+    ));
     final toIndex = addrs.length > 1 ? addrs.length - 1 : -1;
     final toAddr = toIndex >= 0 ? addrs[toIndex] : null;
     rows.add(_AddressRow(
@@ -205,7 +218,7 @@ class _AddressCard extends StatelessWidget {
       text: toAddr != null
           ? NannyMapUtils.simplifyAddress(toAddr.address)
           : 'Выберите пункт назначения',
-      dotColor: toAddr != null ? _toDot : NDT.neutral300,
+      dotColor: toAddr != null ? _toDot : colors.borderSubtle,
       isPlaceholder: toAddr == null,
       isActive: toIndex >= 0 && vm.selectedAddressIndex == toIndex,
       isFirst: false,
@@ -224,7 +237,11 @@ class _AddressCard extends StatelessWidget {
     ));
 
     return Container(
-      decoration: NDT.cardDecoration,
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: AutonannyRadii.brLg,
+        border: Border.all(color: colors.borderSubtle),
+      ),
       child: Column(children: rows),
     );
   }
@@ -298,10 +315,11 @@ class _AddressRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       decoration: BoxDecoration(
-        color: isActive ? NDT.primary100 : Colors.transparent,
+        color: isActive ? colors.statusInfoSurface : Colors.transparent,
         borderRadius: _borderRadius,
       ),
       child: InkWell(
@@ -320,8 +338,8 @@ class _AddressRow extends StatelessWidget {
                 height: 32,
                 margin: const EdgeInsets.only(right: NDT.sp10),
                 decoration: BoxDecoration(
-                  color: isActive ? NDT.primary : Colors.transparent,
-                  borderRadius: NDT.brFull,
+                  color: isActive ? colors.actionPrimary : Colors.transparent,
+                  borderRadius: AutonannyRadii.brFull,
                 ),
               ),
               _Dot(color: dotColor),
@@ -330,12 +348,22 @@ class _AddressRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(label, style: NDT.sectionCaption),
+                    Text(
+                      label,
+                      style: AutonannyTypography.caption(
+                        color: colors.textTertiary,
+                      ).copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
                     const SizedBox(height: NDT.sp2),
                     Text(
                       text,
-                      style: NDT.bodyM.copyWith(
-                        color: isPlaceholder ? NDT.neutral400 : NDT.neutral900,
+                      style: AutonannyTypography.bodyM(
+                        color: isPlaceholder
+                            ? colors.textTertiary
+                            : colors.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -379,16 +407,21 @@ class _PlusButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 32,
         height: 32,
-        decoration: const BoxDecoration(
-          color: NDT.neutral100,
-          borderRadius: NDT.brFull,
+        decoration: BoxDecoration(
+          color: colors.surfaceSecondary,
+          borderRadius: AutonannyRadii.brFull,
         ),
-        child: const Icon(Icons.add_rounded, size: 18, color: NDT.neutral500),
+        child: Icon(
+          Icons.add_rounded,
+          size: 18,
+          color: colors.textSecondary,
+        ),
       ),
     );
   }
@@ -404,6 +437,7 @@ class _TariffBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (vm.tariffs.isEmpty) return const SizedBox.shrink();
+    final colors = context.autonannyColors;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -411,12 +445,22 @@ class _TariffBlock extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('ТАРИФ', style: NDT.sectionCaption),
+            Text(
+              'ТАРИФ',
+              style: AutonannyTypography.caption(
+                color: colors.textTertiary,
+              ).copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
+            ),
             if (vm.distance > 0 && vm.duration > 0)
               Text(
                 '${vm.distance.toStringAsFixed(1)} км · '
                 '${vm.duration.toStringAsFixed(0)} мин',
-                style: NDT.bodyS,
+                style: AutonannyTypography.bodyS(
+                  color: colors.textSecondary,
+                ),
               ),
           ],
         ),
@@ -454,12 +498,21 @@ class _ChildrenBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Text('КТО ЕДЕТ', style: NDT.sectionCaption),
+            Text(
+              'КТО ЕДЕТ',
+              style: AutonannyTypography.caption(
+                color: colors.textTertiary,
+              ).copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
+            ),
             const Spacer(),
             AutonannyIconButton(
               icon: const AutonannyIcon(AutonannyIcons.add),

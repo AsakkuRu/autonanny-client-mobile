@@ -380,6 +380,7 @@ class _GraphCreateState extends State<GraphCreate> {
             final stepSections = _buildCurrentStepSections(context);
 
             return ListView(
+              key: ValueKey<int>(_currentStepIndex),
               padding: const EdgeInsets.fromLTRB(
                 AutonannySpacing.xl,
                 AutonannySpacing.md,

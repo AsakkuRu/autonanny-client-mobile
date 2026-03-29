@@ -50,33 +50,20 @@ class _DirectViewState extends State<DirectView> {
   @override
   Widget build(BuildContext context) {
     return AutonannyAppScaffold(
-      appBar: AutonannyAppBar(
-        title: widget.name ?? 'Чат',
-        leading: AutonannyIconButton(
-          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
-          onPressed: () => Navigator.of(context).maybePop(),
-          tooltip: 'Назад',
-        ),
-        actions: [
-          AutonannyIconButton(
-            icon: const AutonannyIcon(AutonannyIcons.edit),
-            variant: vm.isEditingMode
-                ? AutonannyIconButtonVariant.primary
-                : AutonannyIconButtonVariant.surface,
-            onPressed: () {
-              setState(vm.toggleEditingMode);
-              if (!vm.isEditingMode) {
-                _resetEditing();
-              }
-            },
-            tooltip: 'Редактировать сообщения',
-          ),
-        ],
-      ),
       body: SafeArea(
-        top: false,
         child: Column(
           children: [
+            _DirectChatHeader(
+              title: widget.name ?? 'Чат',
+              isEditingMode: vm.isEditingMode,
+              onBack: () => Navigator.of(context).maybePop(),
+              onToggleEdit: () {
+                setState(vm.toggleEditingMode);
+                if (!vm.isEditingMode) {
+                  _resetEditing();
+                }
+              },
+            ),
             if (vm.isEditingMode)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -120,7 +107,7 @@ class _DirectViewState extends State<DirectView> {
 
                   return Stack(
                     children: [
-                      ListView.separated(
+                      ListView.builder(
                         controller: vm.scrollController,
                         padding: const EdgeInsets.fromLTRB(
                           AutonannySpacing.lg,
@@ -130,26 +117,47 @@ class _DirectViewState extends State<DirectView> {
                         ),
                         reverse: true,
                         itemCount: vm.messages!.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: AutonannySpacing.sm),
                         itemBuilder: (context, index) {
                           final message = vm.messages![index];
-                          return GestureDetector(
-                            onTap: () {
-                              if (vm.isEditingMode && message.isMe) {
-                                setState(() {
-                                  vm.startEditingMessage(message);
-                                });
-                              }
-                            },
-                            child: _MessageBubble(
-                              message: message,
-                              onOpenImage: _openImageView,
-                              onOpenPdf: _openPdfFile,
-                              onOpenVideo: (url) => vm.navigateToView(
-                                VideoView(url: url),
+                          final previousMessage =
+                              index + 1 < vm.messages!.length
+                                  ? vm.messages![index + 1]
+                                  : null;
+                          final showDateDivider = previousMessage == null ||
+                              !_isSameCalendarDay(
+                                message.timestampSend,
+                                previousMessage.timestampSend,
+                              );
+
+                          return Column(
+                            children: [
+                              if (showDateDivider)
+                                _ChatDateDivider(
+                                  timestamp: message.timestampSend,
+                                ),
+                              GestureDetector(
+                                onTap: () {
+                                  if (vm.isEditingMode && message.isMe) {
+                                    setState(() {
+                                      vm.startEditingMessage(message);
+                                    });
+                                  }
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AutonannySpacing.sm,
+                                  ),
+                                  child: _MessageBubble(
+                                    message: message,
+                                    onOpenImage: _openImageView,
+                                    onOpenPdf: _openPdfFile,
+                                    onOpenVideo: (url) => vm.navigateToView(
+                                      VideoView(url: url),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           );
                         },
                       ),
@@ -237,6 +245,151 @@ class _DirectViewState extends State<DirectView> {
   }
 }
 
+class _DirectChatHeader extends StatelessWidget {
+  const _DirectChatHeader({
+    required this.title,
+    required this.isEditingMode,
+    required this.onBack,
+    required this.onToggleEdit,
+  });
+
+  final String title;
+  final bool isEditingMode;
+  final VoidCallback onBack;
+  final VoidCallback onToggleEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AutonannySpacing.lg,
+        AutonannySpacing.md,
+        AutonannySpacing.lg,
+        AutonannySpacing.sm,
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AutonannySpacing.md,
+          vertical: AutonannySpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: AutonannyRadii.brFull,
+          boxShadow: AutonannyShadows.card,
+        ),
+        child: Row(
+          children: [
+            AutonannyIconButton(
+              icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+              onPressed: onBack,
+              tooltip: 'Назад',
+            ),
+            const SizedBox(width: AutonannySpacing.sm),
+            AutonannyAvatar(
+              initials: _initials(title),
+              size: 38,
+            ),
+            const SizedBox(width: AutonannySpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AutonannyTypography.labelL(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Диалог активен',
+                    style: AutonannyTypography.caption(
+                      color: colors.statusSuccess,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AutonannySpacing.sm),
+            AutonannyIconButton(
+              icon: const AutonannyIcon(AutonannyIcons.edit),
+              variant: isEditingMode
+                  ? AutonannyIconButtonVariant.primary
+                  : AutonannyIconButtonVariant.surface,
+              onPressed: onToggleEdit,
+              tooltip: 'Редактировать сообщения',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _initials(String value) {
+    final parts = value
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .toList(growable: false);
+
+    if (parts.isEmpty) {
+      return 'A';
+    }
+
+    return parts.map((part) => part[0]).join().toUpperCase();
+  }
+}
+
+bool _isSameCalendarDay(double left, double right) {
+  final leftDate = DateTime.fromMillisecondsSinceEpoch((left * 1000).toInt());
+  final rightDate = DateTime.fromMillisecondsSinceEpoch((right * 1000).toInt());
+  return leftDate.year == rightDate.year &&
+      leftDate.month == rightDate.month &&
+      leftDate.day == rightDate.day;
+}
+
+class _ChatDateDivider extends StatelessWidget {
+  const _ChatDateDivider({
+    required this.timestamp,
+  });
+
+  final double timestamp;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final value = DateTime.fromMillisecondsSinceEpoch((timestamp * 1000).toInt());
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AutonannySpacing.sm),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.md,
+            vertical: 4,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surfaceSecondary.withValues(alpha: 0.92),
+            borderRadius: AutonannyRadii.brFull,
+          ),
+          child: Text(
+            DateFormat('d MMMM', 'ru_RU').format(value),
+            style: AutonannyTypography.caption(
+              color: colors.textTertiary,
+            ).copyWith(fontWeight: FontWeight.w700),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
@@ -254,6 +407,10 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.autonannyColors;
     final components = context.autonannyComponents;
+
+    if (message.msgType == 5) {
+      return _SystemMessageCard(message: message);
+    }
 
     return Align(
       alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -311,6 +468,54 @@ class _MessageBubble extends StatelessWidget {
       ),
     );
     return message.edited ? '(ред.) $timestamp' : timestamp;
+  }
+}
+
+class _SystemMessageCard extends StatelessWidget {
+  const _SystemMessageCard({
+    required this.message,
+  });
+
+  final ChatMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 260),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.md,
+            vertical: AutonannySpacing.md,
+          ),
+          decoration: BoxDecoration(
+            color: colors.surfaceSecondary,
+            borderRadius: AutonannyRadii.brLg,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                message.msg,
+                textAlign: TextAlign.center,
+                style: AutonannyTypography.bodyS(
+                  color: colors.textSecondary,
+                ).copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: AutonannySpacing.xs),
+              Text(
+                _MessageBubble._timestampLabel(message),
+                style: AutonannyTypography.caption(
+                  color: colors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

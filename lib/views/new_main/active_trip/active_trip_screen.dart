@@ -139,6 +139,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       isDismissible: false,
       enableDrag: false,
       builder: (ctx) => PopScope(
@@ -401,6 +402,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) => _TripActionSheet(
         title: title,
         subtitle: _formatTripRouteLabel(vm.addresses),
@@ -608,6 +610,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) => _TripActionSheet(
         title: hasPenalty ? 'Поездка отменена со штрафом' : 'Поездка отменена',
         subtitle: _formatTripRouteLabel(vm.addresses),
@@ -840,6 +843,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) => _TripActionSheet(
         title: success ? 'Маршрут обновляется' : 'Не удалось изменить маршрут',
         subtitle: _formatTripRouteLabel(vm.addresses),
@@ -933,6 +937,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (ctx) => _TripActionSheet(
         title: accepted ? 'Маршрут обновлен' : 'Водитель отклонил изменение',
         subtitle: _formatTripRouteLabel(vm.addresses),
@@ -2371,70 +2376,78 @@ class _TripActionSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxSheetHeight = MediaQuery.of(context).size.height * 0.88;
+
     return SafeArea(
       top: false,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            20 + MediaQuery.of(context).padding.bottom,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxSheetHeight),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: NDT.neutral200,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                20 + MediaQuery.of(context).padding.bottom,
               ),
-              const SizedBox(height: AutonannySpacing.lg),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: leadingColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      leadingIcon,
-                      color: leadingColor,
-                      size: 28,
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: NDT.neutral200,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: AutonannySpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(title, style: NDT.h2),
-                        const SizedBox(height: AutonannySpacing.xs),
-                        Text(
-                          subtitle,
-                          style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: leadingColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
                         ),
-                      ],
-                    ),
+                        child: Icon(
+                          leadingIcon,
+                          color: leadingColor,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: AutonannySpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: NDT.h2),
+                            const SizedBox(height: AutonannySpacing.xs),
+                            Text(
+                              subtitle,
+                              style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: AutonannySpacing.lg),
+                  child,
                 ],
               ),
-              const SizedBox(height: AutonannySpacing.lg),
-              child,
-            ],
+            ),
           ),
         ),
       ),

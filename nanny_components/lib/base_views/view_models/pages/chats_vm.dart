@@ -27,7 +27,7 @@ class ChatsVM extends ViewModelBase {
   /// Вызывается после возврата из чата (для сброса бейджа непрочитанных в нижнем баре)
   VoidCallback? onReturnFromChat;
   Widget Function(int driverId)? buildDriverRatingView;
-  bool chatsSelected = false;
+  bool chatsSelected = true;
   String query = "";
 
   StreamSubscription<Map<String, dynamic>>? sub;

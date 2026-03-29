@@ -19,44 +19,77 @@ class WeeksSelector extends StatefulWidget {
 class _WeeksSelectorState extends State<WeeksSelector> {
   @override
   Widget build(BuildContext context) {
-    return AdaptBuilder(
-      builder: (context, size) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 6.0;
+        final itemWidth =
+            ((constraints.maxWidth - (spacing * 6)) / 7).clamp(34.0, 56.0);
+        final itemHeight = itemWidth < 42 ? 42.0 : 48.0;
+
         return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: NannyWeekday.values
-                .map(
-                  (e) => SizedBox(
-                    width: size.width * .12,
-                    height: size.height * .08,
-                    child: ElevatedButton(
-                      style: (widget.selectedWeekday.contains(e)
-                              ? NannyButtonStyles.defaultButtonStyle
-                              : NannyButtonStyles.whiteButton)
-                          .copyWith(
-                        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-                        elevation: const WidgetStatePropertyAll(0),
-                        shape: WidgetStatePropertyAll(
-                          RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(3.6),
-                          ),
-                        ),
-                      ),
-                      onPressed: () => widget.onChanged(e),
-                      child: Text(
-                        e.shortName,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: widget.selectedWeekday.contains(e)
-                                ? NannyTheme.secondary
-                                : const Color(0xFF2B2B2B),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w400),
-                      ),
-                    ),
-                  ),
-                )
-                .toList());
+          children: [
+            for (var index = 0; index < NannyWeekday.values.length; index++) ...[
+              if (index > 0) const SizedBox(width: spacing),
+              SizedBox(
+                width: itemWidth,
+                height: itemHeight,
+                child: _WeekdayButton(
+                  weekday: NannyWeekday.values[index],
+                  isSelected:
+                      widget.selectedWeekday.contains(NannyWeekday.values[index]),
+                  onPressed: () => widget.onChanged(NannyWeekday.values[index]),
+                ),
+              ),
+            ],
+          ],
+        );
       },
+    );
+  }
+}
+
+class _WeekdayButton extends StatelessWidget {
+  const _WeekdayButton({
+    required this.weekday,
+    required this.isSelected,
+    required this.onPressed,
+  });
+
+  final NannyWeekday weekday;
+  final bool isSelected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      style: (isSelected
+              ? NannyButtonStyles.defaultButtonStyle
+              : NannyButtonStyles.whiteButton)
+          .copyWith(
+        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+        elevation: const WidgetStatePropertyAll(0),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      onPressed: onPressed,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Text(
+            weekday.shortName,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? NannyTheme.secondary : const Color(0xFF2B2B2B),
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

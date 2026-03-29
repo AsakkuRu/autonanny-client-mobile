@@ -111,11 +111,18 @@ class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
         ],
       ),
       child: Center(
-        child: Text(
-          value,
-          textScaler: const TextScaler.linear(1.7),
-          style: NewDesignAuthTokens.titleXL.copyWith(
-            color: NewDesignAuthTokens.neutral900,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            style: NewDesignAuthTokens.titleXL.copyWith(
+              color: NewDesignAuthTokens.neutral900,
+              fontSize: 28,
+              height: 1,
+              letterSpacing: 0,
+            ),
           ),
         ),
       ),
@@ -138,8 +145,12 @@ class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
       ),
       child: Text(
         setValue,
-        textScaler: const TextScaler.linear(1.9),
-        style: NewDesignAuthTokens.titleM,
+        textAlign: TextAlign.center,
+        style: NewDesignAuthTokens.titleM.copyWith(
+          fontSize: 26,
+          height: 1,
+          letterSpacing: 0,
+        ),
       ),
     );
   }
