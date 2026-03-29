@@ -46,6 +46,7 @@ class ViewModelBase {
   Future<void> reloadPage() async {
     _loadRequest = loadPage();
     update(() {});
+    await _loadRequest;
   }
 
   void dispose() {}

@@ -52,11 +52,12 @@ class GraphVM extends ViewModelBase {
   StreamSubscription<dynamic>? _connectedSub;
   DateTime? _lastResponsesLoadAt;
   static const _responsesDebounceMs = 500;
+  bool _isHardReloadInProgress = false;
 
   /// Подгрузка откликов (при событии contract.responses.updated или fallback).
   /// При обновлении откликов также подгружаем контакт водителя — заявка могла быть принята в чате.
   Future<void> loadResponsesOnly() async {
-    if (isOffline) return;
+    if (isOffline || _isHardReloadInProgress) return;
     final now = DateTime.now();
     if (_lastResponsesLoadAt != null &&
         now.difference(_lastResponsesLoadAt!).inMilliseconds <
@@ -470,14 +471,24 @@ class GraphVM extends ViewModelBase {
   }
 
   Future<void> loadDriverContact() async {
-    if (selectedSchedule == null || selectedSchedule!.id == null) return;
-
-    var result = await NannyUsersApi.getDriverContact(selectedSchedule!.id!);
-    if (result.success && result.response != null) {
+    final scheduleId = selectedSchedule?.id;
+    if (scheduleId == null) {
       update(() {
-        driverContact = result.response;
+        driverContact = null;
       });
+      return;
     }
+
+    var result = await NannyUsersApi.getDriverContact(scheduleId);
+    if (selectedSchedule?.id != scheduleId) {
+      return;
+    }
+
+    update(() {
+      driverContact = result.success && result.response != null
+          ? result.response
+          : null;
+    });
   }
 
   Future<bool> deleteSchedule(Schedule schedule) async {
@@ -932,7 +943,7 @@ class GraphVM extends ViewModelBase {
   }
 
   void answerResponse(ScheduleResponsesData response, bool accept) async {
-    LoadScreen.showLoad(context, true);
+    await LoadScreen.showLoad(context, true);
     var result = await NannyOrdersApi.answerScheduleRequest(
       AnswerScheduleRequest(
         idSchedule: response.idSchedule,
@@ -941,30 +952,35 @@ class GraphVM extends ViewModelBase {
       ),
     );
     if (!context.mounted) return;
-    LoadScreen.showLoad(context, false);
+    await LoadScreen.showLoad(context, false);
+    if (!context.mounted) return;
     if (!result.success) {
-      NannyDialogs.showMessageBox(context, 'Ошибка', result.errorMessage);
+      await NannyDialogs.showMessageBox(context, 'Ошибка', result.errorMessage);
       return;
     }
-    NannyDialogs.showMessageBox(
-      context,
-      'Успех',
-      accept ? 'Водитель принят' : 'Отклик отклонён',
-    );
     update(() {
       responses = responses
           .where((r) => !(r.idSchedule == response.idSchedule &&
               r.idDriver == response.idDriver))
           .toList();
+      if (accept && selectedSchedule?.id == response.idSchedule) {
+        driverContact = null;
+      }
     });
-    if (accept && selectedSchedule?.id == response.idSchedule) {
-      await loadDriverContact();
-    }
-    reloadPage();
+    if (!context.mounted) return;
+    await NannyDialogs.showMessageBox(
+      context,
+      'Успех',
+      accept ? 'Водитель принят' : 'Отклик отклонён',
+    );
+    if (!context.mounted) return;
+    _selectScheduleIdOnNextLoad = response.idSchedule;
+    await reloadPage();
   }
 
   @override
   Future<bool> loadPage() async {
+    _isHardReloadInProgress = true;
     final idToSelect = _selectScheduleIdOnNextLoad ?? selectedSchedule?.id;
     final selectNewest = _selectNewestOnNextLoad;
     _selectScheduleIdOnNextLoad = null;
@@ -1028,9 +1044,12 @@ class GraphVM extends ViewModelBase {
       // для автоматически выбранного контракта, чтобы статус был корректным.
       if (selectedSchedule != null) {
         await loadDriverContact();
+      } else {
+        driverContact = null;
       }
 
       update(() {});
+      _isHardReloadInProgress = false;
       return true;
     }
 
@@ -1069,13 +1088,17 @@ class GraphVM extends ViewModelBase {
         // по автоматически выбранному контракту (если есть сеть).
         if (selectedSchedule != null) {
           await loadDriverContact();
+        } else {
+          driverContact = null;
         }
 
         update(() {});
+        _isHardReloadInProgress = false;
         return true;
       }
     } catch (_) {}
 
+    _isHardReloadInProgress = false;
     return false;
   }
 
