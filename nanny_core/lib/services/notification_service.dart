@@ -47,9 +47,11 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
   GlobalKey<NavigatorState>? _navigatorKey;
+  GlobalKey<ScaffoldMessengerState>? _scaffoldMessengerKey;
   int _notificationId = 0;
-  OverlayEntry? _inAppOverlayEntry;
-  Timer? _inAppOverlayTimer;
+  String? _lastPresentationSignature;
+  DateTime? _lastPresentationAt;
+  static const Duration _presentationDedupWindow = Duration(seconds: 2);
 
   // Колбэк для in-app уведомлений (устанавливается UI-слоем)
   void Function(String title, String body, InAppStyle style)?
@@ -58,8 +60,12 @@ class NotificationService {
   Map<String, dynamic>? _pendingLocalTapPayload;
 
   /// Инициализация.
-  Future<void> init([GlobalKey<NavigatorState>? navigatorKey]) async {
+  Future<void> init([
+    GlobalKey<NavigatorState>? navigatorKey,
+    GlobalKey<ScaffoldMessengerState>? scaffoldMessengerKey,
+  ]) async {
     _navigatorKey = navigatorKey;
+    _scaffoldMessengerKey = scaffoldMessengerKey;
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -102,149 +108,116 @@ class NotificationService {
 
     final title = _interpolate(config.titleTemplate, data);
     final body = _interpolate(config.bodyTemplate, data);
+    final signature = _presentationSignature(
+      event: event,
+      title: title,
+      body: body,
+      data: data,
+    );
+    if (_shouldSuppressPresentation(signature)) {
+      return;
+    }
 
     if (AppLifecycleService.isForeground) {
-      _showInApp(title, body, config.inAppStyle);
-    } else {
-      _showLocalNotification(title, body, config, event: event, data: data);
+      final shownInApp = _showInApp(title, body, config.inAppStyle);
+      if (shownInApp) {
+        return;
+      }
     }
+
+    _showLocalNotification(title, body, config, event: event, data: data);
+  }
+
+  void showInAppMessage(
+    String title,
+    String body, {
+    InAppStyle style = InAppStyle.banner,
+  }) {
+    if (title.trim().isEmpty && body.trim().isEmpty) {
+      return;
+    }
+    if (_shouldSuppressPresentation('manual|$style|$title|$body')) {
+      return;
+    }
+    _showInApp(title, body, style);
   }
 
   // ── In-App ────────────────────────────────────────────────────
 
-  void _showInApp(String title, String body, InAppStyle style) {
+  bool _showInApp(String title, String body, InAppStyle style) {
     if (onInAppNotification != null) {
       onInAppNotification!(title, body, style);
-      return;
+      return true;
     }
 
     // Fallback: через overlay если navigatorKey доступен
-    final context = _navigatorKey?.currentContext;
-    if (context == null) return;
-
     switch (style) {
       case InAppStyle.banner:
-        _showBanner(context, title, body);
-        break;
+        return _showBanner(title, body);
       case InAppStyle.toast:
-        _showToast(context, body);
-        break;
+        return _showToast(body);
       case InAppStyle.dialog:
+        final context = _navigatorKey?.currentContext;
+        if (context == null) {
+          return false;
+        }
         _showDialog(context, title, body);
-        break;
+        return true;
       case InAppStyle.none:
-        break;
+        return false;
     }
   }
 
-  void _showBanner(BuildContext context, String title, String body) {
-    _showTopOverlay(
-      context,
-      title: title,
-      body: body,
-      duration: const Duration(seconds: 4),
-    );
-  }
-
-  void _showToast(BuildContext context, String body) {
-    _showTopOverlay(
-      context,
-      title: '',
-      body: body,
-      duration: const Duration(seconds: 2),
-      compact: true,
-    );
-  }
-
-  void _showTopOverlay(
-    BuildContext context, {
-    required String title,
-    required String body,
-    required Duration duration,
-    bool compact = false,
-  }) {
-    final overlay = Overlay.of(context, rootOverlay: true);
-    _hideInAppOverlay();
-
-    _inAppOverlayEntry = OverlayEntry(
-      builder: (overlayContext) {
-        final topInset = MediaQuery.of(overlayContext).padding.top;
-        return Positioned(
-          top: topInset + 12,
-          left: 16,
-          right: 16,
-          child: Material(
-            color: Colors.transparent,
-            child: SafeArea(
-              bottom: false,
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: GestureDetector(
-                  onTap: _hideInAppOverlay,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF343443),
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x33000000),
-                          blurRadius: 18,
-                          offset: Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: compact ? 14 : 16,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (title.isNotEmpty) ...[
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                fontSize: 15,
-                              ),
-                            ),
-                            if (body.isNotEmpty) const SizedBox(height: 4),
-                          ],
-                          if (body.isNotEmpty)
-                            Text(
-                              body,
-                              style: TextStyle(
-                                color: compact
-                                    ? Colors.white
-                                    : Colors.white.withValues(alpha: 0.82),
-                                fontSize: 14,
-                                height: 1.25,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
+  bool _showBanner(String title, String body) {
+    final messenger = _scaffoldMessengerKey?.currentState;
+    if (messenger == null) {
+      return false;
+    }
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title.isNotEmpty)
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
               ),
-            ),
-          ),
-        );
-      },
+            if (body.isNotEmpty)
+              Text(
+                body,
+                style: const TextStyle(color: Colors.white70),
+              ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        margin:
+            const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 16),
+      ),
     );
-
-    overlay.insert(_inAppOverlayEntry!);
-    _inAppOverlayTimer = Timer(duration, _hideInAppOverlay);
+    return true;
   }
 
-  void _hideInAppOverlay() {
-    _inAppOverlayTimer?.cancel();
-    _inAppOverlayTimer = null;
-    _inAppOverlayEntry?.remove();
-    _inAppOverlayEntry = null;
+  bool _showToast(String body) {
+    final messenger = _scaffoldMessengerKey?.currentState;
+    if (messenger == null) {
+      return false;
+    }
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(body),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    return true;
   }
 
   void _showDialog(BuildContext context, String title, String body) {
@@ -513,5 +486,72 @@ class NotificationService {
       case NotificationPriority.low:
         return Priority.low;
     }
+  }
+
+  String _presentationSignature({
+    required String event,
+    required String title,
+    required String body,
+    required Map<String, dynamic> data,
+  }) {
+    final chatId = _readPayloadId(
+      data,
+      const ['chat_id', 'id_chat', 'chatId', 'id'],
+    );
+    final messageId = _readPayloadId(
+      data,
+      const ['message_id', 'id_message'],
+    );
+    final orderId = _readPayloadId(
+      data,
+      const ['order_id', 'id_order'],
+    );
+    final scheduleId = _readPayloadId(
+      data,
+      const ['schedule_id', 'id_schedule', 'contract_id'],
+    );
+
+    return [
+      event,
+      data['type']?.toString() ?? '',
+      chatId ?? '',
+      messageId ?? '',
+      orderId ?? '',
+      scheduleId ?? '',
+      title,
+      body,
+    ].join('|');
+  }
+
+  String? _readPayloadId(
+    Map<String, dynamic> payload,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = payload[key];
+      if (value == null) {
+        continue;
+      }
+      final normalized = value.toString();
+      if (normalized.isNotEmpty) {
+        return normalized;
+      }
+    }
+    return null;
+  }
+
+  bool _shouldSuppressPresentation(String signature) {
+    final now = DateTime.now();
+    final lastSignature = _lastPresentationSignature;
+    final lastAt = _lastPresentationAt;
+    if (lastSignature == signature &&
+        lastAt != null &&
+        now.difference(lastAt) < _presentationDedupWindow) {
+      return true;
+    }
+
+    _lastPresentationSignature = signature;
+    _lastPresentationAt = now;
+    return false;
   }
 }

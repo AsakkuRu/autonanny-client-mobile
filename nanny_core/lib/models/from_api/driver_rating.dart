@@ -42,14 +42,25 @@ class DriverReview {
   });
 
   factory DriverReview.fromJson(Map<String, dynamic> json) {
+    final rawCriteria = json['criteria'];
+    List<String>? criteria;
+    if (rawCriteria is List) {
+      criteria = rawCriteria.map((item) => item.toString()).toList();
+    } else if (rawCriteria is Map) {
+      criteria = rawCriteria.entries
+          .where((entry) => entry.value == true || entry.value == 1)
+          .map((entry) => entry.key.toString())
+          .toList();
+    }
+
     return DriverReview(
       id: json['id'] ?? 0,
       rating: json['rating'] ?? 0,
       text: json['text'] ?? json['review'],
-      criteria: (json['criteria'] as List<dynamic>?)?.cast<String>(),
+      criteria: criteria,
       date: DateTime.tryParse(json['date'] ?? json['created_at'] ?? '') ??
           DateTime.now(),
-      authorName: json['author_name'] ?? json['author'],
+      authorName: json['author_name'] ?? json['author'] ?? json['user_name'],
     );
   }
 }

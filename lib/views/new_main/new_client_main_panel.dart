@@ -513,12 +513,6 @@ class _ChildrenBlock extends StatelessWidget {
                 letterSpacing: 0.8,
               ),
             ),
-            const Spacer(),
-            AutonannyIconButton(
-              icon: const AutonannyIcon(AutonannyIcons.add),
-              onPressed: () => _openAddChild(context),
-              size: 36,
-            ),
           ],
         ),
         const SizedBox(height: NDT.sp10),
@@ -548,15 +542,7 @@ class _ChildrenBlock extends StatelessWidget {
                     vm.toggleChild(child, showToast: showToast);
                   }
                 },
-              ),
-              const SizedBox(height: NDT.sp12),
-              AutonannyButton(
-                label: 'Добавить ребёнка',
-                size: AutonannyButtonSize.medium,
-                variant: AutonannyButtonVariant.secondary,
-                leading: const AutonannyIcon(AutonannyIcons.add),
-                expand: false,
-                onPressed: () => _openAddChild(context),
+                onAddTap: () => _openAddChild(context),
               ),
             ],
           ),

@@ -13,12 +13,14 @@ class ChatsView extends StatefulWidget {
   /// Вызывается после возврата из чата (для сброса бейджа непрочитанных в нижнем баре)
   final VoidCallback? onReturnFromChat;
   final Widget Function(int driverId)? buildDriverRatingView;
+  final Future<void> Function()? onOpenSupportChat;
 
   const ChatsView({
     super.key,
     this.persistState = false,
     this.onReturnFromChat,
     this.buildDriverRatingView,
+    this.onOpenSupportChat,
   });
 
   @override
@@ -113,15 +115,6 @@ class _ChatsViewState extends State<ChatsView>
   }
 
   Widget _buildChatsList(List<ChatElement> chats) {
-    if (chats.isEmpty) {
-      return const AutonannyEmptyState(
-        title: 'Пока нет чатов',
-        description:
-            'Когда водитель напишет вам или вы откроете диалог по поездке, он появится здесь.',
-        icon: AutonannyIcon(AutonannyIcons.chat),
-      );
-    }
-
     final sortedChats = List<ChatElement>.from(chats)
       ..sort((a, b) {
         final aTime = a.message?.time ?? 0;
@@ -139,14 +132,31 @@ class _ChatsViewState extends State<ChatsView>
         return a.username.toLowerCase().compareTo(b.username.toLowerCase());
       });
 
+    final supportChats = sortedChats.where(_ChatCard.isSupportChat).toList();
+    final regularChats =
+        sortedChats.where((chat) => !_ChatCard.isSupportChat(chat)).toList();
     final activeChats =
-        sortedChats.where((chat) => !_ChatCard.isCompletedChat(chat)).toList();
+        regularChats.where((chat) => !_ChatCard.isCompletedChat(chat)).toList();
     final completedChats =
-        sortedChats.where(_ChatCard.isCompletedChat).toList();
+        regularChats.where(_ChatCard.isCompletedChat).toList();
+    final supportChat = supportChats.isNotEmpty ? supportChats.first : null;
+    final supportMatchesQuery = _matchesSupportQuery(vm.query);
 
     return ListView(
       padding: const EdgeInsets.only(bottom: AutonannySpacing.xxl),
       children: [
+        if (activeChats.isEmpty &&
+            completedChats.isEmpty &&
+            !supportMatchesQuery)
+          const Padding(
+            padding: EdgeInsets.only(top: AutonannySpacing.xl),
+            child: AutonannyEmptyState(
+              title: 'Пока нет чатов',
+              description:
+                  'Когда водитель напишет вам или вы откроете диалог по поездке, он появится здесь.',
+              icon: AutonannyIcon(AutonannyIcons.chat),
+            ),
+          ),
         if (activeChats.isNotEmpty) ...[
           const _ChatSectionHeader(label: 'Активные'),
           for (final chat in activeChats)
@@ -173,8 +183,27 @@ class _ChatsViewState extends State<ChatsView>
               },
             ),
         ],
+        if (supportMatchesQuery) ...[
+          const _ChatSectionHeader(label: 'Поддержка'),
+          _SupportChatCard(
+            chat: supportChat,
+            onTap: () async {
+              await widget.onOpenSupportChat?.call();
+              widget.onReturnFromChat?.call();
+              vm.updateList?.call();
+            },
+          ),
+        ],
       ],
     );
+  }
+
+  bool _matchesSupportQuery(String query) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return true;
+    }
+    return 'поддержка авто няня оператор чат техподдержка'.contains(normalized);
   }
 
   Widget _buildRequestsList(List<ScheduleResponsesData> requests) {
@@ -399,8 +428,7 @@ class _ChatCard extends StatelessWidget {
 
   static bool isSupportChat(ChatElement chat) {
     final normalized = chat.username.trim().toLowerCase();
-    return normalized.contains('поддерж') ||
-        normalized.contains('автоняня');
+    return normalized.contains('поддерж') || normalized.contains('автоняня');
   }
 
   static bool isCompletedChat(ChatElement chat) {
@@ -601,7 +629,7 @@ class _ChatAvatar extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         AutonannyAvatar(
-          imageUrl: chat.photoPath,
+          imageUrl: NannyConsts.buildFileUrl(chat.photoPath),
           initials: _ChatCard._initials(chat.username),
           size: 50,
         ),
@@ -662,7 +690,7 @@ class _RequestRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AutonannyAvatar(
-                imageUrl: item.photoPath,
+                imageUrl: NannyConsts.buildFileUrl(item.photoPath),
                 initials: _ChatCard._initials(item.name),
                 size: 50,
               ),
@@ -695,6 +723,135 @@ class _RequestRow extends StatelessWidget {
               const AutonannyBadge(
                 label: 'Новая',
                 variant: AutonannyBadgeVariant.warning,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SupportChatCard extends StatelessWidget {
+  const _SupportChatCard({
+    required this.onTap,
+    this.chat,
+  });
+
+  final ChatElement? chat;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+    final unreadCount = chat?.message?.newMessages ?? 0;
+    final timestamp = _ChatCard._formatTimestamp(chat?.message?.time);
+    final preview = (chat?.message?.msg.trim().isNotEmpty ?? false)
+        ? chat!.message!.msg
+        : 'Мы на связи. Напишите, если нужна помощь по поездке или приложению.';
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AutonannySpacing.xl,
+            vertical: AutonannySpacing.lg,
+          ),
+          decoration: BoxDecoration(
+            color:
+                unreadCount > 0 ? colors.surfaceSecondary : Colors.transparent,
+            border: Border(
+              bottom: BorderSide(color: colors.borderSubtle),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                alignment: Alignment.center,
+                child: const AutonannyIcon(
+                  AutonannyIcons.chat,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Wrap(
+                            spacing: AutonannySpacing.sm,
+                            runSpacing: AutonannySpacing.xs,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Text(
+                                'Поддержка',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AutonannyTypography.labelL(
+                                  color: colors.textPrimary,
+                                ),
+                              ),
+                              const _SupportBadge(),
+                            ],
+                          ),
+                        ),
+                        if (timestamp.isNotEmpty) ...[
+                          const SizedBox(width: AutonannySpacing.md),
+                          Text(
+                            timestamp,
+                            style: AutonannyTypography.caption(
+                              color: colors.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            preview,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AutonannyTypography.bodyS(
+                              color: unreadCount > 0
+                                  ? colors.textPrimary
+                                  : colors.textSecondary,
+                            ).copyWith(
+                              fontWeight: unreadCount > 0
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        if (unreadCount > 0) ...[
+                          const SizedBox(width: AutonannySpacing.sm),
+                          _UnreadBadge(
+                            label: _ChatCard._formatUnreadCount(unreadCount),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

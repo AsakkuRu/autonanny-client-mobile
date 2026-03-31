@@ -1,5 +1,7 @@
 # 📱 AutoNanny Client Mobile
 
+**Git:** эта папка (`autonanny-client-mobile-wc/`) — отдельный репозиторий. Корень родительской директории `AutoNanny/` не является git-репозиторием; рядом — отдельные репозитории `admin-frontend`, `autonanny-backend`, `autonanny-driver-mobile-wc`.
+
 Мобильное приложение для родителей - безопасная перевозка детей.
 
 ## 🎯 Описание

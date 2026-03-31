@@ -298,10 +298,15 @@ class AutopaySettingsVM extends ViewModelBase {
   }
 
   void addCard() async {
+    final existing = cards
+        .map((c) => c.fullNumber.replaceAll(RegExp(r'\D'), ''))
+        .where((s) => s.length == 16)
+        .toList(growable: false);
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const AddCardView(),
+        builder: (context) =>
+            AddCardView(existingCardPanDigits: existing),
       ),
     );
 

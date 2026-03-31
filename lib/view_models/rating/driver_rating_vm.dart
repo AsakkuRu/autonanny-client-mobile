@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/rating/driver_order_rating.dart';
+import 'package:nanny_core/utils/profanity_filter.dart';
 
 class DriverRatingVM {
   DriverRatingVM({
@@ -105,6 +106,16 @@ class DriverRatingVM {
   Future<void> submitRating() async {
     if (rating == 0) return;
     final wasExistingRating = hasExistingRating;
+    final reviewText = reviewController.text.trim();
+    final reviewCheck = ProfanityFilter.checkText(reviewText);
+
+    if (reviewCheck.hasProfanity) {
+      await NannyDialogs.showMessageBox(
+        context,
+        'Проверьте отзыв',
+        'В отзыве найдены недопустимые слова. Мы заменим их на "***".',
+      );
+    }
 
     update(() {
       isSubmitting = true;
@@ -115,8 +126,8 @@ class DriverRatingVM {
       orderId: orderId,
       rating: rating,
       criteria: selectedCriteria.isNotEmpty ? selectedCriteria : null,
-      review: reviewController.text.trim().isNotEmpty
-          ? reviewController.text.trim()
+      review: reviewCheck.filteredText.trim().isNotEmpty
+          ? reviewCheck.filteredText.trim()
           : null,
     );
 

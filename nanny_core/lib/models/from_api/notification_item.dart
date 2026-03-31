@@ -25,7 +25,7 @@ class NotificationItem {
       type: json['type'] as String? ?? 'system',
       title: json['title'] as String? ?? '',
       body: json['body'] as String? ?? '',
-      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
+      createdAt: _parseNotificationDate(json['created_at']),
       isRead: json['is_read'] as bool? ?? false,
       payload: rawPayload is Map ? Map<String, dynamic>.from(rawPayload) : null,
     );
@@ -62,7 +62,8 @@ class NotificationItem {
         id: 2,
         type: 'payment',
         title: 'Баланс пополнен',
-        body: 'На счёт зачислено +3 000 ₽. Средства доступны для следующих поездок.',
+        body:
+            'На счёт зачислено +3 000 ₽. Средства доступны для следующих поездок.',
         createdAt: now.subtract(const Duration(hours: 2)),
         isRead: true,
         payload: {
@@ -74,7 +75,8 @@ class NotificationItem {
         id: 3,
         type: 'order',
         title: 'Контракт приостановлен',
-        body: '«Утренний маршрут» временно на паузе. Проверьте детали контракта.',
+        body:
+            '«Утренний маршрут» временно на паузе. Проверьте детали контракта.',
         createdAt: now.subtract(const Duration(days: 1)),
         isRead: true,
         payload: {
@@ -86,7 +88,8 @@ class NotificationItem {
         id: 4,
         type: 'message',
         title: 'Новое сообщение от водителя',
-        body: 'Петров Пётр написал вам по поездке. Откройте чат, чтобы ответить.',
+        body:
+            'Петров Пётр написал вам по поездке. Откройте чат, чтобы ответить.',
         createdAt: now.subtract(const Duration(days: 2)),
         isRead: false,
         payload: {
@@ -105,4 +108,38 @@ class NotificationItem {
       ),
     ];
   }
+}
+
+DateTime _parseNotificationDate(dynamic rawValue) {
+  final raw = rawValue?.toString().trim() ?? '';
+  if (raw.isEmpty) {
+    return DateTime.now();
+  }
+
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) {
+    return DateTime.now();
+  }
+
+  if (_hasExplicitTimezone(raw)) {
+    return parsed.toLocal();
+  }
+
+  return DateTime.utc(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    parsed.hour,
+    parsed.minute,
+    parsed.second,
+    parsed.millisecond,
+    parsed.microsecond,
+  ).toLocal();
+}
+
+bool _hasExplicitTimezone(String raw) {
+  final normalized = raw.trim().toUpperCase();
+  return normalized.endsWith('Z') ||
+      RegExp(r'[+-]\d{2}:\d{2}$').hasMatch(normalized) ||
+      RegExp(r'[+-]\d{4}$').hasMatch(normalized);
 }

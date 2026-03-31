@@ -46,6 +46,7 @@ class ChildEditVM extends ViewModelBase {
 
   // FE-MVP-014: Список экстренных контактов
   List<EmergencyContact> emergencyContacts = [];
+  bool isSaving = false;
 
   void _initializeFromChild() {
     surnameController.text = child!.surname;
@@ -146,6 +147,10 @@ class ChildEditVM extends ViewModelBase {
   }
 
   Future<void> save() async {
+    if (isSaving) {
+      return;
+    }
+
     // Валидация
     if (surnameController.text.trim().isEmpty) {
       NannyDialogs.showMessageBox(context, "Ошибка", "Введите фамилию");
@@ -173,6 +178,9 @@ class ChildEditVM extends ViewModelBase {
     }
 
     if (!context.mounted) return;
+    update(() {
+      isSaving = true;
+    });
     LoadScreen.showLoad(context, true);
 
     // Вычисляем возраст
@@ -207,6 +215,9 @@ class ChildEditVM extends ViewModelBase {
       if (!context.mounted) return;
       if (!createResult.success) {
         LoadScreen.showLoad(context, false);
+        update(() {
+          isSaving = false;
+        });
         NannyDialogs.showMessageBox(
             context, "Ошибка", createResult.errorMessage);
         return;
@@ -218,6 +229,9 @@ class ChildEditVM extends ViewModelBase {
       if (!context.mounted) return;
       if (!updateResult.success) {
         LoadScreen.showLoad(context, false);
+        update(() {
+          isSaving = false;
+        });
         NannyDialogs.showMessageBox(
             context, "Ошибка", updateResult.errorMessage);
         return;
@@ -244,16 +258,13 @@ class ChildEditVM extends ViewModelBase {
     }
 
     if (!context.mounted) return;
-    LoadScreen.showLoad(context, false);
-
-    await NannyDialogs.showMessageBox(
-      context,
-      "Успех",
-      child == null ? "Ребенок добавлен" : "Данные сохранены",
-    );
+    await LoadScreen.showLoad(context, false);
+    if (!context.mounted) return;
+    update(() {
+      isSaving = false;
+    });
 
     if (!context.mounted) return;
-    // Возвращаемся назад с результатом
     Navigator.of(context).pop(true);
   }
 

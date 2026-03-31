@@ -310,39 +310,24 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            "Окно начала поездки",
+                            "Время прибытия к первой точке",
                             style: NDT.bodyS.copyWith(color: NDT.neutral500),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            "Укажите время начала и окончания окна, в которое водитель должен приехать к первой точке.",
+                            "Укажите одно время, к которому водитель должен быть у первой точки маршрута.",
                             style: NDT.caption.copyWith(color: NDT.neutral500),
                           ),
                           const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _TimePreviewCard(
-                                  label: 'От',
-                                  value: vm.timeRange?.startTime.formatTime() ??
-                                      '—:—',
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _TimePreviewCard(
-                                  label: 'До',
-                                  value: vm.timeRange?.endTime.formatTime() ??
-                                      '—:—',
-                                ),
-                              ),
-                            ],
+                          _TimePreviewCard(
+                            label: 'Прибытие',
+                            value: vm.arrivalTime?.formatTime() ?? '—:—',
                           ),
                           const SizedBox(height: 12),
                           Align(
                             alignment: Alignment.centerLeft,
                             child: NdPrimaryButton(
-                              label: vm.timeRange == null
+                              label: vm.arrivalTime == null
                                   ? "Выбрать время"
                                   : "Изменить время",
                               onTap: vm.chooseTime,

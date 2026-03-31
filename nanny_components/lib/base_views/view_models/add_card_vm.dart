@@ -17,9 +17,13 @@ class AddCardVM extends ViewModelBase {
     required super.context,
     required super.update,
     required this.binding,
+    this.existingCardPanDigits = const [],
   });
 
   final WidgetsBinding binding;
+
+  /// Уже сохранённые PAN (16 цифр) — чтобы не дублировать карту до запроса.
+  final List<String> existingCardPanDigits;
 
   final MaskTextInputFormatter expMask = MaskTextInputFormatter(
     mask: '##/##',
@@ -47,24 +51,38 @@ class AddCardVM extends ViewModelBase {
       return;
     }
 
-    LoadScreen.showLoad(context, true);
+    final pan = cardNumMask.getUnmaskedText();
+    if (existingCardPanDigits.contains(pan)) {
+      NannyDialogs.showMessageBox(
+        context,
+        "Внимание",
+        "Эта карта уже добавлена.",
+      );
+      return;
+    }
+
+    await LoadScreen.showLoad(context, true);
 
     bool success = await DioRequest.handleRequest(
       context,
       NannyUsersApi.addDebitCard(
         AddDebitCardRequest(
-          cardNumber: cardNumMask.getUnmaskedText(),
+          cardNumber: pan,
           expDate: expMask.getMaskedText(),
           name: NannyUtils.capitaliseWords(fullname),
         ),
       ),
     );
 
-    if (!success) return;
     if (!context.mounted) return;
+    if (!success) {
+      await LoadScreen.showLoad(context, false);
+      return;
+    }
 
-    LoadScreen.showLoad(context, false);
-    Navigator.pop(context, true);
+    await LoadScreen.showLoad(context, false);
+    if (!context.mounted) return;
+    Navigator.of(context).pop(true);
   }
 
   void tryPay() async {

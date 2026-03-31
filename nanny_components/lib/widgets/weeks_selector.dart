@@ -26,21 +26,21 @@ class _WeeksSelectorState extends State<WeeksSelector> {
             ((constraints.maxWidth - (spacing * 6)) / 7).clamp(34.0, 56.0);
         final itemHeight = itemWidth < 42 ? 42.0 : 48.0;
 
-        return Row(
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
           children: [
-            for (var index = 0; index < NannyWeekday.values.length; index++) ...[
-              if (index > 0) const SizedBox(width: spacing),
+            for (var index = 0; index < NannyWeekday.values.length; index++)
               SizedBox(
                 width: itemWidth,
                 height: itemHeight,
                 child: _WeekdayButton(
                   weekday: NannyWeekday.values[index],
-                  isSelected:
-                      widget.selectedWeekday.contains(NannyWeekday.values[index]),
+                  isSelected: widget.selectedWeekday
+                      .contains(NannyWeekday.values[index]),
                   onPressed: () => widget.onChanged(NannyWeekday.values[index]),
                 ),
               ),
-            ],
           ],
         );
       },
@@ -83,7 +83,8 @@ class _WeekdayButton extends StatelessWidget {
             weekday.shortName,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: isSelected ? NannyTheme.secondary : const Color(0xFF2B2B2B),
+              color:
+                  isSelected ? NannyTheme.secondary : const Color(0xFF2B2B2B),
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),

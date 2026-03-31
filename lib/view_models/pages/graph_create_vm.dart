@@ -31,6 +31,7 @@ class GraphCreateVM extends ViewModelBase {
   // FE-MVP-015: Список детей и выбранные дети
   List<Child> children = [];
   List<int> selectedChildrenIds = [];
+  bool isSubmitting = false;
 
   @override
   Future<bool> loadPage() async {
@@ -417,19 +418,65 @@ class GraphCreateVM extends ViewModelBase {
     required Road route,
     required NannyWeekday weekday,
     required List<int> childIds,
+    List<NannyWeekday>? targetWeekdays,
     Road? updatingRoad,
   }) {
-    if (updatingRoad != null) {
-      editor.deleteRoad(updatingRoad);
+    final normalizedTargetWeekdays = (targetWeekdays ?? <NannyWeekday>[weekday])
+        .toSet()
+        .toList(growable: false)
+      ..sort((left, right) => left.index.compareTo(right.index));
+
+    if (updatingRoad == null) {
+      for (final targetWeekday in normalizedTargetWeekdays) {
+        editor.addRoad(
+          route.copyWith(
+            weekDay: targetWeekday,
+            children: childIds,
+          ),
+        );
+      }
+      update(() {});
+      return;
     }
 
-    editor.addRoad(
-      route.copyWith(
-        weekDay: weekday,
-        children: childIds,
-      ),
-    );
+    final roadsToReplace = normalizedTargetWeekdays.length > 1
+        ? _matchingRouteSeries(updatingRoad)
+            .where(
+              (road) => normalizedTargetWeekdays.contains(road.weekDay),
+            )
+            .toList(growable: false)
+        : <Road>[updatingRoad];
+
+    final existingRoadsByWeekday = {
+      for (final road in roadsToReplace) road.weekDay: road,
+    };
+
+    for (final road in roadsToReplace) {
+      editor.deleteRoad(road);
+    }
+
+    for (final targetWeekday in normalizedTargetWeekdays) {
+      editor.addRoad(
+        route.copyWith(
+          id: existingRoadsByWeekday[targetWeekday]?.id,
+          weekDay: targetWeekday,
+          children: childIds,
+        ),
+      );
+    }
+
     update(() {});
+  }
+
+  bool isRouteAppliedToAllSelectedDays(Road road) {
+    final selectedDays = sortedSelectedWeekdays;
+    if (selectedDays.length < 2) {
+      return false;
+    }
+
+    final sharedDays =
+        _matchingRouteSeries(road).map((item) => item.weekDay).toSet();
+    return selectedDays.every(sharedDays.contains);
   }
 
   void _syncRouteChildrenWithSelectedChildren() {
@@ -485,7 +532,10 @@ class GraphCreateVM extends ViewModelBase {
     );
   }
 
-  void confirm() async {
+  Future<void> confirm() async {
+    if (isSubmitting) {
+      return;
+    }
     if (selectedChildrenIds.isEmpty) {
       NannyDialogs.showMessageBox(
         context,
@@ -566,6 +616,10 @@ class GraphCreateVM extends ViewModelBase {
       return;
     }
 
+    update(() {
+      isSubmitting = true;
+    });
+
     // Нормализуем children у маршрутов перед отправкой,
     // не перетирая route-specific привязки.
     final roadsSnapshot = List<Road>.from(editor.roads);
@@ -587,6 +641,9 @@ class GraphCreateVM extends ViewModelBase {
       if (!result.success) {
         if (context.mounted) {
           LoadScreen.showLoad(context, false);
+          update(() {
+            isSubmitting = false;
+          });
           NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
         }
         return;
@@ -599,6 +656,9 @@ class GraphCreateVM extends ViewModelBase {
       if (scheduleId == null) {
         if (context.mounted) {
           LoadScreen.showLoad(context, false);
+          update(() {
+            isSubmitting = false;
+          });
           NannyDialogs.showMessageBox(
             context,
             "Ошибка",
@@ -615,6 +675,9 @@ class GraphCreateVM extends ViewModelBase {
       if (!result.success) {
         if (context.mounted) {
           LoadScreen.showLoad(context, false);
+          update(() {
+            isSubmitting = false;
+          });
           NannyDialogs.showMessageBox(context, "Ошибка", result.errorMessage);
         }
         return;
@@ -624,6 +687,9 @@ class GraphCreateVM extends ViewModelBase {
       if (routeSyncError != null) {
         if (context.mounted) {
           LoadScreen.showLoad(context, false);
+          update(() {
+            isSubmitting = false;
+          });
           NannyDialogs.showMessageBox(
             context,
             "Не удалось полностью обновить контракт",
@@ -635,12 +701,13 @@ class GraphCreateVM extends ViewModelBase {
     }
 
     if (!context.mounted) return;
-    LoadScreen.showLoad(context, false);
+    await LoadScreen.showLoad(context, false);
+    if (!context.mounted) return;
 
-    await NannyDialogs.showMessageBox(context, "Успех",
-        "Контракт успешно ${schedule == null ? "создан" : "обновлен"}!");
-    // Возвращаем id контракта, чтобы список мог снова сфокусироваться
-    // на актуальной сущности и при необходимости открыть ее детали.
+    update(() {
+      isSubmitting = false;
+    });
+
     final resultToPop =
         schedule == null ? (createdId ?? -1) : schedule?.id ?? -1;
     if (!context.mounted) return;
@@ -689,5 +756,31 @@ class GraphCreateVM extends ViewModelBase {
     }
 
     return null;
+  }
+
+  List<Road> _matchingRouteSeries(Road source) {
+    final sourceChildren = List<int>.from(initialRouteChildrenIds(road: source))
+      ..sort((left, right) => left.compareTo(right));
+
+    return editor.roads.where((road) {
+      final roadChildren = List<int>.from(initialRouteChildrenIds(road: road))
+        ..sort((left, right) => left.compareTo(right));
+      return road.isIdenticalTo(source) &&
+          _sameChildSelections(roadChildren, sourceChildren);
+    }).toList(growable: false);
+  }
+
+  bool _sameChildSelections(List<int> left, List<int> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }

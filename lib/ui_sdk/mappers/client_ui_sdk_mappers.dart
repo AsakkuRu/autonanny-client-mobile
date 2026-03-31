@@ -3,6 +3,7 @@ import 'package:autonanny_ui_client/autonanny_ui_client.dart';
 import 'package:nanny_client/view_models/map/drive_order_vm.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_vm.dart';
 import 'package:nanny_client/view_models/pages/balance_vm.dart';
+import 'package:nanny_client/view_models/pages/graph_vm.dart';
 import 'package:nanny_client/views/new_main/new_client_main_vm.dart';
 import 'package:nanny_core/constants.dart';
 import 'package:nanny_core/models/from_api/child_short.dart';
@@ -134,6 +135,18 @@ extension DriveOrderVmUiSdkMapper on DriveOrderVM {
       );
 }
 
+extension GraphVmUiSdkMapper on GraphVM {
+  ContractsOverviewCardData get contractsOverviewCardData =>
+      ContractsOverviewCardData(
+        headline: contractsSummaryHeadline,
+        description: contractsSummaryDescription,
+        totalContracts: totalContractsCount,
+        activeContracts: activeContractsCount,
+        totalRoutes: totalRoutesCount,
+        actionLabel: 'Добавить контракт',
+      );
+}
+
 extension DriveTariffUiSdkMapper on DriveTariff {
   TariffOptionData toUiSdkTariffOption({
     required bool isSelected,
@@ -175,6 +188,7 @@ extension ChildShortUiSdkMapper on ChildShort {
       name: displayName,
       subtitle: surname.isEmpty ? null : surname,
       initials: _initials,
+      photoUrl: NannyConsts.buildFileUrl(photoPath),
       isSelected: isSelected,
     );
   }

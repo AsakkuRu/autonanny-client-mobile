@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:nanny_components/styles/new_design_app.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -14,29 +15,50 @@ class NdAppBarChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = NannyUser.userInfo;
     final name = user?.name ?? '';
-    final initial =
-        name.isNotEmpty ? name.characters.first.toUpperCase() : 'А';
+    final rawPhotoPath = user?.photoPath.trim();
+    final photoUrl = (rawPhotoPath?.isNotEmpty ?? false)
+        ? NannyConsts.buildFileUrl(rawPhotoPath)
+        : null;
+    final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : 'А';
 
     return GestureDetector(
       onTap: onNameTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: NDT.sp8,
-          vertical: NDT.sp6,
+        height: 40,
+        constraints: const BoxConstraints(maxWidth: 216),
+        clipBehavior: Clip.antiAlias,
+        padding: const EdgeInsets.fromLTRB(
+          NDT.sp6,
+          NDT.sp4,
+          NDT.sp12,
+          NDT.sp4,
         ),
         decoration: BoxDecoration(
-          color: NDT.mapOverlayBg.withOpacity(0.95),
+          color: NDT.mapOverlayBg.withValues(alpha: 0.95),
           borderRadius: NDT.brFull,
           boxShadow: NDT.overlayShadow,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            _Avatar(initial: initial),
+            _Avatar(initial: initial, imageUrl: photoUrl),
             const SizedBox(width: NDT.sp8),
-            Text(
-              name.isNotEmpty ? 'Привет, $name!' : 'Привет!',
-              style: NDT.labelL,
+            Flexible(
+              child: RichText(
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                text: TextSpan(
+                  style: NDT.labelL,
+                  children: [
+                    const TextSpan(text: 'Привет, '),
+                    TextSpan(
+                      text: name.isNotEmpty ? name : 'друг',
+                      style: NDT.labelL.copyWith(color: NDT.primary),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -47,25 +69,23 @@ class NdAppBarChip extends StatelessWidget {
 
 class _Avatar extends StatelessWidget {
   final String initial;
+  final String? imageUrl;
 
-  const _Avatar({required this.initial});
+  const _Avatar({
+    required this.initial,
+    this.imageUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: NDT.avatarGradient,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        initial,
-        style: const TextStyle(
-          color: NDT.neutral0,
-          fontSize: 13,
-          fontWeight: FontWeight.w800,
+    return SizedBox.square(
+      dimension: 28,
+      child: ClipOval(
+        child: AutonannyAvatar(
+          imageUrl: imageUrl,
+          initials: initial,
+          size: 28,
+          borderRadius: BorderRadius.circular(14),
         ),
       ),
     );

@@ -12,6 +12,7 @@ import 'package:nanny_components/styles/new_design_app.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
+import 'package:nanny_core/nanny_core.dart';
 
 class ActiveTripScreen extends StatefulWidget {
   const ActiveTripScreen({
@@ -95,18 +96,13 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                   top: MediaQuery.of(context).padding.top + 12,
                   child: _SosButton(onPressed: _showSosDialog),
                 ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _TripSheet(
-                  vm: vm,
-                  onCancelPressed: _showCancelDialog,
-                  onChangeRoutePressed: _showChangeRouteSheet,
-                  onDonePressed: () => Navigator.of(context).pop(),
-                  onOpenDriverRating: _openDriverRating,
-                  onShowQRPressed: _showMeetingCodeQR,
-                ),
+              _TripSheet(
+                vm: vm,
+                onCancelPressed: _showCancelDialog,
+                onChangeRoutePressed: _showChangeRouteSheet,
+                onDonePressed: () => Navigator.of(context).pop(),
+                onOpenDriverRating: _openDriverRating,
+                onShowQRPressed: _showMeetingCodeQR,
               ),
             ],
           ),
@@ -385,9 +381,15 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       return;
     }
     _isQrDialogOpen = true;
+    final driver = vm.driverContact;
+    final driverName = driver?.fullName.trim();
     await DriverQRDialog.show(
       context,
-      driverName: 'Водитель',
+      driverName:
+          driverName == null || driverName.isEmpty ? 'Водитель' : driverName,
+      carNumber: driver?.car?.number,
+      carInfo: driver?.car?.fullInfo,
+      photoPath: driver?.photo,
       qrData: qrData,
       meetingCodePin: meetingCode,
     );
@@ -1061,7 +1063,7 @@ class _LiveTripMapState extends State<_LiveTripMap> {
             top: MediaQuery.of(context).padding.top + 12,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: NDT.primary,
                 borderRadius: NDT.brMd,
               ),
@@ -1226,141 +1228,156 @@ class _TripSheetState extends State<_TripSheet> {
   Widget build(BuildContext context) {
     final vm = widget.vm;
     final route = _routeLabel(vm.addresses);
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 32,
-            offset: const Offset(0, -8),
-          ),
-        ],
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.62,
-        ),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            12,
-            20,
-            MediaQuery.of(context).padding.bottom + 16,
+    return DraggableScrollableSheet(
+      initialChildSize: 0.42,
+      minChildSize: 0.2,
+      maxChildSize: 0.88,
+      snap: true,
+      snapSizes: const [0.42, 0.66, 0.88],
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 32,
+                offset: const Offset(0, -8),
+              ),
+            ],
           ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: NDT.neutral200,
-                    borderRadius: BorderRadius.circular(999),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  physics: const ClampingScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    0,
+                    20,
+                    MediaQuery.of(context).padding.bottom + 16,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: NDT.neutral200,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      _tripHeroCard(route),
+                      const SizedBox(height: 16),
+                      if (vm.driverContact != null) ...[
+                        _driverCard(),
+                        if (vm.driverContact?.phone.trim().isNotEmpty ==
+                            true) ...[
+                          const SizedBox(height: 12),
+                          _driverCallButton(),
+                        ],
+                        if (vm.driverId != null) ...[
+                          const SizedBox(height: 12),
+                          _driverRatingButton(),
+                        ],
+                        const SizedBox(height: 16),
+                      ],
+                      if (vm.addresses.isNotEmpty) ...[
+                        _routeCard(),
+                        const SizedBox(height: 16),
+                      ],
+                      if (vm.children.isNotEmpty) ...[
+                        _passengersCard(),
+                        const SizedBox(height: 16),
+                      ],
+                      if (vm.serviceTitles.isNotEmpty) ...[
+                        _servicesCard(),
+                        const SizedBox(height: 16),
+                      ],
+                      if (vm.noDriversFound) ...[
+                        Text(
+                          'В вашем районе сейчас нет доступных водителей.',
+                          style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                        ),
+                        const SizedBox(height: 12),
+                        AutonannyButton(
+                          label: 'Закрыть',
+                          onPressed: widget.onDonePressed,
+                        ),
+                      ],
+                      if (vm.connectionTimedOut) ...[
+                        Text(
+                          'Проблемы соединения. Сессия сохраняется, идет переподключение.',
+                          style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (vm.statusId == 2) ...[
+                        Text(
+                          'Водитель отменил поездку. Вы можете заказать нового водителя.',
+                          style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                        ),
+                        const SizedBox(height: 12),
+                        AutonannyButton(
+                          label: 'Закрыть',
+                          onPressed: widget.onDonePressed,
+                        ),
+                      ] else if (vm.statusId == 3 && !vm.noDriversFound) ...[
+                        Text(
+                          'Поездка уже отменена и больше не активна.',
+                          style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                        ),
+                        const SizedBox(height: 12),
+                        AutonannyButton(
+                          label: 'Закрыть',
+                          onPressed: widget.onDonePressed,
+                        ),
+                      ] else if (vm.isFinished) ...[
+                        Text(
+                          'Поездка завершена. Вы можете сразу оценить водителя или вернуться к этому позже в истории.',
+                          style: NDT.bodyM.copyWith(color: NDT.neutral500),
+                        ),
+                        const SizedBox(height: 12),
+                        if (vm.orderId != null) ...[
+                          AutonannyButton(
+                            label: 'Оценить водителя',
+                            onPressed: widget.onOpenDriverRating,
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        AutonannyButton(
+                          label: 'Закрыть',
+                          variant: AutonannyButtonVariant.secondary,
+                          onPressed: widget.onDonePressed,
+                        ),
+                      ] else ...[
+                        if (vm.isArrived) const SizedBox(height: 24),
+                        _tripActionsSection(),
+                        if (vm.routeChangeStatus.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            'Статус изменения: ${vm.routeChangeStatus}',
+                            style: NDT.bodyS.copyWith(color: NDT.neutral500),
+                          ),
+                        ],
+                      ],
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
-              _tripHeroCard(route),
-              const SizedBox(height: 16),
-              if (vm.driverContact != null) ...[
-                _driverCard(),
-                if (vm.driverContact?.phone.trim().isNotEmpty == true) ...[
-                  const SizedBox(height: 12),
-                  _driverCallButton(),
-                ],
-                if (vm.driverId != null) ...[
-                  const SizedBox(height: 12),
-                  _driverRatingButton(),
-                ],
-                const SizedBox(height: 16),
-              ],
-              if (vm.addresses.isNotEmpty) ...[
-                _routeCard(),
-                const SizedBox(height: 16),
-              ],
-              if (vm.children.isNotEmpty) ...[
-                _passengersCard(),
-                const SizedBox(height: 16),
-              ],
-              if (vm.serviceTitles.isNotEmpty) ...[
-                _servicesCard(),
-                const SizedBox(height: 16),
-              ],
-              if (vm.noDriversFound) ...[
-                Text(
-                  'В вашем районе сейчас нет доступных водителей.',
-                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
-                ),
-                const SizedBox(height: 12),
-                AutonannyButton(
-                  label: 'Закрыть',
-                  onPressed: widget.onDonePressed,
-                ),
-              ],
-              if (vm.connectionTimedOut) ...[
-                Text(
-                  'Проблемы соединения. Сессия сохраняется, идет переподключение.',
-                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (vm.statusId == 2) ...[
-                Text(
-                  'Водитель отменил поездку. Вы можете заказать нового водителя.',
-                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
-                ),
-                const SizedBox(height: 12),
-                AutonannyButton(
-                  label: 'Закрыть',
-                  onPressed: widget.onDonePressed,
-                ),
-              ] else if (vm.statusId == 3 && !vm.noDriversFound) ...[
-                Text(
-                  'Поездка уже отменена и больше не активна.',
-                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
-                ),
-                const SizedBox(height: 12),
-                AutonannyButton(
-                  label: 'Закрыть',
-                  onPressed: widget.onDonePressed,
-                ),
-              ] else if (vm.isFinished) ...[
-                Text(
-                  'Поездка завершена. Вы можете сразу оценить водителя или вернуться к этому позже в истории.',
-                  style: NDT.bodyM.copyWith(color: NDT.neutral500),
-                ),
-                const SizedBox(height: 12),
-                if (vm.orderId != null) ...[
-                  AutonannyButton(
-                    label: 'Оценить водителя',
-                    onPressed: widget.onOpenDriverRating,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                AutonannyButton(
-                  label: 'Закрыть',
-                  variant: AutonannyButtonVariant.secondary,
-                  onPressed: widget.onDonePressed,
-                ),
-              ] else ...[
-                if (vm.isArrived) const SizedBox(height: 24),
-                _tripActionsSection(),
-                if (vm.routeChangeStatus.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    'Статус изменения: ${vm.routeChangeStatus}',
-                    style: NDT.bodyS.copyWith(color: NDT.neutral500),
-                  ),
-                ],
-              ],
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1821,6 +1838,7 @@ class _TripSheetState extends State<_TripSheet> {
     final vm = widget.vm;
     final pinLabel =
         vm.pinCode == null ? '----' : vm.pinCode.toString().padLeft(4, '0');
+    final driverCard = vm.driverContact?.assignedDriverCardData;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1864,45 +1882,88 @@ class _TripSheetState extends State<_TripSheet> {
             borderRadius: NDT.brLg,
             border: Border.all(color: const Color(0x33F59E0B)),
           ),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: NDT.primary100,
-                  borderRadius: NDT.brMd,
-                ),
-                child: Text(
-                  pinLabel,
-                  style: NDT.h2.copyWith(
-                    color: NDT.primary,
-                    letterSpacing: 4,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              if (driverCard != null) ...[
+                Row(
                   children: [
-                    Text(
-                      'PIN для водителя',
-                      style: NDT.bodyM.copyWith(
-                        color: NDT.neutral900,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    AutonannyAvatar(
+                      imageUrl: NannyConsts.buildFileUrl(driverCard.photoUrl),
+                      initials: driverCard.initials,
+                      size: 40,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Назовите код или откройте QR для верификации встречи.',
-                      style: NDT.bodyS.copyWith(
-                        color: NDT.neutral500,
-                        height: 1.4,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            driverCard.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: NDT.bodyM.copyWith(
+                              color: NDT.neutral900,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Водитель ожидает подтверждение встречи',
+                            style: NDT.bodyS.copyWith(
+                              color: NDT.neutral500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+              ],
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: NDT.primary100,
+                      borderRadius: NDT.brMd,
+                    ),
+                    child: Text(
+                      pinLabel,
+                      style: NDT.h2.copyWith(
+                        color: NDT.primary,
+                        letterSpacing: 4,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'PIN для водителя',
+                          style: NDT.bodyM.copyWith(
+                            color: NDT.neutral900,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Назовите код или откройте QR для верификации встречи.',
+                          style: NDT.bodyS.copyWith(
+                            color: NDT.neutral500,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -2048,7 +2109,7 @@ class _TripSheetState extends State<_TripSheet> {
           ),
           if (_routeExpanded) ...[
             const SizedBox(height: 12),
-            Divider(height: 1, color: NDT.neutral200),
+            const Divider(height: 1, color: NDT.neutral200),
             const SizedBox(height: 12),
             ListView.separated(
               shrinkWrap: true,

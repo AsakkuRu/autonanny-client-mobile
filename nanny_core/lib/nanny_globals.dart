@@ -7,6 +7,8 @@ class NannyGlobals {
   static late String phone;
 
   static final GlobalKey<NavigatorState> navKey = GlobalKey<NavigatorState>();
+  static final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   static BuildContext get currentContext => navKey.currentContext!;
 

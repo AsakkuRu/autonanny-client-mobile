@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:nanny_components/base_views/views/direct.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/api/api_models/search_query_request.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/nanny_core.dart';
+import 'package:nanny_core/services/notification_service.dart';
 
 class HomeVM extends ViewModelBase {
   HomeVM({
@@ -80,14 +82,72 @@ class HomeVM extends ViewModelBase {
       refreshUnreadChatsCount();
     }
 
-    for (final event in const [
-      'connected',
-      'chat.unread_changed',
-      'chat.message_created',
-      'chat.message_edited',
-    ]) {
-      _rootRealtimeSubs.add(socket.on(event).listen(refreshOnEvent));
+    _rootRealtimeSubs.add(socket.on('connected').listen(refreshOnEvent));
+    _rootRealtimeSubs.add(socket.on('chat.unread_changed').listen(refreshOnEvent));
+    _rootRealtimeSubs.add(socket.on('chat.message_edited').listen(refreshOnEvent));
+    _rootRealtimeSubs.add(
+      socket.on('chat.message_created').listen(_handleChatMessageCreated),
+    );
+  }
+
+  void _handleChatMessageCreated(Map<String, dynamic> event) {
+    refreshUnreadChatsCount();
+
+    final payload = _normalizeRealtimePayload(event);
+    if (payload.isEmpty || _readBool(payload['is_me'])) {
+      return;
     }
+
+    final chatId = _readInt(
+      payload['chat_id'] ?? payload['id_chat'] ?? payload['id'],
+    );
+    if (chatId != null && DirectView.activeChatId == chatId) {
+      return;
+    }
+
+    NotificationService().handleEvent('chat.message_created', payload);
+  }
+
+  Map<String, dynamic> _normalizeRealtimePayload(Map<String, dynamic> event) {
+    final rawData = event['data'];
+    if (rawData is Map) {
+      final payload = rawData.map(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+      payload.putIfAbsent(
+        'text',
+        () => payload['text_preview'] ?? payload['message'] ?? '',
+      );
+      return payload;
+    }
+    return const <String, dynamic>{};
+  }
+
+  bool _readBool(dynamic value) {
+    if (value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value != 0;
+    }
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      return normalized == 'true' || normalized == '1';
+    }
+    return false;
+  }
+
+  int? _readInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value);
+    }
+    return null;
   }
 
   @override

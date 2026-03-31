@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:nanny_components/dialogs/loading.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/messages_request.dart';
+import 'package:nanny_core/api/api_models/search_query_request.dart';
+import 'package:nanny_core/models/from_api/chats_data.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/models/from_api/chat_message.dart';
 import 'package:nanny_core/models/from_api/direct_chat.dart';
@@ -20,6 +22,10 @@ class DirectVM extends ViewModelBase {
   // Chat Info
   final int idChat;
   UnifiedSocket? _socket;
+
+  /// Собеседник из списка чатов (как в разделе «Чаты»): имя и фото.
+  String? resolvedPeerName;
+  String? resolvedPeerPhoto;
 
   // Controllers
   final TextEditingController textController = TextEditingController();
@@ -48,7 +54,38 @@ class DirectVM extends ViewModelBase {
   Future<ApiResponse<DirectChat>> _initDirect() async {
     await _bindRealtime();
     unawaited(_syncReadState());
+    unawaited(_enrichPeerFromChatList());
     return loadMessages();
+  }
+
+  /// Подставляет имя и аватар как в списке диалогов (важно для входа из уведомления).
+  Future<void> _enrichPeerFromChatList() async {
+    try {
+      final res = await NannyChatsApi.getChats(
+        SearchQueryRequest(limit: 200, offset: 0, search: ''),
+      );
+      if (!res.success || res.response == null) {
+        return;
+      }
+      ChatElement? match;
+      for (final c in res.response!.chats) {
+        if (c.idChat == idChat) {
+          match = c;
+          break;
+        }
+      }
+      if (match == null) {
+        return;
+      }
+      final name = match.username.trim();
+      if (name.isEmpty) {
+        return;
+      }
+      resolvedPeerName = name;
+      final photo = match.photoPath.trim();
+      resolvedPeerPhoto = photo.isEmpty ? null : photo;
+      update(() {});
+    } catch (_) {}
   }
 
   Future<void> _bindRealtime() async {

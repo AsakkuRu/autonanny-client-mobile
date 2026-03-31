@@ -21,7 +21,18 @@ class WalletVM extends ViewModelBase {
   void selectCard(int id) => update(() => selectedId = id);
 
   void navigateToAddCard() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (context) => const AddCardView()));
+    final res = await _cardRequest;
+    final existing = (res.response?.cards ?? const <UserCardData>[])
+        .map((c) => c.fullNumber.replaceAll(RegExp(r'\D'), ''))
+        .where((s) => s.length == 16)
+        .toList(growable: false);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            AddCardView(existingCardPanDigits: existing),
+      ),
+    );
     refresh();
   }
 

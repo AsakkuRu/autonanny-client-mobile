@@ -135,19 +135,13 @@ class _ClientProfileV2ViewState extends State<ClientProfileV2View>
               : AutonannyProfileRowTone.success,
           badgeLabel: vm.email == 'Не указан' ? null : 'Подтверждён',
           badgeVariant: AutonannyBadgeVariant.success,
-          onTap: () => _showInfoDialog(
-            'Email',
-            'Редактирование email будет добавлено в следующем обновлении',
-          ),
+          onTap: vm.editEmail,
         ),
         AutonannyProfileRow(
           icon: AutonannyIcons.location,
           label: 'Домашний адрес',
           value: vm.address,
-          onTap: () => _showInfoDialog(
-            'Адрес',
-            'Редактирование адреса будет добавлено в следующем обновлении',
-          ),
+          onTap: vm.editAddress,
         ),
       ],
     );

@@ -12,8 +12,14 @@ class DirectView extends StatefulWidget {
 
   final int idChat;
   final String? name;
+  final String? photoPath;
 
-  const DirectView({super.key, required this.idChat, this.name});
+  const DirectView({
+    super.key,
+    required this.idChat,
+    this.name,
+    this.photoPath,
+  });
 
   @override
   State<DirectView> createState() => _DirectViewState();
@@ -49,12 +55,25 @@ class _DirectViewState extends State<DirectView> {
 
   @override
   Widget build(BuildContext context) {
+    final peerName = vm.resolvedPeerName?.trim();
+    final fallbackName = widget.name?.trim();
+    final headerTitle = (peerName != null && peerName.isNotEmpty)
+        ? peerName
+        : ((fallbackName != null && fallbackName.isNotEmpty)
+            ? fallbackName
+            : 'Чат');
+    final peerPhoto = vm.resolvedPeerPhoto?.trim();
+    final headerPhoto = (peerPhoto != null && peerPhoto.isNotEmpty)
+        ? peerPhoto
+        : widget.photoPath;
+
     return AutonannyAppScaffold(
       body: SafeArea(
         child: Column(
           children: [
             _DirectChatHeader(
-              title: widget.name ?? 'Чат',
+              title: headerTitle,
+              photoPath: headerPhoto,
               isEditingMode: vm.isEditingMode,
               onBack: () => Navigator.of(context).maybePop(),
               onToggleEdit: () {
@@ -248,12 +267,14 @@ class _DirectViewState extends State<DirectView> {
 class _DirectChatHeader extends StatelessWidget {
   const _DirectChatHeader({
     required this.title,
+    required this.photoPath,
     required this.isEditingMode,
     required this.onBack,
     required this.onToggleEdit,
   });
 
   final String title;
+  final String? photoPath;
   final bool isEditingMode;
   final VoidCallback onBack;
   final VoidCallback onToggleEdit;
@@ -288,6 +309,7 @@ class _DirectChatHeader extends StatelessWidget {
             ),
             const SizedBox(width: AutonannySpacing.sm),
             AutonannyAvatar(
+              imageUrl: NannyConsts.buildFileUrl(photoPath),
               initials: _initials(title),
               size: 38,
             ),
@@ -364,7 +386,8 @@ class _ChatDateDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.autonannyColors;
-    final value = DateTime.fromMillisecondsSinceEpoch((timestamp * 1000).toInt());
+    final value =
+        DateTime.fromMillisecondsSinceEpoch((timestamp * 1000).toInt());
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AutonannySpacing.sm),

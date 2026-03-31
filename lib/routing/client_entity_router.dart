@@ -134,6 +134,7 @@ class ClientEntityRouter {
             builder: (_) => DirectView(
               idChat: chatId,
               name: resolveChatDisplayName(safePayload),
+              photoPath: resolveChatPhotoPath(safePayload),
             ),
           ),
         );
@@ -350,10 +351,26 @@ class ClientEntityRouter {
   static String? resolveChatDisplayName(Map<String, dynamic> payload) {
     for (final rawValue in [
       payload['chat_name'],
+      payload['sender_name'],
       payload['driver_name'],
       payload['client_name'],
       payload['username'],
       payload['name'],
+    ]) {
+      final value = rawValue?.toString().trim();
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  static String? resolveChatPhotoPath(Map<String, dynamic> payload) {
+    for (final rawValue in [
+      payload['photo_path'],
+      payload['client_photo'],
+      payload['driver_photo'],
+      payload['photo'],
     ]) {
       final value = rawValue?.toString().trim();
       if (value != null && value.isNotEmpty) {

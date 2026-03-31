@@ -1,7 +1,10 @@
 // ignore: depend_on_referenced_packages
+import 'package:flutter/material.dart';
 import 'package:nanny_client/routing/client_entity_router.dart';
+import 'package:nanny_core/messaging/notification_payload_helper.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/messaging/route_deviation_notifications.dart';
+import 'package:nanny_core/services/notification_service.dart';
 
 class FirebaseMessagingHandler {
   static void init() {
@@ -12,20 +15,27 @@ class FirebaseMessagingHandler {
     // TASK-C1: Инициализация уведомлений об отклонениях от маршрута
     RouteDeviationNotifications.initialize();
 
-    FirebaseMessaging.onMessage.listen((msg) {
+    FirebaseMessaging.onMessage.listen((msg) async {
       Logger().w(
           "Got message from firebase:\n${msg.data}\nNotification data:${msg.notification?.title}\n${msg.notification?.body}");
 
       final type = msg.data['type']?.toString();
+      var handledByDedicatedNotifier = false;
 
       // FE-MVP-019: Обработка уведомлений о статусе поездки
       if (type == 'trip_status' || type == 'trip_status_update') {
-        TripStatusNotifications.handleFirebaseMessage(msg);
+        handledByDedicatedNotifier = true;
+        await TripStatusNotifications.handleFirebaseMessage(msg);
       }
 
       // TASK-C1: Обработка уведомлений об отклонении от маршрута
       if (type == 'route_deviation') {
-        RouteDeviationNotifications.handleFirebaseMessage(msg);
+        handledByDedicatedNotifier = true;
+        await RouteDeviationNotifications.handleFirebaseMessage(msg);
+      }
+
+      if (!handledByDedicatedNotifier) {
+        _presentForegroundNotification(msg);
       }
     });
     FirebaseMessaging.onMessageOpenedApp.listen((msg) async {
@@ -56,6 +66,10 @@ class FirebaseMessagingHandler {
       return;
     }
 
+    if (await _openChatPayloadIfPossible(data, context)) {
+      return;
+    }
+
     switch (event) {
       case 'chat.message_created':
         await ClientEntityRouter.openEntity(
@@ -83,6 +97,13 @@ class FirebaseMessagingHandler {
   }
 
   static Future<void> _handleIncomingMessage(RemoteMessage msg) async {
+    if (await _openChatPayloadIfPossible(
+      Map<String, dynamic>.from(msg.data),
+      NannyGlobals.navKey.currentContext,
+    )) {
+      return;
+    }
+
     final actionName = msg.data["action"]?.toString();
     if (actionName == null || actionName.isEmpty) {
       await _handleTypeFallback(msg);
@@ -115,6 +136,16 @@ class FirebaseMessagingHandler {
     }
 
     switch (type) {
+      case 'message':
+      case 'chat.message_created':
+      case 'new_chat':
+        await ClientEntityRouter.openEntity(
+          context,
+          payload: Map<String, dynamic>.from(msg.data),
+          target: 'chat',
+          type: type,
+        );
+        return;
       case 'weekly_payment_success':
       case 'weekly_payment_failed':
       case 'contract_resumed':
@@ -175,5 +206,51 @@ class FirebaseMessagingHandler {
       target: msg.data['target']?.toString(),
       type: msg.data['type']?.toString(),
     );
+  }
+
+  static Future<bool> _openChatPayloadIfPossible(
+    Map<String, dynamic> payload,
+    BuildContext? context,
+  ) async {
+    if (context == null || !context.mounted) {
+      return false;
+    }
+
+    final target = payload['target']?.toString();
+    final type = payload['type']?.toString();
+    final chatId = NotificationPayloadHelper.readInt(
+      payload['chat_id'] ?? payload['id_chat'] ?? payload['id'],
+    );
+    if (!NotificationPayloadHelper.isChatPayload(payload) || chatId == null) {
+      return false;
+    }
+
+    return ClientEntityRouter.openEntity(
+      context,
+      payload: payload,
+      target: target == 'support_chat' ? 'support_chat' : 'chat',
+      type: type,
+    );
+  }
+
+  static void _presentForegroundNotification(RemoteMessage msg) {
+    final payload = NotificationPayloadHelper.normalizeForegroundPayload(msg);
+    final resolvedEvent = NotificationPayloadHelper.resolveForegroundEvent(payload);
+    if (resolvedEvent != null) {
+      NotificationService().handleEvent(resolvedEvent, payload);
+      // В foreground (onMessage) WS может быть не подключён / событие может не прилететь,
+      // поэтому для чатов делаем локальную инвалидацию unread-бейджей.
+      if (resolvedEvent == 'chat.message_created' ||
+          NotificationPayloadHelper.isChatPayload(payload)) {
+        NannyGlobals.chatUnreadRefreshController.add(null);
+      }
+      return;
+    }
+
+    final title =
+        msg.notification?.title ?? payload['title']?.toString() ?? 'Новое событие';
+    final body =
+        msg.notification?.body ?? payload['body']?.toString() ?? payload['message']?.toString() ?? '';
+    NotificationService().showInAppMessage(title, body);
   }
 }

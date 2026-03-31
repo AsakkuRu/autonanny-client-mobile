@@ -40,6 +40,7 @@ class ClientProfileV2Vm extends ViewModelBase {
   bool bioAuthEnabled = false;
 
   Future<void> init() async {
+    await NannyUser.getMe();
     await _loadChildren();
     await _loadSettings();
     await _loadTripHistoryCount();
@@ -76,19 +77,30 @@ class ClientProfileV2Vm extends ViewModelBase {
 
   String get contractsCount {
     final raw = NannyUser.userInfo?.jsonData['contracts_count'];
-    if (raw == null) return '${children.length}';
+    if (raw == null) return '0';
     return raw.toString();
   }
 
   String get ratingValue {
     final raw = NannyUser.userInfo?.jsonData['rating'];
-    if (raw == null) return '4.9';
-    return raw.toString();
+    final reviewsRaw = NannyUser.userInfo?.jsonData['reviews_count'];
+    final rating = raw is num ? raw.toDouble() : double.tryParse('$raw');
+    final reviewsCount =
+        reviewsRaw is num ? reviewsRaw.toInt() : int.tryParse('$reviewsRaw');
+
+    if (rating == null || rating <= 0) {
+      return '—';
+    }
+    if (reviewsCount != null && reviewsCount <= 0) {
+      return '—';
+    }
+
+    return rating.toStringAsFixed(1);
   }
 
   String get monthsWithUs {
     final dateRaw = NannyUser.userInfo?.dateReg;
-    if (dateRaw == null || dateRaw.isEmpty) return '8 мес';
+    if (dateRaw == null || dateRaw.isEmpty) return '—';
     try {
       final regDate = DateTime.parse(dateRaw);
       final now = DateTime.now();
@@ -96,7 +108,7 @@ class ClientProfileV2Vm extends ViewModelBase {
       final normalized = months < 1 ? 1 : months;
       return '$normalized мес';
     } catch (_) {
-      return '8 мес';
+      return '—';
     }
   }
 
@@ -156,9 +168,12 @@ class ClientProfileV2Vm extends ViewModelBase {
 
     LoadScreen.showLoad(context, true);
 
-    final upload = NannyFilesApi.uploadFiles([file]);
-    final uploaded = await DioRequest.handleRequest(context, upload);
+    final uploadRequest = NannyFilesApi.uploadFiles([file]);
+    final uploaded = await DioRequest.handleRequest(context, uploadRequest);
     if (!uploaded) return;
+    if (!context.mounted) return;
+
+    final uploadResult = await uploadRequest;
     if (!context.mounted) return;
 
     LoadScreen.showLoad(context, true);
@@ -166,7 +181,7 @@ class ClientProfileV2Vm extends ViewModelBase {
       context,
       NannyUsersApi.updateMe(
         UpdateMeRequest(
-          photoPath: (await upload).response!.paths.first,
+          photoPath: uploadResult.response!.paths.first,
         ),
       ),
     );
@@ -222,6 +237,51 @@ class ClientProfileV2Vm extends ViewModelBase {
         UpdateMeRequest(firstName: firstName, lastName: lastName));
   }
 
+  Future<void> editEmail() async {
+    final currentEmail =
+        NannyUser.userInfo?.jsonData['email']?.toString() ?? '';
+    final email = await _promptProfileTextField(
+      title: 'Изменить email',
+      labelText: 'Email',
+      initialValue: currentEmail,
+    );
+    if (email == null) {
+      return;
+    }
+
+    final normalized = email.trim();
+    if (normalized.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(normalized)) {
+      if (context.mounted) {
+        NannyDialogs.showMessageBox(
+          context,
+          'Ошибка',
+          'Введите корректный email',
+        );
+      }
+      return;
+    }
+
+    await _updateProfile(UpdateMeRequest(email: normalized));
+  }
+
+  Future<void> editAddress() async {
+    final currentAddress =
+        NannyUser.userInfo?.jsonData['address']?.toString() ?? '';
+    final address = await _promptProfileTextField(
+      title: 'Изменить адрес',
+      labelText: 'Адрес',
+      initialValue: currentAddress,
+    );
+    if (address == null) {
+      return;
+    }
+
+    await _updateProfile(
+      UpdateMeRequest(address: address.trim()),
+    );
+  }
+
   Future<void> changePassword() async {
     String? password;
 
@@ -237,6 +297,7 @@ class ClientProfileV2Vm extends ViewModelBase {
     if (!context.mounted) return;
     password = await _promptNewPassword();
     if (password == null) return;
+    if (!context.mounted) return;
 
     if (password.isEmpty || password.length < 8) {
       if (context.mounted) {
@@ -301,6 +362,32 @@ class ClientProfileV2Vm extends ViewModelBase {
     );
     if (!keepGoing) return null;
     return password;
+  }
+
+  Future<String?> _promptProfileTextField({
+    required String title,
+    required String labelText,
+    required String initialValue,
+  }) async {
+    final controller = TextEditingController(text: initialValue);
+    final confirmed = await NannyDialogs.showModalDialog(
+      context: context,
+      title: title,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: NannyTextForm(
+          isExpanded: true,
+          labelText: labelText,
+          initialValue: controller.text,
+          onChanged: (value) => controller.text = value,
+        ),
+      ),
+    );
+    if (!confirmed) {
+      return null;
+    }
+
+    return controller.text;
   }
 
   Future<void> changePin() async {
@@ -502,6 +589,7 @@ class ClientProfileV2Vm extends ViewModelBase {
       confirmText: 'Выйти',
     );
     if (!confirmed) return;
+    if (!context.mounted) return;
 
     final success = await DioRequest.handleRequest(context, NannyUser.logout());
     if (!success) return;

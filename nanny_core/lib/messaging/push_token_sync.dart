@@ -65,6 +65,9 @@ class PushTokenSync {
         Logger().w(
           'Authorized Firebase push token sync skipped: ${authorizedResponse.errorMessage}',
         );
+        // Не делаем fallback login в активной сессии: это может лишний раз
+        // ротировать bearer и ломать параллельные пользовательские сценарии.
+        return;
       }
 
       await NannyStorage.ready;

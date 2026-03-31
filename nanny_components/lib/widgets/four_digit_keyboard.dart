@@ -19,80 +19,90 @@ class FourDigitKeyboard extends StatefulWidget {
 }
 
 class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
+  static const _keyboardRows = [
+    ["1", "2", "3"],
+    ["4", "5", "6"],
+    ["7", "8", "9"],
+    ["", "0", "delete"],
+  ];
+
   List<String> digits = ["", "", "", ""];
   int currentIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     return AdaptBuilder(
-      builder: (context, size) => NannyBottomSheet(
-        // height: size.height * .8,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (widget.topChild != null) widget.topChild!,
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: digitBox(digits[0], size)),
-                  const SizedBox(width: 8),
-                  Expanded(child: digitBox(digits[1], size)),
-                  const SizedBox(width: 8),
-                  Expanded(child: digitBox(digits[2], size)),
-                  const SizedBox(width: 8),
-                  Expanded(child: digitBox(digits[3], size)),
-                ],
+      builder: (context, size) {
+        final compact = size.height < 700 || size.width < 360;
+        final extraCompact = size.height < 620;
+        final digitHeight = (size.width * .21)
+            .clamp(extraCompact ? 56.0 : 60.0, compact ? 72.0 : 88.0)
+            .toDouble();
+        final keyHeight = extraCompact ? 54.0 : (compact ? 60.0 : 68.0);
+        final sectionSpacing = extraCompact ? 16.0 : 20.0;
+        final rowSpacing = extraCompact ? 8.0 : 10.0;
+
+        return NannyBottomSheet(
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                extraCompact ? 16 : 20,
               ),
-              if (widget.bottomChild != null)
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 20),
-                  child: widget.bottomChild!,
-                ),
-              Expanded(
-                child: Center(
-                  child: GridView(
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            mainAxisSpacing: 10,
-                            crossAxisSpacing: 10,
-                            childAspectRatio: 1.2
-                            // mainAxisExtent: size.height * .1,
-                            ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.topChild != null) ...[
+                    widget.topChild!,
+                    SizedBox(height: sectionSpacing),
+                  ],
+                  Row(
                     children: [
-                      numButton("1", size),
-                      numButton("2", size),
-                      numButton("3", size),
-                      numButton("4", size),
-                      numButton("5", size),
-                      numButton("6", size),
-                      numButton("7", size),
-                      numButton("8", size),
-                      numButton("9", size),
-                      const SizedBox(),
-                      numButton("0", size),
-                      deleteButton(),
+                      Expanded(child: digitBox(digits[0], digitHeight)),
+                      const SizedBox(width: 8),
+                      Expanded(child: digitBox(digits[1], digitHeight)),
+                      const SizedBox(width: 8),
+                      Expanded(child: digitBox(digits[2], digitHeight)),
+                      const SizedBox(width: 8),
+                      Expanded(child: digitBox(digits[3], digitHeight)),
                     ],
                   ),
-                ),
+                  if (widget.bottomChild != null) ...[
+                    SizedBox(height: sectionSpacing),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: widget.bottomChild!,
+                    ),
+                  ],
+                  SizedBox(height: sectionSpacing),
+                  Column(
+                    children: [
+                      for (var i = 0; i < _keyboardRows.length; i++) ...[
+                        _keyboardRow(
+                          _keyboardRows[i],
+                          keyHeight: keyHeight,
+                        ),
+                        if (i != _keyboardRows.length - 1)
+                          SizedBox(height: rowSpacing),
+                      ],
+                    ],
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget digitBox(String value, Size size) {
+  Widget digitBox(String value, double height) {
     return Container(
-      height: size.width * .21,
+      height: height,
       decoration: BoxDecoration(
         color: value.isNotEmpty ? NewDesignAuthTokens.primary100 : Colors.white,
         borderRadius: NewDesignAuthTokens.radiusMd,
@@ -111,29 +121,51 @@ class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
         ],
       ),
       child: Center(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            value,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            style: NewDesignAuthTokens.titleXL.copyWith(
-              color: NewDesignAuthTokens.neutral900,
-              fontSize: 28,
-              height: 1,
-              letterSpacing: 0,
-            ),
+        child: Text(
+          value,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          style: NewDesignAuthTokens.titleXL.copyWith(
+            color: NewDesignAuthTokens.neutral900,
+            fontSize: 28,
+            height: 1,
+            letterSpacing: 0,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
       ),
     );
   }
 
-  Widget numButton(String setValue, Size size) {
+  Widget _keyboardRow(
+    List<String> values, {
+    required double keyHeight,
+  }) {
+    return Row(
+      children: [
+        for (var i = 0; i < values.length; i++) ...[
+          Expanded(
+            child: SizedBox(
+              height: keyHeight,
+              child: values[i].isEmpty
+                  ? const SizedBox.shrink()
+                  : values[i] == "delete"
+                      ? deleteButton()
+                      : numButton(values[i]),
+            ),
+          ),
+          if (i != values.length - 1) const SizedBox(width: 10),
+        ],
+      ],
+    );
+  }
+
+  Widget numButton(String setValue) {
     return ElevatedButton(
       onPressed: () => setDigit(setValue),
       style: ElevatedButton.styleFrom(
         elevation: 0,
+        padding: EdgeInsets.zero,
         backgroundColor: Colors.white,
         foregroundColor: NewDesignAuthTokens.neutral900,
         shape: RoundedRectangleBorder(
@@ -150,6 +182,7 @@ class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
           fontSize: 26,
           height: 1,
           letterSpacing: 0,
+          fontFeatures: const [FontFeature.tabularFigures()],
         ),
       ),
     );
@@ -160,6 +193,7 @@ class _FourDigitKeyboardState extends State<FourDigitKeyboard> {
       onPressed: deleteDigit,
       style: ElevatedButton.styleFrom(
         elevation: 0,
+        padding: EdgeInsets.zero,
         backgroundColor: Colors.white,
         foregroundColor: NewDesignAuthTokens.neutral700,
         shape: RoundedRectangleBorder(

@@ -43,15 +43,14 @@ class DriverUserData implements NannyBaseRequest {
 }
 
 class DriverUserTextData {
-  DriverUserTextData({
-    required this.userData,
-    required this.carDataText
-  });
+  DriverUserTextData({required this.userData, required this.carDataText});
 
   UserInfo<Driver> userData;
   final CarDataText carDataText;
 
   DriverUserTextData.fromJson(Map<String, dynamic> json)
-    : userData = UserInfo.fromJson(json),
-      carDataText = CarDataText.fromJson(json["carData"]);
+      : userData = UserInfo.fromJson(json),
+        carDataText = CarDataText.fromJson(
+          Map<String, dynamic>.from(json["carData"] as Map? ?? const {}),
+        );
 }

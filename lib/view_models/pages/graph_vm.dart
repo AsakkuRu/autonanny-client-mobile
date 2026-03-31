@@ -257,6 +257,59 @@ class GraphVM extends ViewModelBase {
     return 'На ${day.fullName.toLowerCase()} по этому контракту поездки не запланированы. Переключите день или откройте детали контракта.';
   }
 
+  int get totalContractsCount => schedules.length;
+
+  int get totalRoutesCount => schedules.fold<int>(
+        0,
+        (sum, schedule) => sum + schedule.roads.length,
+      );
+
+  int get activeContractsCount => schedules.where((schedule) {
+        if (_isBalancePause(schedule.pauseReason) ||
+            schedule.isPaused == true) {
+          return false;
+        }
+
+        return schedule.isActive == true ||
+            responses.any((response) => response.idSchedule == schedule.id);
+      }).length;
+
+  int get pausedContractsCount => schedules.where((schedule) {
+        return _isBalancePause(schedule.pauseReason) ||
+            schedule.isPaused == true;
+      }).length;
+
+  int get waitingContractsCount => schedules.where((schedule) {
+        if (_isBalancePause(schedule.pauseReason) ||
+            schedule.isPaused == true) {
+          return false;
+        }
+
+        if (schedule.isActive == true) {
+          return false;
+        }
+
+        return !responses.any((response) => response.idSchedule == schedule.id);
+      }).length;
+
+  String get contractsSummaryHeadline {
+    final count = totalContractsCount;
+    return count == 1
+        ? '1 контракт под контролем'
+        : '$count ${_pluralize(count, 'контракт', 'контракта', 'контрактов')} под контролем';
+  }
+
+  String get contractsSummaryDescription {
+    final summaryParts = <String>[
+      'Активных: $activeContractsCount',
+      if (pausedContractsCount > 0) 'На паузе: $pausedContractsCount',
+      if (waitingContractsCount > 0) 'Ждут водителя: $waitingContractsCount',
+      'Маршрутов: $totalRoutesCount',
+    ];
+
+    return summaryParts.join(' • ');
+  }
+
   Map<int, String> get contractChildNamesById {
     return {
       for (final child in children)
@@ -368,7 +421,7 @@ class GraphVM extends ViewModelBase {
     reloadPage();
   }
 
-  void toGraphCreate() async {
+  Future<int?> toGraphCreate() async {
     final result = await Navigator.push<Object?>(
       context,
       MaterialPageRoute(builder: (context) => const ContractBuilderView()),
@@ -376,14 +429,14 @@ class GraphVM extends ViewModelBase {
     if (result is int) {
       if (result > 0) {
         _selectScheduleIdOnNextLoad = result;
-        _openSelectedScheduleDetailsOnNextLoad = true;
       } else if (result == -1) {
         // Fallback: id не получен от бэкенда, выберем самый новый контракт
         _selectNewestOnNextLoad = true;
-        _openSelectedScheduleDetailsOnNextLoad = true;
       }
+      await reloadPage();
+      return selectedSchedule?.id ?? (result > 0 ? result : null);
     }
-    reloadPage();
+    return null;
   }
 
   void toGraphEdit({required Schedule schedule}) async {
@@ -485,9 +538,8 @@ class GraphVM extends ViewModelBase {
     }
 
     update(() {
-      driverContact = result.success && result.response != null
-          ? result.response
-          : null;
+      driverContact =
+          result.success && result.response != null ? result.response : null;
     });
   }
 
@@ -942,7 +994,10 @@ class GraphVM extends ViewModelBase {
     ));
   }
 
-  void answerResponse(ScheduleResponsesData response, bool accept) async {
+  Future<bool> answerResponse(
+    ScheduleResponsesData response,
+    bool accept,
+  ) async {
     await LoadScreen.showLoad(context, true);
     var result = await NannyOrdersApi.answerScheduleRequest(
       AnswerScheduleRequest(
@@ -951,12 +1006,12 @@ class GraphVM extends ViewModelBase {
         flag: accept,
       ),
     );
-    if (!context.mounted) return;
+    if (!context.mounted) return false;
     await LoadScreen.showLoad(context, false);
-    if (!context.mounted) return;
+    if (!context.mounted) return false;
     if (!result.success) {
       await NannyDialogs.showMessageBox(context, 'Ошибка', result.errorMessage);
-      return;
+      return false;
     }
     update(() {
       responses = responses
@@ -967,15 +1022,16 @@ class GraphVM extends ViewModelBase {
         driverContact = null;
       }
     });
-    if (!context.mounted) return;
+    if (!context.mounted) return false;
     await NannyDialogs.showMessageBox(
       context,
       'Успех',
       accept ? 'Водитель принят' : 'Отклик отклонён',
     );
-    if (!context.mounted) return;
+    if (!context.mounted) return false;
     _selectScheduleIdOnNextLoad = response.idSchedule;
     await reloadPage();
+    return true;
   }
 
   @override
@@ -1154,6 +1210,19 @@ class GraphVM extends ViewModelBase {
     return raw == 'insufficient_balance' ||
         raw == 'low_balance' ||
         raw == 'lack_of_funds';
+  }
+
+  String _pluralize(int count, String one, String few, String many) {
+    final mod10 = count % 10;
+    final mod100 = count % 100;
+
+    if (mod10 == 1 && mod100 != 11) {
+      return one;
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return few;
+    }
+    return many;
   }
 
   bool _isScheduleOperational(

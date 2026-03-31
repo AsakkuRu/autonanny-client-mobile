@@ -8,7 +8,6 @@ import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/nanny_core.dart';
-import 'package:time_range_picker/time_range_picker.dart';
 
 class RouteSheetVM extends ViewModelBase {
   final NannyWeekday weekday;
@@ -32,13 +31,11 @@ class RouteSheetVM extends ViewModelBase {
     roadName = road?.title ?? "";
     nameController.text = roadName;
 
-    // Заполняем время, если оно есть в schedule
-    if (road?.startTime != null && road?.endTime != null) {
-      timeRange = TimeRange(
-        startTime: TimeOfDay(
-            hour: road!.startTime.hour, minute: road!.startTime.minute),
-        endTime:
-            TimeOfDay(hour: road!.endTime.hour, minute: road!.endTime.minute),
+    // Для контрактных маршрутов храним единое время прибытия к первой точке.
+    if (road != null) {
+      arrivalTime = TimeOfDay(
+        hour: road!.startTime.hour,
+        minute: road!.startTime.minute,
       );
     }
 
@@ -105,7 +102,7 @@ class RouteSheetVM extends ViewModelBase {
   bool estimatedLoading = false;
   List<AddressViewData> addresses = [];
   GeocodeResult? addressTo;
-  TimeRange? timeRange;
+  TimeOfDay? arrivalTime;
   bool isRoundTrip = false;
   // TimeOfDay? start;
   // TimeOfDay? end;
@@ -193,19 +190,17 @@ class RouteSheetVM extends ViewModelBase {
   }
 
   void chooseTime() async {
-    final initial = timeRange ?? _defaultTimeRange();
-    TimeRange? time = await showModalBottomSheet<TimeRange>(
+    final initialTime = arrivalTime ?? _defaultArrivalTime();
+    TimeOfDay? time = await showModalBottomSheet<TimeOfDay>(
       context: context,
       backgroundColor: Colors.transparent,
       isDismissible: false,
       isScrollControlled: true,
       builder: (sheetContext) {
-        var start = _timeOfDayToDateTime(initial.startTime);
-        var end = _timeOfDayToDateTime(initial.endTime);
+        var selected = _timeOfDayToDateTime(initialTime);
 
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final isValid = _isEndAfterStart(start, end);
             return Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
@@ -234,55 +229,26 @@ class RouteSheetVM extends ViewModelBase {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text('Время поездки', style: NDT.h2),
+                    Text('Время прибытия', style: NDT.h2),
                     const SizedBox(height: 8),
                     Text(
-                      'Укажите интервал, в который должна начаться поездка. Начало и конец выбираются отдельно.',
+                      'Укажите время, к которому водитель должен приехать к первой точке маршрута.',
                       style: NDT.bodyS.copyWith(color: NDT.neutral500),
                     ),
                     const SizedBox(height: 20),
                     _TimeWheelCard(
-                      label: 'От',
-                      value: _formatDateTime(start),
+                      label: 'Прибытие',
+                      value: _formatDateTime(selected),
                       child: CupertinoDatePicker(
                         mode: CupertinoDatePickerMode.time,
                         minuteInterval: 15,
                         use24hFormat: true,
-                        initialDateTime: start,
+                        initialDateTime: selected,
                         onDateTimeChanged: (value) {
-                          setModalState(() => start = value);
+                          setModalState(() => selected = value);
                         },
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    _TimeWheelCard(
-                      label: 'До',
-                      value: _formatDateTime(end),
-                      child: CupertinoDatePicker(
-                        mode: CupertinoDatePickerMode.time,
-                        minuteInterval: 15,
-                        use24hFormat: true,
-                        initialDateTime: end,
-                        onDateTimeChanged: (value) {
-                          setModalState(() => end = value);
-                        },
-                      ),
-                    ),
-                    if (!isValid) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFFF7ED),
-                          borderRadius: NDT.brMd,
-                        ),
-                        child: Text(
-                          'Время "До" должно быть позже времени "От".',
-                          style: NDT.bodyS.copyWith(color: NDT.warning),
-                        ),
-                      ),
-                    ],
                     const SizedBox(height: 20),
                     Row(
                       children: [
@@ -296,20 +262,12 @@ class RouteSheetVM extends ViewModelBase {
                         Expanded(
                           child: NdPrimaryButton(
                             label: 'Готово',
-                            onTap: isValid
-                                ? () => Navigator.of(sheetContext).pop(
-                                      TimeRange(
-                                        startTime: TimeOfDay(
-                                          hour: start.hour,
-                                          minute: start.minute,
-                                        ),
-                                        endTime: TimeOfDay(
-                                          hour: end.hour,
-                                          minute: end.minute,
-                                        ),
-                                      ),
-                                    )
-                                : null,
+                            onTap: () => Navigator.of(sheetContext).pop(
+                              TimeOfDay(
+                                hour: selected.hour,
+                                minute: selected.minute,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -326,7 +284,7 @@ class RouteSheetVM extends ViewModelBase {
     if (time == null) return;
     if (!context.mounted) return;
 
-    timeRange = time;
+    arrivalTime = time;
     update(() {});
   }
 
@@ -335,7 +293,7 @@ class RouteSheetVM extends ViewModelBase {
     if (roadName.isEmpty ||
         fromController.text.isEmpty ||
         toController.text.isEmpty ||
-        timeRange == null ||
+        arrivalTime == null ||
         addresses.any((e) => e.address == null)) {
       NannyDialogs.showMessageBox(context, "Ошибка", "Заполните форму!");
       return;
@@ -372,8 +330,8 @@ class RouteSheetVM extends ViewModelBase {
         id: road?.id,
         amount: estimatedPrice ?? road?.amount,
         weekDay: selectedWeekdayForRoute,
-        startTime: timeRange!.startTime,
-        endTime: timeRange!.endTime,
+        startTime: arrivalTime!,
+        endTime: arrivalTime!,
         addresses: driveAddresses,
         title: roadName,
         typeDrive: [
@@ -394,15 +352,6 @@ class RouteSheetVM extends ViewModelBase {
         childIds: selectedChildIds,
       ),
     );
-  }
-}
-
-extension TimeRangeAdditions on TimeRange {
-  String toLocalTimeString() {
-    String from = startTime.formatTime();
-    String to = endTime.formatTime();
-
-    return "$from - $to";
   }
 }
 
@@ -488,21 +437,13 @@ extension on RouteSheetVM {
     );
   }
 
-  TimeRange _defaultTimeRange() {
-    final roundedStart = _roundQuarterHour(TimeOfDay.now());
-    return TimeRange(
-      startTime: roundedStart,
-      endTime: _plusMinutes(roundedStart, 60),
-    );
+  TimeOfDay _defaultArrivalTime() {
+    return _roundQuarterHour(TimeOfDay.now());
   }
 
   DateTime _timeOfDayToDateTime(TimeOfDay time) {
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day, time.hour, time.minute);
-  }
-
-  bool _isEndAfterStart(DateTime start, DateTime end) {
-    return end.isAfter(start);
   }
 
   String _formatDateTime(DateTime dateTime) {
@@ -519,12 +460,4 @@ extension on RouteSheetVM {
     );
   }
 
-  TimeOfDay _plusMinutes(TimeOfDay time, int minutes) {
-    final totalMinutes = time.hour * 60 + time.minute + minutes;
-    final normalized = totalMinutes % (24 * 60);
-    return TimeOfDay(
-      hour: normalized ~/ 60,
-      minute: normalized % 60,
-    );
-  }
 }

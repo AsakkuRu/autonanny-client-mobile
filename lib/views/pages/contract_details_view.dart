@@ -7,6 +7,7 @@ import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/driver_contact.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
+import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/models/from_api/other_parametr.dart';
 import 'package:nanny_core/nanny_core.dart';
 
@@ -25,6 +26,7 @@ class ContractDetailsView extends StatelessWidget {
     this.contractChildren = const [],
     this.driverContact,
     this.responsesCount = 0,
+    this.responses = const [],
     this.onOpenSchedule,
     this.onEditContract,
     this.editLockedMessage,
@@ -37,6 +39,9 @@ class ContractDetailsView extends StatelessWidget {
     this.onOpenDriverProfile,
     this.onOpenChat,
     this.onShowQr,
+    this.onOpenResponseDriver,
+    this.onAcceptResponse,
+    this.onRejectResponse,
   });
 
   final Schedule schedule;
@@ -45,6 +50,7 @@ class ContractDetailsView extends StatelessWidget {
   final List<Child> contractChildren;
   final DriverContact? driverContact;
   final int responsesCount;
+  final List<ScheduleResponsesData> responses;
   final VoidCallback? onOpenSchedule;
   final VoidCallback? onEditContract;
   final String? editLockedMessage;
@@ -57,6 +63,9 @@ class ContractDetailsView extends StatelessWidget {
   final VoidCallback? onOpenDriverProfile;
   final VoidCallback? onOpenChat;
   final VoidCallback? onShowQr;
+  final ValueChanged<ScheduleResponsesData>? onOpenResponseDriver;
+  final Future<void> Function(ScheduleResponsesData response)? onAcceptResponse;
+  final Future<void> Function(ScheduleResponsesData response)? onRejectResponse;
 
   @override
   Widget build(BuildContext context) {
@@ -142,7 +151,7 @@ class ContractDetailsView extends StatelessWidget {
                   ? 'Есть отклики от водителей'
                   : 'Водитель еще не назначен',
               message: responsesCount > 0
-                  ? 'В контракте уже есть отклики. Вы сможете выбрать водителя в расписании.'
+                  ? 'В контракте уже есть отклики. Выберите подходящего водителя прямо на этом экране.'
                   : 'Контракт сохранен, сейчас система ищет подходящего водителя.',
               tone: responsesCount > 0
                   ? AutonannyBannerTone.info
@@ -151,8 +160,17 @@ class ContractDetailsView extends StatelessWidget {
                 responsesCount > 0
                     ? AutonannyIcons.people
                     : AutonannyIcons.warning,
-              ),
+                ),
             ),
+          if (driverContact == null && responses.isNotEmpty) ...[
+            const SizedBox(height: AutonannySpacing.lg),
+            _ContractResponsesSection(
+              responses: responses,
+              onOpenResponseDriver: onOpenResponseDriver,
+              onAcceptResponse: onAcceptResponse,
+              onRejectResponse: onRejectResponse,
+            ),
+          ],
           const SizedBox(height: AutonannySpacing.lg),
           if (contractChildren.isNotEmpty) ...[
             _ContractChildrenSection(
@@ -570,6 +588,143 @@ class ContractDetailsView extends StatelessWidget {
   }
 }
 
+class _ContractResponsesSection extends StatelessWidget {
+  const _ContractResponsesSection({
+    required this.responses,
+    this.onOpenResponseDriver,
+    this.onAcceptResponse,
+    this.onRejectResponse,
+  });
+
+  final List<ScheduleResponsesData> responses;
+  final ValueChanged<ScheduleResponsesData>? onOpenResponseDriver;
+  final Future<void> Function(ScheduleResponsesData response)? onAcceptResponse;
+  final Future<void> Function(ScheduleResponsesData response)? onRejectResponse;
+
+  @override
+  Widget build(BuildContext context) {
+    return AutonannySectionContainer(
+      title: 'Отклики водителей',
+      subtitle:
+          'Откройте профиль кандидата и подтвердите водителя прямо в деталях контракта.',
+      child: Column(
+        children: responses
+            .map(
+              (response) => Padding(
+                padding: const EdgeInsets.only(bottom: AutonannySpacing.sm),
+                child: _ContractResponseCard(
+                  response: response,
+                  onOpen: onOpenResponseDriver == null
+                      ? null
+                      : () => onOpenResponseDriver!(response),
+                  onAccept: onAcceptResponse == null
+                      ? null
+                      : () => onAcceptResponse!(response),
+                  onReject: onRejectResponse == null
+                      ? null
+                      : () => onRejectResponse!(response),
+                ),
+              ),
+            )
+            .toList(growable: false),
+      ),
+    );
+  }
+}
+
+class _ContractResponseCard extends StatelessWidget {
+  const _ContractResponseCard({
+    required this.response,
+    this.onOpen,
+    this.onAccept,
+    this.onReject,
+  });
+
+  final ScheduleResponsesData response;
+  final VoidCallback? onOpen;
+  final Future<void> Function()? onAccept;
+  final Future<void> Function()? onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = NannyConsts.buildFileUrl(response.photoPath);
+    final weekdays = response.data
+        .map((item) => item.weekDay)
+        .where((weekday) => weekday >= 0 && weekday < NannyWeekday.values.length)
+        .map((weekday) => NannyWeekday.values[weekday].shortName)
+        .toSet()
+        .join(', ');
+    final subtitleParts = <String>[
+      '${response.data.length} ${response.data.length == 1 ? 'маршрут' : 'маршрутов'}',
+      if (weekdays.isNotEmpty) weekdays,
+    ];
+
+    return AutonannyCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AutonannyListRow(
+            title: response.name,
+            subtitle: subtitleParts.join(' · '),
+            leading: AutonannyAvatar(
+              imageUrl: imageUrl,
+              initials: _initials(response.name),
+              size: 48,
+            ),
+            onTap: onOpen,
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          Row(
+            children: [
+              if (onOpen != null)
+                Expanded(
+                  child: AutonannyButton(
+                    label: 'Профиль',
+                    variant: AutonannyButtonVariant.secondary,
+                    onPressed: onOpen,
+                  ),
+                ),
+              if (onOpen != null)
+                const SizedBox(width: AutonannySpacing.sm),
+              Expanded(
+                child: AutonannyButton(
+                  label: 'Подтвердить',
+                  onPressed: onAccept,
+                ),
+              ),
+            ],
+          ),
+          if (onReject != null) ...[
+            const SizedBox(height: AutonannySpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: AutonannyButton(
+                label: 'Отклонить',
+                variant: AutonannyButtonVariant.ghost,
+                onPressed: onReject,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final parts = name
+        .split(' ')
+        .where((item) => item.trim().isNotEmpty)
+        .toList(growable: false);
+    if (parts.isEmpty) {
+      return 'A';
+    }
+    if (parts.length == 1) {
+      return parts.first[0].toUpperCase();
+    }
+    return '${parts.first[0]}${parts[1][0]}'.toUpperCase();
+  }
+}
+
 class _ContractChildrenSection extends StatelessWidget {
   const _ContractChildrenSection({
     required this.schedule,
@@ -638,7 +793,7 @@ class _ContractServicesSection extends StatelessWidget {
           if (servicesTotal > 0) ...[
             const SizedBox(height: AutonannySpacing.md),
             Text(
-              'Итого по услугам: ${servicesTotal.round()} ₽ в неделю',
+              'Итого по услугам: ${_formatMoney(servicesTotal)} ₽ в неделю',
               style: AutonannyTypography.bodyS(
                 color: context.autonannyColors.textSecondary,
               ),
@@ -655,8 +810,8 @@ class _ContractServicesSection extends StatelessWidget {
     final suffix = <String>[
       if (param.count != null && param.count! > 0) 'x${param.count}',
       if (param.amount != null && param.amount! > 0)
-        '${param.amount!.round()} ₽/шт',
-      if (total > 0) 'итого ${total.round()} ₽',
+        '${_formatMoney(param.amount!)} ₽/шт',
+      if (total > 0) 'итого ${_formatMoney(total)} ₽',
     ];
     if (suffix.isEmpty) {
       return title;
@@ -666,6 +821,12 @@ class _ContractServicesSection extends StatelessWidget {
 
   double _serviceTotal(OtherParametr param) {
     return (param.amount ?? 0) * (param.count ?? 0);
+  }
+
+  String _formatMoney(double amount) {
+    return amount.truncateToDouble() == amount
+        ? amount.toStringAsFixed(0)
+        : amount.toStringAsFixed(2);
   }
 }
 
@@ -948,10 +1109,12 @@ class _PausedContractBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.autonannyColors;
     final pauseFrom = _formatPauseDate(schedule.pauseFrom);
     final pauseUntil = _formatPauseDate(schedule.pauseUntil);
     final pauseReason = _formatPauseReason(schedule.pauseReason);
+    final statusSummary = schedule.pauseUntil != null
+        ? 'Автовозобновление $pauseUntil'
+        : 'Ожидает ручного возобновления';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -987,6 +1150,13 @@ class _PausedContractBanner extends StatelessWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: AutonannySpacing.md),
+              Text(
+                statusSummary,
+                style: AutonannyTypography.bodyS(
+                  color: context.autonannyColors.textSecondary,
+                ),
+              ),
               if (_isBalancePause(schedule.pauseReason)) ...[
                 const SizedBox(height: AutonannySpacing.md),
                 AutonannyInlineBanner(
@@ -1018,31 +1188,6 @@ class _PausedContractBanner extends StatelessWidget {
                 ),
               ],
             ],
-          ),
-        ),
-        const SizedBox(height: AutonannySpacing.md),
-        AutonannyInlineBanner(
-          title: schedule.pauseUntil != null
-              ? 'Автовозобновление $pauseUntil'
-              : 'Контракт ожидает ручного возобновления',
-          message: schedule.pauseUntil != null
-              ? 'Когда пауза закончится, контракт снова станет активным автоматически.'
-              : 'Сейчас в расписании не будет новых поездок по этому контракту.',
-          tone: AutonannyBannerTone.info,
-          leading: const AutonannyIcon(AutonannyIcons.calendar),
-        ),
-        const SizedBox(height: AutonannySpacing.md),
-        Container(
-          padding: const EdgeInsets.all(AutonannySpacing.lg),
-          decoration: BoxDecoration(
-            color: colors.surfaceSecondary,
-            borderRadius: AutonannyRadii.brLg,
-          ),
-          child: Text(
-            'После снятия паузы вы снова увидите ближайшую поездку, назначенного водителя и подробную структуру контракта по дням.',
-            style: AutonannyTypography.bodyS(
-              color: colors.textSecondary,
-            ),
           ),
         ),
       ],
@@ -1431,7 +1576,7 @@ class _PauseMetricCard extends StatelessWidget {
     final colors = context.autonannyColors;
 
     return Container(
-      padding: const EdgeInsets.all(AutonannySpacing.lg),
+      padding: const EdgeInsets.all(AutonannySpacing.md),
       decoration: BoxDecoration(
         color: colors.surfaceSecondary,
         borderRadius: AutonannyRadii.brLg,
@@ -1448,7 +1593,7 @@ class _PauseMetricCard extends StatelessWidget {
           const SizedBox(height: AutonannySpacing.xs),
           Text(
             value,
-            style: AutonannyTypography.h3(
+            style: AutonannyTypography.labelL(
               color: colors.textPrimary,
             ),
           ),

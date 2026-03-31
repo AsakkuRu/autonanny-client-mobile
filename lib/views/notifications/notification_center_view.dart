@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:nanny_client/routing/client_entity_router.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/notifications/notification_center_vm.dart';
@@ -150,8 +151,8 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
                           itemCount: vm.filteredNotifications.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(height: AutonannySpacing.sm),
-                          itemBuilder: (_, i) =>
-                              _buildCard(vm.filteredNotifications[i]),
+                          itemBuilder: (_, i) => _buildDismissibleCard(
+                              vm.filteredNotifications[i]),
                         ),
                 ),
               ),
@@ -162,12 +163,18 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
     );
   }
 
-  Widget _buildCard(api.NotificationItem item) {
-    return NotificationItem(
-      data: item.notificationItemData(
-        timeLabel: _formatDate(item.createdAt),
+  Widget _buildDismissibleCard(api.NotificationItem item) {
+    return Dismissible(
+      key: ValueKey('client-notification-${item.id}'),
+      direction: DismissDirection.endToStart,
+      background: const _DeleteSwipeBackground(),
+      onDismissed: (_) => _deleteNotification(item),
+      child: NotificationItem(
+        data: item.notificationItemData(
+          timeLabel: _formatDate(item.createdAt),
+        ),
+        onTap: () => _openNotification(item),
       ),
-      onTap: () => _openNotification(item),
     );
   }
 
@@ -185,6 +192,25 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
         message: 'Данные уведомления пока нельзя открыть напрямую.',
       );
     }
+  }
+
+  Future<void> _deleteNotification(api.NotificationItem item) async {
+    final removed = vm.removeNotificationLocally(item.id);
+    if (removed == null) {
+      return;
+    }
+
+    final deleted = await vm.commitDeleteNotification(item.id);
+    if (deleted || !mounted) {
+      return;
+    }
+
+    vm.restoreRemovedNotification(removed);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(vm.errorMessage ?? 'Не удалось удалить уведомление'),
+      ),
+    );
   }
 
   Future<void> _showInfoSheet({
@@ -254,12 +280,24 @@ class _NotificationCenterViewState extends State<NotificationCenterView> {
   }
 
   String _formatDate(DateTime date) {
+    final localDate = date.toLocal();
     final now = DateTime.now();
-    final diff = now.difference(date);
-    if (diff.inMinutes < 60) return '${diff.inMinutes} мин назад';
-    if (diff.inHours < 24) return '${diff.inHours} ч назад';
-    if (diff.inDays < 7) return '${diff.inDays} д назад';
-    return '${date.day}.${date.month}.${date.year}';
+    final diff = now.difference(localDate);
+    if (diff.isNegative || diff.inSeconds < 60) {
+      return 'Только что';
+    }
+
+    final today = DateUtils.dateOnly(now);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final dateOnly = DateUtils.dateOnly(localDate);
+
+    if (dateOnly == today) {
+      return 'Сегодня в ${DateFormat('HH:mm').format(localDate)}';
+    }
+    if (dateOnly == yesterday) {
+      return 'Вчера в ${DateFormat('HH:mm').format(localDate)}';
+    }
+    return DateFormat('dd.MM.yyyy HH:mm').format(localDate);
   }
 }
 
@@ -306,6 +344,41 @@ class _FilterChip extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DeleteSwipeBackground extends StatelessWidget {
+  const _DeleteSwipeBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: AutonannySpacing.xl),
+      decoration: BoxDecoration(
+        color: colors.statusDanger,
+        borderRadius: AutonannyRadii.brLg,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(
+            'Удалить',
+            style: AutonannyTypography.labelM(
+              color: colors.textInverse,
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.sm),
+          const AutonannyIcon(
+            AutonannyIcons.close,
+            color: Colors.white,
+            size: 18,
+          ),
+        ],
       ),
     );
   }

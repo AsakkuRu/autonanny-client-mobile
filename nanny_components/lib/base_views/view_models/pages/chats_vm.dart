@@ -96,7 +96,13 @@ class ChatsVM extends ViewModelBase {
   }
 
   void navigateToDirect(ChatElement chat) async {
-    await navigateToView(DirectView(idChat: chat.idChat, name: chat.username));
+    await navigateToView(
+      DirectView(
+        idChat: chat.idChat,
+        name: chat.username,
+        photoPath: chat.photoPath,
+      ),
+    );
     onReturnFromChat?.call();
     updateList?.call();
   }

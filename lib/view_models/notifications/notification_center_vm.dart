@@ -83,6 +83,49 @@ class NotificationCenterVM extends ViewModelBase {
     return true;
   }
 
+  RemovedNotification? removeNotificationLocally(int id) {
+    final index = notifications.indexWhere((n) => n.id == id);
+    if (index == -1) {
+      return null;
+    }
+
+    final item = notifications[index];
+    update(() {
+      notifications = List<NotificationItem>.from(notifications)
+        ..removeAt(index);
+    });
+    return RemovedNotification(item: item, index: index);
+  }
+
+  void restoreRemovedNotification(RemovedNotification removed) {
+    final alreadyExists =
+        notifications.any((notification) => notification.id == removed.item.id);
+    if (alreadyExists) {
+      return;
+    }
+
+    final restored = List<NotificationItem>.from(notifications);
+    final insertIndex =
+        removed.index > restored.length ? restored.length : removed.index;
+    restored.insert(insertIndex, removed.item);
+    update(() {
+      notifications = restored;
+    });
+  }
+
+  Future<bool> commitDeleteNotification(int id) async {
+    final result = await NannyUsersApi.deleteNotification(id);
+    if (result.success) {
+      return true;
+    }
+
+    errorMessage = result.errorMessage.isNotEmpty
+        ? result.errorMessage
+        : 'Не удалось удалить уведомление';
+    update(() {});
+    return false;
+  }
+
   void markAsRead(int id) {
     final index = notifications.indexWhere((n) => n.id == id);
     if (index != -1) {
@@ -170,4 +213,14 @@ class NotificationCenterVM extends ViewModelBase {
     _realtimeSub?.cancel();
     super.dispose();
   }
+}
+
+class RemovedNotification {
+  const RemovedNotification({
+    required this.item,
+    required this.index,
+  });
+
+  final NotificationItem item;
+  final int index;
 }

@@ -328,6 +328,15 @@ class NannyUsersApi {
     );
   }
 
+  static Future<ApiResponse<void>> deleteNotification(int id) async {
+    return RequestBuilder<void>().create(
+      dioRequest: DioRequest.dio.delete('/users/notifications/$id'),
+      errorCodeMsgs: {
+        404: 'Уведомление не найдено',
+      },
+    );
+  }
+
   // FE-MVP-009: Получение контактов водителя для расписания
   static Future<ApiResponse<DriverContact>> getDriverContact(
       int scheduleId) async {

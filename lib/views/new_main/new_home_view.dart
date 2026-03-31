@@ -12,6 +12,7 @@ import 'package:nanny_client/views/pages/balance.dart';
 import 'package:nanny_client/views/pages/contracts_view.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_client/views/reg.dart';
+import 'package:nanny_client/views/support/support_chat_view.dart';
 import 'package:nanny_components/base_views/views/pages/chats.dart';
 import 'package:nanny_components/base_views/views/welcome.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
@@ -63,6 +64,11 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
         onReturnFromChat: () => vm.refreshUnreadChatsCount(),
         buildDriverRatingView: (driverId) =>
             DriverRatingDetailsView(driverId: driverId),
+        onOpenSupportChat: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const SupportChatView()),
+          );
+        },
       ),
       _NewProfileView(
         logoutView: WelcomeView(
@@ -204,8 +210,7 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
   }
 
   ActiveTripBannerData _buildActiveTripBannerData(
-    Map<String, dynamic> activeOrder,
-    {
+    Map<String, dynamic> activeOrder, {
     int? cachedStatusId,
   }) {
     final statusId = _preferMoreSpecificStatus(
@@ -221,7 +226,7 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
       subtitle: driverName.isNotEmpty
           ? '$driverName · открыть экран поездки'
           : _activeTripSubtitle(statusId),
-      avatarImageUrl: driverMap?['photo']?.toString(),
+      avatarImageUrl: NannyConsts.buildFileUrl(driverMap?['photo']?.toString()),
       avatarInitials: _driverInitials(driverMap),
     );
   }
@@ -230,7 +235,8 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
     if (apiStatusId == null) return cachedStatusId;
     if (cachedStatusId == null) return apiStatusId;
 
-    return _statusProgressRank(cachedStatusId) > _statusProgressRank(apiStatusId)
+    return _statusProgressRank(cachedStatusId) >
+            _statusProgressRank(apiStatusId)
         ? cachedStatusId
         : apiStatusId;
   }

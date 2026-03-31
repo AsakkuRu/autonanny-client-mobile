@@ -2,26 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/nanny_core.dart';
-import 'package:nanny_components/styles/new_design_auth.dart';
 
 class MapViewer extends StatefulWidget {
   final Widget body;
   final Widget panel;
+
   /// Если задан — используется вместо body. Позволяет строить карту с padding
   /// для центрирования относительно видимой области над панелью.
   final Widget Function(double panelHeight)? bodyBuilder;
   final String? currentLocName;
   final double minExtent;
   final double maxExtent;
+
   /// Доля высоты экрана для начального положения панели.
   /// 0.0 = minExtent (закрыта), 1.0 = maxExtent (открыта полностью).
   /// null = использовать minExtent (поведение по умолчанию).
   final double? initialExtent;
+
   /// Если true — высота панели подстраивается под содержимое (максимум maxExtent).
   /// Содержимое скроллится, если превышает maxExtent.
   final bool adaptToContent;
   final GoogleMapController Function()? onPosPressed;
   final void Function(ScrollController sc)? onPanelBuild;
+
   /// Кнопка SOS показывается только во время поездки (на главном экране скрыта).
   final bool showSosButton;
 
@@ -52,6 +55,7 @@ class _MapViewerState extends State<MapViewer> {
   double _absoluteMaxHeight = 0;
   // Измеренная высота контента + ручка; 0 = ещё не измерено
   double _measuredPanelHeight = 0;
+
   /// Текущая высота панели для bodyBuilder (centering карты над панелью).
   double _panelHeight = 0;
   final GlobalKey _panelContentKey = GlobalKey();
@@ -151,14 +155,12 @@ class _MapViewerState extends State<MapViewer> {
                 offset: const Offset(0, -4),
               ),
             ],
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(32)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
             parallaxEnabled: false,
             body: mapBody,
             onPanelSlide: widget.bodyBuilder != null
                 ? (double position) {
-                    final h =
-                        minHeight + (maxHeight - minHeight) * position;
+                    final h = minHeight + (maxHeight - minHeight) * position;
                     if ((_panelHeight - h).abs() > 1.0) {
                       setState(() => _panelHeight = h);
                     }
@@ -220,7 +222,6 @@ class _MapViewerState extends State<MapViewer> {
                 showSosButton: widget.showSosButton,
               ),
             ),
-
         ],
       );
     });
@@ -236,7 +237,7 @@ class _MapViewerState extends State<MapViewer> {
           return;
         }
       }
-      
+
       if (permission == LocationPermission.deniedForever) {
         return;
       }
@@ -271,72 +272,18 @@ class _GreetingAndControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.autonannyColors;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final user = NannyUser.userInfo;
-    final name = user?.name ?? '';
-
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: colors.surfaceElevated.withValues(
-              alpha: isDark ? 0.94 : 0.95,
-            ),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: isDark
-                    ? Colors.black.withValues(alpha: 0.22)
-                    : const Color.fromRGBO(91, 79, 207, 0.08),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      NewDesignAuthTokens.primaryLight,
-                      NewDesignAuthTokens.primaryDark,
-                    ],
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  name.isNotEmpty ? name.characters.first.toUpperCase() : 'А',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                name.isNotEmpty ? "Привет, $name" : "Привет",
-                style: AutonannyTypography.bodyM(
-                  color: colors.textPrimary,
-                ).copyWith(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+        const Expanded(
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: NdAppBarChip(),
           ),
         ),
+        const SizedBox(width: 12),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             _CircleIconButton(
               icon: Icons.notifications_none_rounded,
@@ -387,7 +334,8 @@ class _CircleIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.autonannyColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDanger ? NewDesignAuthTokens.danger : colors.surfaceElevated;
+    const dangerColor = Color(0xFFEF4444);
+    final bgColor = isDanger ? dangerColor : colors.surfaceElevated;
     final shadowColor = isDanger
         ? const Color.fromRGBO(239, 68, 68, 0.4)
         : isDark
@@ -417,9 +365,7 @@ class _CircleIconButton extends StatelessWidget {
               Icon(
                 icon,
                 size: 20,
-                color: isDanger
-                    ? Colors.white
-                    : colors.textPrimary,
+                color: isDanger ? Colors.white : colors.textPrimary,
               ),
             if (label != null)
               Text(
@@ -439,7 +385,7 @@ class _CircleIconButton extends StatelessWidget {
                   width: 9,
                   height: 9,
                   decoration: BoxDecoration(
-                    color: NewDesignAuthTokens.danger,
+                    color: dangerColor,
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(color: bgColor, width: 2),
                   ),

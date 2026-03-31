@@ -7,10 +7,14 @@ class AddCardView extends StatefulWidget {
   final bool usePaymentInstead;
   final bool useSbpPayment;
 
+  /// PAN без пробелов (по 16 цифр), уже привязанные к пользователю.
+  final List<String> existingCardPanDigits;
+
   const AddCardView({
     super.key,
     this.usePaymentInstead = false,
     this.useSbpPayment = false,
+    this.existingCardPanDigits = const [],
   });
 
   @override
@@ -27,6 +31,7 @@ class _AddCardViewState extends State<AddCardView> {
       context: context,
       update: setState,
       binding: WidgetsFlutterBinding.ensureInitialized(),
+      existingCardPanDigits: widget.existingCardPanDigits,
     );
   }
 

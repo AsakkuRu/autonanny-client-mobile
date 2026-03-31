@@ -35,145 +35,171 @@ class _PinLoginViewState extends State<PinLoginView> {
         backgroundColor: NewDesignAuthTokens.neutral50,
         body: FutureLoader(
           future: vm.isBioAuthAvailable,
-          completeView: (context, data) => Column(
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-                decoration: const BoxDecoration(
-                  gradient: NewDesignAuthTokens.primaryGradient,
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(32),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: TextButton.icon(
-                        onPressed: vm.logout,
-                        icon: const Icon(
-                          Icons.logout_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        label: Text(
-                          "Выйти",
-                          style: NewDesignAuthTokens.bodyS.copyWith(
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.28),
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.lock_outline_rounded,
-                          color: Colors.white,
-                          size: 34,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      "Быстрый вход",
-                      style: NewDesignAuthTokens.titleXL.copyWith(
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Введите 4-значный PIN-код, чтобы быстро вернуться в приложение.",
-                      style: NewDesignAuthTokens.bodyM.copyWith(
-                        color: Colors.white.withValues(alpha: 0.82),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          completeView: (context, data) => LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxHeight < 760;
+              final headerIconSize = compact ? 68.0 : 76.0;
+              final headerIconRadius = compact ? 20.0 : 24.0;
+              final horizontalPadding = compact ? 16.0 : 20.0;
+
+              return SingleChildScrollView(
+                padding: EdgeInsets.zero,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: NewDesignAuthTokens.radiusMd,
-                          border: Border.all(
-                            color: NewDesignAuthTokens.neutral200,
+                        padding: EdgeInsets.fromLTRB(
+                          24,
+                          compact ? 12 : 16,
+                          24,
+                          compact ? 20 : 28,
+                        ),
+                        decoration: const BoxDecoration(
+                          gradient: NewDesignAuthTokens.primaryGradient,
+                          borderRadius: BorderRadius.vertical(
+                            bottom: Radius.circular(32),
                           ),
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: const BoxDecoration(
-                                color: NewDesignAuthTokens.primary100,
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(12),
+                            Align(
+                              alignment: Alignment.topRight,
+                              child: TextButton.icon(
+                                onPressed: vm.logout,
+                                icon: const Icon(
+                                  Icons.logout_rounded,
+                                  color: Colors.white,
+                                  size: 18,
                                 ),
-                              ),
-                              child: const Icon(
-                                Icons.shield_outlined,
-                                color: NewDesignAuthTokens.primary,
-                                size: 18,
+                                label: Text(
+                                  "Выйти",
+                                  style: NewDesignAuthTokens.bodyS.copyWith(
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                data
-                                    ? "Можно использовать PIN-код или биометрию."
-                                    : "Для входа доступен PIN-код.",
-                                style: NewDesignAuthTokens.bodyS.copyWith(
-                                  color: NewDesignAuthTokens.neutral700,
-                                  fontWeight: FontWeight.w600,
+                            SizedBox(height: compact ? 4 : 8),
+                            Center(
+                              child: Container(
+                                width: headerIconSize,
+                                height: headerIconSize,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(
+                                    headerIconRadius,
+                                  ),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.28),
+                                  ),
                                 ),
+                                child: Icon(
+                                  Icons.lock_outline_rounded,
+                                  color: Colors.white,
+                                  size: compact ? 30 : 34,
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: compact ? 16 : 20),
+                            Text(
+                              "Быстрый вход",
+                              style: NewDesignAuthTokens.titleXL.copyWith(
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Введите 4-значный PIN-код, чтобы быстро вернуться в приложение.",
+                              style: NewDesignAuthTokens.bodyM.copyWith(
+                                color: Colors.white.withValues(alpha: 0.82),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: FourDigitKeyboard(
-                          bottomChild: data
-                              ? TextButton(
-                                  onPressed: vm.useBioAuth,
-                                  child: Text(
-                                    "Использовать биометрию",
-                                    style: NewDesignAuthTokens.bodyS.copyWith(
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          horizontalPadding,
+                          horizontalPadding,
+                          horizontalPadding,
+                          horizontalPadding,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: NewDesignAuthTokens.radiusMd,
+                                border: Border.all(
+                                  color: NewDesignAuthTokens.neutral200,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 36,
+                                    height: 36,
+                                    decoration: const BoxDecoration(
+                                      color: NewDesignAuthTokens.primary100,
+                                      borderRadius: BorderRadius.all(
+                                        Radius.circular(12),
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.shield_outlined,
                                       color: NewDesignAuthTokens.primary,
+                                      size: 18,
                                     ),
                                   ),
-                                )
-                              : null,
-                          onCodeChanged: (code) {
-                            vm.code = code;
-                            if (code.length > 3) vm.checkPinCode();
-                          },
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      data
+                                          ? "Можно использовать PIN-код или биометрию."
+                                          : "Для входа доступен PIN-код.",
+                                      style: NewDesignAuthTokens.bodyS.copyWith(
+                                        color: NewDesignAuthTokens.neutral700,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            FourDigitKeyboard(
+                              bottomChild: data
+                                  ? TextButton(
+                                      onPressed: vm.useBioAuth,
+                                      child: Text(
+                                        "Использовать биометрию",
+                                        style:
+                                            NewDesignAuthTokens.bodyS.copyWith(
+                                          color: NewDesignAuthTokens.primary,
+                                        ),
+                                      ),
+                                    )
+                                  : null,
+                              onCodeChanged: (code) {
+                                vm.code = code;
+                                if (code.length > 3) vm.checkPinCode();
+                              },
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+              );
+            },
           ),
           errorView: (context, error) => ErrorView(errorText: error.toString()),
         ),

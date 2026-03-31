@@ -63,8 +63,10 @@ class _GraphCreateState extends State<GraphCreate> {
       weekday,
       road: updatingRoad,
       tariffId: vm.editor.tariff.id,
-      allSelectedWeekdays: [weekday],
-      applyToAllDaysDefault: false,
+      allSelectedWeekdays: vm.sortedSelectedWeekdays,
+      applyToAllDaysDefault: updatingRoad != null
+          ? vm.isRouteAppliedToAllSelectedDays(updatingRoad)
+          : false,
       availableChildren: vm.selectedContractChildren,
       initialSelectedChildIds: vm.initialRouteChildrenIds(road: updatingRoad),
     );
@@ -75,6 +77,7 @@ class _GraphCreateState extends State<GraphCreate> {
     vm.saveRoute(
       route: result.road,
       weekday: weekday,
+      targetWeekdays: result.targetWeekdays,
       childIds:
           result.childIds ?? vm.initialRouteChildrenIds(road: updatingRoad),
       updatingRoad: updatingRoad,
@@ -337,13 +340,16 @@ class _GraphCreateState extends State<GraphCreate> {
               if (_currentStepIndex > 0)
                 const SizedBox(width: AutonannySpacing.md),
               Expanded(
-                child: AutonannyButton(
-                  label: _isLastStep
+                  child: AutonannyButton(
+                    label: _isLastStep
                       ? (_isEditMode ? 'Обновить контракт' : 'Создать контракт')
                       : 'Далее',
                   onPressed: _isLastStep
-                      ? (vm.canSubmit ? vm.confirm : null)
+                      ? (vm.canSubmit && !vm.isSubmitting
+                          ? () async => vm.confirm()
+                          : null)
                       : _continueFlow,
+                  isLoading: _isLastStep && vm.isSubmitting,
                   leading: AutonannyIcon(
                     _isLastStep
                         ? AutonannyIcons.checkCircle
@@ -381,6 +387,10 @@ class _GraphCreateState extends State<GraphCreate> {
 
             return ListView(
               key: ValueKey<int>(_currentStepIndex),
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.fromLTRB(
                 AutonannySpacing.xl,
                 AutonannySpacing.md,
@@ -439,39 +449,29 @@ class _DayRoutesPanel extends StatelessWidget {
     return AutonannyCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      day.fullName,
-                      style: AutonannyTypography.labelL(
-                        color: context.autonannyColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: AutonannySpacing.xs),
-                    Text(
-                      'Добавляйте маршруты и сразу выбирайте детей для каждой поездки.',
-                      style: AutonannyTypography.bodyS(
-                        color: context.autonannyColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AutonannySpacing.md),
-              AutonannyButton(
-                label: 'Добавить маршрут',
-                size: AutonannyButtonSize.medium,
-                variant: AutonannyButtonVariant.secondary,
-                expand: false,
-                leading: const AutonannyIcon(AutonannyIcons.add),
-                onPressed: onAddRoute,
-              ),
-            ],
+          Text(
+            day.fullName,
+            style: AutonannyTypography.labelL(
+              color: context.autonannyColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.xs),
+          Text(
+            'Добавляйте маршруты и сразу выбирайте детей для каждой поездки.',
+            style: AutonannyTypography.bodyS(
+              color: context.autonannyColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          AutonannyButton(
+            label: 'Добавить маршрут',
+            size: AutonannyButtonSize.medium,
+            variant: AutonannyButtonVariant.secondary,
+            expand: false,
+            leading: const AutonannyIcon(AutonannyIcons.add),
+            onPressed: onAddRoute,
           ),
           const SizedBox(height: AutonannySpacing.lg),
           if (roads.isEmpty)
@@ -526,7 +526,7 @@ class _ContractStepHeader extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.all(AutonannySpacing.xl),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: AutonannyGradients.hero,
         borderRadius: AutonannyRadii.brLg,
       ),
@@ -540,6 +540,7 @@ class _ContractStepHeader extends StatelessWidget {
                   AutonannyIcons.arrowLeft,
                   color: Colors.white,
                 ),
+                variant: AutonannyIconButtonVariant.ghost,
                 onPressed: onBackPressed,
               ),
               const SizedBox(width: AutonannySpacing.md),
@@ -828,7 +829,7 @@ class _RouteDraftCard extends StatelessWidget {
                     ),
                     const SizedBox(height: AutonannySpacing.xs),
                     Text(
-                      '${road.startTime.formatTime()} - ${road.endTime.formatTime()}',
+                      'Прибытие к первой точке: ${road.startTime.formatTime()}',
                       style: AutonannyTypography.bodyS(
                         color: colors.textSecondary,
                       ),

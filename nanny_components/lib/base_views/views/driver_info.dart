@@ -1,16 +1,15 @@
 import 'package:autonanny_ui_core/autonanny_ui_core.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:nanny_components/base_views/view_models/driver_info_vm.dart';
-import 'package:nanny_components/base_views/views/driver_orders.dart';
 import 'package:nanny_components/base_views/views/video_view.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/nanny_core.dart';
 
-/// Используется для просмотра данных профиля водителя.
+/// Единый экран профиля водителя для клиентского приложения.
 ///
-/// Если стоит флаг [viewingOrder], то [scheduleData] НЕ должно быть пустым
+/// Если [viewingOrder] == true, то [scheduleData] должен быть передан:
+/// из этой поверхности можно сразу принять или отклонить отклик на контракт.
 class DriverInfoView extends StatefulWidget {
   final int id;
   final bool hasPaymentButtons;
@@ -19,14 +18,15 @@ class DriverInfoView extends StatefulWidget {
   final ScheduleResponsesData? scheduleData;
   final VoidCallback? onOpenRating;
 
-  const DriverInfoView(
-      {super.key,
-      required this.id,
-      this.hasPaymentButtons = false,
-      this.franchiseView = false,
-      this.viewingOrder = false,
-      this.scheduleData,
-      this.onOpenRating});
+  const DriverInfoView({
+    super.key,
+    required this.id,
+    this.hasPaymentButtons = false,
+    this.franchiseView = false,
+    this.viewingOrder = false,
+    this.scheduleData,
+    this.onOpenRating,
+  });
 
   @override
   State<DriverInfoView> createState() => _DriverInfoViewState();
@@ -43,467 +43,388 @@ class _DriverInfoViewState extends State<DriverInfoView> {
     'Комментарии',
   ];
 
-  late DriverInfoVM vm;
+  late final DriverInfoVM vm;
 
   @override
   void initState() {
     super.initState();
     vm = DriverInfoVM(
-        context: context,
-        update: setState,
-        id: widget.id,
-        viewingOrder: widget.viewingOrder,
-        scheduleData: widget.scheduleData);
+      context: context,
+      update: setState,
+      id: widget.id,
+      viewingOrder: widget.viewingOrder,
+      scheduleData: widget.scheduleData,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: const Color(0xFFF7F7F7),
-        appBar: const NannyAppBar(
-          title: "Профиль водителя",
-          isTransparent: false,
-          color: NannyTheme.secondary,
+      backgroundColor: const Color(0xFFF6F7FB),
+      appBar: AutonannyAppBar(
+        title: 'Профиль водителя',
+        leading: AutonannyIconButton(
+          icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
-        body: RequestLoader(
-            request: vm.getDriver,
-            completeView: (context, driverData) {
-              // Используем реальные данные, полученные с бэкенда.
-              final DriverUserTextData data = driverData!;
-              data.userData = data.userData.asDriver();
-              final driverRoleData = data.userData.roleData;
-              final questionnaireAnswers =
-                  _buildQuestionnaireAnswers(driverRoleData?.answers);
-              final experienceYears = driverRoleData?.experienceYears;
-              final driverInitials = [
-                if (data.userData.name.trim().isNotEmpty)
-                  data.userData.name.trim().characters.first,
-                if (data.userData.surname.trim().isNotEmpty)
-                  data.userData.surname.trim().characters.first,
-              ].join().toUpperCase();
-              final driverPhotoUrl =
-                  NannyConsts.buildFileUrl(data.userData.photoPath);
+      ),
+      bottomNavigationBar:
+          widget.viewingOrder ? _buildResponseActionsBar() : null,
+      body: RequestLoader(
+        request: vm.getDriver,
+        completeView: (context, driverData) {
+          if (driverData == null) {
+            return const AutonannyErrorState(
+              title: 'Профиль водителя недоступен',
+              description:
+                  'Не удалось загрузить данные водителя. Попробуйте открыть профиль ещё раз.',
+            );
+          }
 
-              return Column(children: [
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
-                  child: Row(
-                    children: [
-                      AutonannyAvatar(
-                        imageUrl: driverPhotoUrl,
-                        initials: driverInitials.isEmpty ? 'В' : driverInitials,
-                        size: 154,
-                        borderRadius: BorderRadius.circular(77),
-                      ),
-                      const SizedBox(width: 29),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "${data.userData.name} ${data.userData.surname}",
-                            style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                height: 20 / 18,
-                                color: NannyTheme.onSecondary),
+          final data = driverData;
+          final userData = data.userData.asDriver();
+          final driverRoleData = userData.roleData;
+          final questionnaireAnswers =
+              _buildQuestionnaireAnswers(driverRoleData?.answers);
+          final experienceYears = driverRoleData?.experienceYears;
+          final driverInitials = [
+            if (userData.name.trim().isNotEmpty)
+              userData.name.trim().characters.first,
+            if (userData.surname.trim().isNotEmpty)
+              userData.surname.trim().characters.first,
+          ].join().toUpperCase();
+          final driverPhotoUrl = NannyConsts.buildFileUrl(userData.photoPath);
+          final driverVideoUrl = NannyConsts.buildFileUrl(userData.videoPath) ??
+              userData.videoPath;
+
+          return ListView(
+            padding: const EdgeInsets.all(AutonannySpacing.lg),
+            children: [
+              _buildHeroCard(
+                name: '${userData.name} ${userData.surname}'.trim(),
+                initials: driverInitials.isEmpty ? 'В' : driverInitials,
+                photoUrl: driverPhotoUrl,
+                experienceYears: experienceYears,
+                hasVideo: driverVideoUrl.trim().isNotEmpty,
+                onOpenVideo: driverVideoUrl.trim().isEmpty
+                    ? null
+                    : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => VideoView(url: driverVideoUrl),
                           ),
-                          if (data.userData.videoPath.isNotEmpty)
-                            TextButton(
-                              style: const ButtonStyle(
-                                  padding:
-                                      WidgetStatePropertyAll(EdgeInsets.zero)),
-                              onPressed: () => vm.navigateToView(
-                                VideoView(url: data.userData.videoPath),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.play_circle_outline_outlined,
-                                    color: Color(0xFF6D6D6D),
-                                  ),
-                                  SizedBox(width: 3),
-                                  Text(
-                                    "Видео-описание",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w400,
-                                      height: 17.6 / 16,
-                                      color: Color(0xFF6D6D6D),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          if (widget.onOpenRating != null)
-                            TextButton(
-                              style: const ButtonStyle(
-                                padding: WidgetStatePropertyAll(
-                                  EdgeInsets.zero,
-                                ),
-                              ),
-                              onPressed: widget.onOpenRating,
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.star_outline_rounded,
-                                    color: Color(0xFF6D6D6D),
-                                  ),
-                                  SizedBox(width: 3),
-                                  Text(
-                                    "Отзывы и рейтинг",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w400,
-                                      height: 17.6 / 16,
-                                      color: Color(0xFF6D6D6D),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          if (experienceYears != null) ...[
-                            const SizedBox(height: 10),
-                            _metaBadge(
-                              icon: Icons.workspace_premium_outlined,
-                              label:
-                                  'Опыт работы: $experienceYears ${_yearWord(experienceYears)}',
-                            ),
-                          ],
-                          //RichText(
-                          //  text: TextSpan(
-                          //    children: [
-                          //      const TextSpan(
-                          //        text: "ИНН: ",
-                          //        style: TextStyle(
-                          //            fontSize: 16,
-                          //            fontWeight: FontWeight.w400,
-                          //            height: 17.6 / 16,
-                          //            color: NannyTheme.onSecondary),
-                          //      ),
-                          //      TextSpan(
-                          //        text: data.userData.roleData?.inn ?? "Пусто",
-                          //        style: const TextStyle(
-                          //            fontSize: 16,
-                          //            fontWeight: FontWeight.w400,
-                          //            height: 17.6 / 16,
-                          //            color: NannyTheme.primary),
-                          //      )
-                          //    ],
-                          //  ),
-                          //)
-                        ],
-                      )
-                    ],
-                  ),
-                ),
-                if (widget.hasPaymentButtons)
-                  Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: Column(children: [
-                        ElevatedButton.icon(
-                          onPressed: () =>
-                              vm.navigateToView(const DriverOrdersView()),
-                          style: NannyButtonStyles.whiteButton,
-                          icon: const Text("Управление заказами"),
-                          label: Image.asset(
-                              "packages/nanny_components/assets/images/taxi.png"),
                         ),
-                        const SizedBox(height: 20),
-                        Row(children: [
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: ElevatedButton(
-                                onPressed: () => vm.navigateToView(
-                                    const WalletView(
-                                        title: "Выплата заработной платы",
-                                        subtitle: "Выберите способ оплаты",
-                                        hasReplenishButtons: false)),
-                                child: const Text("Сделать выплату")),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                              child: ElevatedButton(
-                                  onPressed: () => vm.navigateToView(
-                                      const WalletView(
-                                          title: "Выплата заработной платы",
-                                          subtitle: "Выберите способ оплаты",
-                                          hasReplenishButtons: false)),
-                                  style: NannyButtonStyles.whiteButton,
-                                  child: const Text("Получить процент"))),
-                          const SizedBox(width: 10)
-                        ])
-                      ])),
-                Expanded(
-                    child: NannyBottomSheet(
-                        child: Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: !widget.franchiseView
-                                ? Column(children: [
-                                    Expanded(
-                                        child: ListView(
-                                            shrinkWrap: true,
-                                            children: [
-                                          if (questionnaireAnswers
-                                              .isNotEmpty) ...[
-                                            Text("Ключевая информация",
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .titleMedium,
-                                                textAlign: TextAlign.center),
-                                            const SizedBox(height: 20),
-                                            ...questionnaireAnswers.map(
-                                              (answer) => Padding(
-                                                padding: const EdgeInsets.only(
-                                                    bottom: 10),
-                                                child: _questionAnswerPlate(
-                                                  title: answer.key,
-                                                  value: answer.value,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 20),
-                                          ],
-                                          Text("Информация об авто",
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium,
-                                              textAlign: TextAlign.center),
-                                          const SizedBox(height: 30),
-                                          carInfoPlate(
-                                              title: "Марка",
-                                              value: data.carDataText.autoMark),
-                                          const SizedBox(height: 10),
-                                          carInfoPlate(
-                                              title: "Модель",
-                                              value:
-                                                  data.carDataText.autoModel),
-                                          const SizedBox(height: 10),
-                                          carInfoPlate(
-                                              title: "Цвет",
-                                              value:
-                                                  data.carDataText.autoColor),
-                                          const SizedBox(height: 10),
-                                          carInfoPlate(
-                                              title: "Год выпуска",
-                                              value: data
-                                                  .carDataText.releaseYear
-                                                  .toString()),
-                                          const SizedBox(height: 10),
-                                          carInfoPlate(
-                                              title: "Гос номер",
-                                              value:
-                                                  data.carDataText.stateNumber),
-                                          const SizedBox(height: 10),
-                                          carInfoPlate(
-                                              title: "СТС",
-                                              value: data.carDataText.ctc)
-                                        ])),
-                                    if (widget.viewingOrder)
-                                      const SizedBox(height: 20),
-                                    if (widget.viewingOrder)
-                                      Row(children: [
-                                        Expanded(
-                                          child: ElevatedButton(
-                                            onPressed: () => vm.answerSchedule(
-                                                confirm: false),
-                                            style: ButtonStyle(
-                                              backgroundColor:
-                                                  WidgetStatePropertyAll(
-                                                      Colors.red.shade400),
-                                              shape: WidgetStatePropertyAll(
-                                                RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(10),
-                                                ),
-                                              ),
-                                              minimumSize:
-                                                  const WidgetStatePropertyAll(
-                                                Size(double.infinity, 60),
-                                              ),
-                                            ),
-                                            child:
-                                                const Text("Отклонить заявку"),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 20),
-                                        Expanded(
-                                            child: ElevatedButton(
-                                                onPressed: () =>
-                                                    vm.answerSchedule(
-                                                        confirm: true),
-                                                style: ButtonStyle(
-                                                  backgroundColor:
-                                                      const WidgetStatePropertyAll(
-                                                          NannyTheme
-                                                              .lightGreen),
-                                                  foregroundColor:
-                                                      const WidgetStatePropertyAll(
-                                                          NannyTheme
-                                                              .onSecondary),
-                                                  shape: WidgetStatePropertyAll(
-                                                    RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              10),
-                                                    ),
-                                                  ),
-                                                  minimumSize:
-                                                      const WidgetStatePropertyAll(
-                                                    Size(double.infinity, 60),
-                                                  ),
-                                                ),
-                                                child: const Text(
-                                                    "Одобрить заявку")))
-                                      ])
-                                  ])
-                                : ListView(
-                                    shrinkWrap: true,
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10),
-                                    children: [
-                                        ExpansionTile(
-                                            title:
-                                                infoText("Информация об авто"),
-                                            children: [
-                                              const SizedBox(height: 30),
-                                              carInfoPlate(
-                                                  title: "Марка",
-                                                  value: data
-                                                      .carDataText.autoMark),
-                                              const SizedBox(height: 10),
-                                              carInfoPlate(
-                                                  title: "Модель",
-                                                  value: data
-                                                      .carDataText.autoModel),
-                                              const SizedBox(height: 10),
-                                              carInfoPlate(
-                                                  title: "Цвет",
-                                                  value: data
-                                                      .carDataText.autoColor),
-                                              const SizedBox(height: 10),
-                                              carInfoPlate(
-                                                  title: "Год выпуска",
-                                                  value: data
-                                                      .carDataText.releaseYear
-                                                      .toString()),
-                                              const SizedBox(height: 10),
-                                              carInfoPlate(
-                                                  title: "Гос номер",
-                                                  value: data
-                                                      .carDataText.stateNumber),
-                                              const SizedBox(height: 10),
-                                              carInfoPlate(
-                                                  title: "СТС",
-                                                  value: data.carDataText.ctc),
-                                            ]),
-                                        const SizedBox(height: 20),
-                                        ExpansionTile(
-                                            title: infoText(
-                                                "Выплата заработной платы"),
-                                            children: [
-                                              Padding(
-                                                  padding:
-                                                      const EdgeInsets.all(10),
-                                                  child: ElevatedButton(
-                                                      onPressed: () {},
-                                                      child: const Text(
-                                                          "Сделать выплату")))
-                                            ]),
-                                        const SizedBox(height: 20),
-                                        ExpansionTile(
-                                            title: infoText(
-                                                "Начисление бонусов и комиссий"),
-                                            children: [
-                                              Padding(
-                                                  padding:
-                                                      const EdgeInsets.all(10),
-                                                  child: Column(children: [
-                                                    NannyTextForm(
-                                                        labelText: "Бонусы",
-                                                        formatters: [
-                                                          FilteringTextInputFormatter
-                                                              .digitsOnly
-                                                        ],
-                                                        keyType: TextInputType
-                                                            .number,
-                                                        onChanged: (text) => vm
-                                                                .bonusAmount =
-                                                            int.parse(text)),
-                                                    TextButton(
-                                                        onPressed: vm.addBonus,
-                                                        child: const Text(
-                                                            "Готово")),
-                                                    const SizedBox(height: 20),
-                                                    NannyTextForm(
-                                                        labelText: "Комиссии",
-                                                        formatters: [
-                                                          FilteringTextInputFormatter
-                                                              .digitsOnly
-                                                        ],
-                                                        keyType: TextInputType
-                                                            .number,
-                                                        onChanged: (text) => vm
-                                                                .fineAmount =
-                                                            int.parse(text)),
-                                                    TextButton(
-                                                        onPressed: vm.addFines,
-                                                        child: const Text(
-                                                            "Готово"))
-                                                  ]))
-                                            ]),
-                                        const SizedBox(height: 20),
-                                        ExpansionTile(
-                                            title: infoText(
-                                                "Просмотр бухгалтерских отчетов"),
-                                            children: const [])
-                                      ]))))
-              ]);
-            },
-            errorView: (context, error) =>
-                ErrorView(errorText: error.toString())));
+                onOpenRating: widget.onOpenRating,
+              ),
+              if (widget.viewingOrder) ...[
+                const SizedBox(height: AutonannySpacing.lg),
+                const AutonannyInlineBanner(
+                  title: 'Отклик на контракт',
+                  message:
+                      'Проверьте профиль водителя и при необходимости сразу примите или отклоните отклик ниже.',
+                  tone: AutonannyBannerTone.info,
+                  leading: AutonannyIcon(AutonannyIcons.info),
+                ),
+              ],
+              const SizedBox(height: AutonannySpacing.lg),
+              if (questionnaireAnswers.isNotEmpty)
+                _buildQuestionnaireSection(questionnaireAnswers),
+              if (questionnaireAnswers.isNotEmpty)
+                const SizedBox(height: AutonannySpacing.lg),
+              _buildCarSection(data.carDataText),
+              const SizedBox(height: AutonannySpacing.lg),
+              _buildAvailabilitySection(
+                hasVideo: driverVideoUrl.trim().isNotEmpty,
+                hasQuestionnaire: questionnaireAnswers.isNotEmpty,
+              ),
+              if (!widget.viewingOrder)
+                const SizedBox(height: AutonannySpacing.xl),
+            ],
+          );
+        },
+        errorView: (context, error) => ErrorView(errorText: error.toString()),
+      ),
+    );
   }
 
-  Widget infoText(String text) =>
-      Text(text, style: Theme.of(context).textTheme.titleMedium);
-
-  Widget carInfoPlate({
-    required String title,
-    required String value,
+  Widget _buildHeroCard({
+    required String name,
+    required String initials,
+    required String? photoUrl,
+    required int? experienceYears,
+    required bool hasVideo,
+    required VoidCallback? onOpenVideo,
+    required VoidCallback? onOpenRating,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      width: double.maxFinite,
-      decoration: BoxDecoration(
-          color: NannyTheme.secondary,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              offset: const Offset(0, 4),
-              blurRadius: 14,
-              color: const Color(0xFF021C3B).withValues(alpha: .1),
-            ),
-          ]),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: const EdgeInsets.all(AutonannySpacing.xl),
+      decoration: const BoxDecoration(
+        gradient: AutonannyGradients.hero,
+        borderRadius: AutonannyRadii.brLg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w400,
-              height: 17.6 / 16,
-              color: Color(0xFF6D6D6D),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AutonannyAvatar(
+                imageUrl: photoUrl,
+                initials: initials,
+                size: 92,
+                borderRadius: BorderRadius.circular(46),
+              ),
+              const SizedBox(width: AutonannySpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name.isEmpty ? 'Водитель' : name,
+                      style: AutonannyTypography.h2(color: Colors.white),
+                    ),
+                    const SizedBox(height: AutonannySpacing.sm),
+                    Text(
+                      'Проверенный профиль водителя со сведениями об опыте, анкете и автомобиле.',
+                      style: AutonannyTypography.bodyS(
+                        color: Colors.white.withValues(alpha: 0.84),
+                      ),
+                    ),
+                    if (experienceYears != null) ...[
+                      const SizedBox(height: AutonannySpacing.md),
+                      _buildMetaBadge(
+                        icon: AutonannyIcons.verified,
+                        label:
+                            'Опыт: $experienceYears ${_yearWord(experienceYears)}',
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.lg),
+          Wrap(
+            spacing: AutonannySpacing.sm,
+            runSpacing: AutonannySpacing.sm,
+            children: [
+              if (hasVideo)
+                _buildActionChip(
+                  icon: AutonannyIcons.video,
+                  label: 'Видео-визитка',
+                  onTap: onOpenVideo,
+                ),
+              if (onOpenRating != null)
+                _buildActionChip(
+                  icon: AutonannyIcons.star,
+                  label: 'Отзывы и рейтинг',
+                  onTap: onOpenRating,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestionnaireSection(
+    List<MapEntry<String, String>> questionnaireAnswers,
+  ) {
+    return AutonannySectionContainer(
+      title: 'Ключевая информация',
+      subtitle: 'Ответы водителя на анкету и важные детали по опыту.',
+      child: Column(
+        children: [
+          for (var i = 0; i < questionnaireAnswers.length; i++) ...[
+            _questionAnswerPlate(
+              title: questionnaireAnswers[i].key,
+              value: questionnaireAnswers[i].value,
+            ),
+            if (i != questionnaireAnswers.length - 1)
+              const SizedBox(height: AutonannySpacing.md),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCarSection(CarDataText carData) {
+    return AutonannySectionContainer(
+      title: 'Автомобиль',
+      subtitle: 'Данные автомобиля, на котором водитель выполняет поездки.',
+      child: Column(
+        children: [
+          _detailRow('Марка', _displayValue(carData.autoMark)),
+          const SizedBox(height: AutonannySpacing.md),
+          _detailRow('Модель', _displayValue(carData.autoModel)),
+          const SizedBox(height: AutonannySpacing.md),
+          _detailRow('Цвет', _displayValue(carData.autoColor)),
+          const SizedBox(height: AutonannySpacing.md),
+          _detailRow(
+            'Год выпуска',
+            carData.releaseYear > 0 ? carData.releaseYear.toString() : '—',
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          _detailRow('Гос. номер', _displayValue(carData.stateNumber)),
+          const SizedBox(height: AutonannySpacing.md),
+          _detailRow('СТС', _displayValue(carData.ctc)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvailabilitySection({
+    required bool hasVideo,
+    required bool hasQuestionnaire,
+  }) {
+    if (hasVideo && hasQuestionnaire) {
+      return const SizedBox.shrink();
+    }
+
+    final missing = <String>[];
+    if (!hasVideo) {
+      missing.add('видео-визитка');
+    }
+    if (!hasQuestionnaire) {
+      missing.add('ответы анкеты');
+    }
+
+    return AutonannyInlineBanner(
+      title: 'Профиль заполнен частично',
+      message:
+          'Сейчас недоступны: ${missing.join(', ')}. Остальная информация о водителе загружена и доступна для просмотра.',
+      tone: AutonannyBannerTone.info,
+      leading: const AutonannyIcon(AutonannyIcons.info),
+    );
+  }
+
+  Widget _buildResponseActionsBar() {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AutonannySpacing.lg,
+          AutonannySpacing.sm,
+          AutonannySpacing.lg,
+          AutonannySpacing.lg,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: AutonannyButton(
+                label: 'Отклонить',
+                variant: AutonannyButtonVariant.secondary,
+                onPressed: () => vm.answerSchedule(confirm: false),
+              ),
+            ),
+            const SizedBox(width: AutonannySpacing.md),
+            Expanded(
+              child: AutonannyButton(
+                label: 'Одобрить',
+                onPressed: () => vm.answerSchedule(confirm: true),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetaBadge({
+    required AutonannyIconAsset icon,
+    required String label,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AutonannySpacing.md,
+        vertical: AutonannySpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: AutonannyRadii.brFull,
+        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AutonannyIcon(
+            AutonannyIcons.verified,
+            color: Colors.white,
+            size: 16,
+          ),
+          const SizedBox(width: AutonannySpacing.xs),
+          Flexible(
+            child: Text(
+              label,
+              style: AutonannyTypography.labelM(color: Colors.white),
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                height: 20 / 18,
-                color: NannyTheme.primary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionChip({
+    required AutonannyIconAsset icon,
+    required String label,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AutonannyRadii.brFull,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AutonannySpacing.md,
+          vertical: AutonannySpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: AutonannyRadii.brFull,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AutonannyIcon(icon, color: Colors.white, size: 16),
+            const SizedBox(width: AutonannySpacing.xs),
+            Text(
+              label,
+              style: AutonannyTypography.labelM(color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String title, String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AutonannySpacing.lg),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: AutonannyRadii.brLg,
+        border: Border.all(color: const Color(0xFFE4E9F5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: AutonannyTypography.bodyS(
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          const SizedBox(width: AutonannySpacing.md),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: AutonannyTypography.bodyM(
+                color: const Color(0xFF111827),
+              ),
+            ),
           ),
         ],
       ),
@@ -541,38 +462,27 @@ class _DriverInfoViewState extends State<DriverInfoView> {
     required String value,
   }) {
     return Container(
-      width: double.maxFinite,
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      padding: const EdgeInsets.all(AutonannySpacing.lg),
       decoration: BoxDecoration(
-        color: NannyTheme.secondary,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            offset: const Offset(0, 4),
-            blurRadius: 14,
-            color: const Color(0xFF021C3B).withValues(alpha: .08),
-          ),
-        ],
+        color: const Color(0xFFF8FAFF),
+        borderRadius: AutonannyRadii.brLg,
+        border: Border.all(color: const Color(0xFFE4E9F5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF6D6D6D),
+            style: AutonannyTypography.labelL(
+              color: const Color(0xFF111827),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AutonannySpacing.sm),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w400,
-              height: 1.35,
-              color: NannyTheme.onSecondary,
+            style: AutonannyTypography.bodyM(
+              color: const Color(0xFF4B5563),
             ),
           ),
         ],
@@ -580,34 +490,9 @@ class _DriverInfoViewState extends State<DriverInfoView> {
     );
   }
 
-  Widget _metaBadge({
-    required IconData icon,
-    required String label,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F4FF),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: NannyTheme.primary),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: NannyTheme.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  String _displayValue(String value) {
+    final normalized = value.trim();
+    return normalized.isEmpty ? '—' : normalized;
   }
 
   String _yearWord(int count) {

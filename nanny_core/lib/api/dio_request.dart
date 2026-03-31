@@ -9,7 +9,8 @@ class DioRequest {
   static late final Dio dio;
   static String _authToken = "";
   static String get authToken => _authToken;
-  static late Timer tokenReloader;
+  static Timer? _tokenReloader;
+  static bool _tokenRecoveryConfigured = false;
   static Future<String?>? _tokenRecoveryFuture;
   static void init({bool useOldUrl = false}) {
     dio = Dio(BaseOptions(
@@ -54,17 +55,24 @@ class DioRequest {
   }
 
   static void setupTokenReloader() {
-    tokenReloader = Timer.periodic(const Duration(minutes: 14), (_) async {
-      final token = await recoverAccessToken();
-      if (token == null || token.isEmpty) {
-        throw Exception("Unhandled token reload error! How did you got here?");
-      }
-      Logger().w("Reloaded token");
-    });
-    Logger().w("Token reloader inited!");
+    if (_tokenRecoveryConfigured) {
+      return;
+    }
+
+    // JWT живет долго, а периодический reload_access сам же инвалидировал
+    // текущую сессию посреди пользовательских сценариев. Оставляем только
+    // recovery-on-demand через interceptor.
+    _tokenRecoveryConfigured = true;
+    Logger().w(
+      "Periodic token reloader disabled; auth recovery is handled on 401/403.",
+    );
   }
 
-  static void stopTokenReloader() => tokenReloader.cancel();
+  static void stopTokenReloader() {
+    _tokenReloader?.cancel();
+    _tokenReloader = null;
+    _tokenRecoveryConfigured = false;
+  }
 
   static void deleteToken() {
     dio.options.headers.removeWhere((key, value) => key == "Authorization");
@@ -232,7 +240,9 @@ class ErrorInterceptor extends Interceptor {
     final skipAuthRefresh = err.requestOptions.extra['skipAuthRefresh'] == true;
     final alreadyRetried = err.requestOptions.extra['authRetried'] == true;
 
-    if (statusCode == 401 && !skipAuthRefresh && !alreadyRetried) {
+    if ((statusCode == 401 || statusCode == 403) &&
+        !skipAuthRefresh &&
+        !alreadyRetried) {
       final token = await DioRequest.recoverAccessToken();
       if (token != null && token.isNotEmpty) {
         final requestOptions = err.requestOptions;

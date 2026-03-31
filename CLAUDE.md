@@ -189,13 +189,17 @@ vm.popView()
 
 ## Активная поездка — WebSocket
 
-`ActiveTripVM` слушает WebSocket через `DriveSearchSocket(token)`. Статусы:
-- `2` → Водитель отменил (clear session, statusText = 'Водитель отменил поездку')
-- `3` → Клиент отменил (clear session)
-- `11` → Поездка завершена (clear session)
-- `13/5` → Водитель едет
-- `6/7` → Водитель прибыл
-- `14/15` → Поездка началась (закрыть QR-диалог через `onTripStarted`)
+Приложение переведено на `UnifiedSocket` (см. `nanny_core/lib/api/web_sockets/unified_socket.dart`).
+
+`HomeVM` и `ActiveTripVM` инициализируют `UnifiedSocket.connect()` и слушают события по `event`.
+
+Ключевые события:
+- `trip.assigned`
+- `trip.status_changed` (в payload часто есть `legacy_status_id` для совместимости UI)
+- `trip.cancelled`
+- `driver.position_updated`
+- `route.change_requested` / `route.change_result`
+- `order.expired` (таймаут поиска водителя)
 
 ## Импорты — быстрая шпаргалка
 

@@ -3,13 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/graph_vm.dart';
-import 'package:nanny_client/views/pages/autopay_settings.dart';
 import 'package:nanny_client/views/pages/contract_details_view.dart';
-import 'package:nanny_components/base_views/views/pages/wallet.dart';
-import 'package:nanny_components/widgets/driver_contact_card.dart';
-import 'package:nanny_components/widgets/schedule_viewer.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
-import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
 import 'package:nanny_core/nanny_core.dart';
 
 class GraphView extends StatefulWidget {
@@ -31,6 +26,8 @@ class GraphView extends StatefulWidget {
 class _GraphViewState extends State<GraphView>
     with AutomaticKeepAliveClientMixin {
   late final GraphVM vm;
+  late final ScrollController _scheduleScrollController;
+  late final ScrollController _contractsScrollController;
   Timer? _fallbackRefreshTimer;
   StreamSubscription<void>? _tabSelectedSub;
   int _selectedTabIndex = 0;
@@ -41,6 +38,8 @@ class _GraphViewState extends State<GraphView>
   void initState() {
     super.initState();
     _selectedContractPreviewId = widget.initialScheduleId;
+    _scheduleScrollController = ScrollController();
+    _contractsScrollController = ScrollController();
     vm = GraphVM(
       context: context,
       update: setState,
@@ -66,6 +65,8 @@ class _GraphViewState extends State<GraphView>
     _tabSelectedSub?.cancel();
     _fallbackRefreshTimer?.cancel();
     vm.stopScheduleUpdatesListener();
+    _scheduleScrollController.dispose();
+    _contractsScrollController.dispose();
     super.dispose();
   }
 
@@ -85,6 +86,7 @@ class _GraphViewState extends State<GraphView>
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
                 tooltip: 'Назад',
               ),
+        actions: const <Widget>[],
       ),
       body: FutureBuilder<bool>(
         future: vm.loadRequest,
@@ -107,6 +109,7 @@ class _GraphViewState extends State<GraphView>
 
           _maybeHandleInitialDeepLink();
           _maybeHandlePendingDetailsOpen();
+          _scheduleScrollOffsetNormalization();
 
           return SafeArea(
             child: Column(
@@ -159,11 +162,11 @@ class _GraphViewState extends State<GraphView>
                         child: _selectedTabIndex == 0
                             ? (vm.schedules.isEmpty
                                 ? _EmptyGraphState(
-                                    onCreateTap: vm.toGraphCreate)
+                                    onCreateTap: _handleCreateContract)
                                 : _buildScheduleTab())
                             : (vm.schedules.isEmpty
                                 ? _EmptyContractsState(
-                                    onCreateTap: vm.toGraphCreate,
+                                    onCreateTap: _handleCreateContract,
                                   )
                                 : _buildContractsTab()),
                       ),
@@ -179,7 +182,14 @@ class _GraphViewState extends State<GraphView>
   }
 
   Widget _buildScheduleTab() {
+    final dayTrips = _selectedDayTrips;
+    final contractsCount = dayTrips
+        .map((trip) => trip.schedule.id ?? trip.schedule.title.hashCode)
+        .toSet()
+        .length;
+
     return ListView(
+      controller: _scheduleScrollController,
       padding: const EdgeInsets.fromLTRB(
         AutonannySpacing.xl,
         0,
@@ -187,17 +197,12 @@ class _GraphViewState extends State<GraphView>
         AutonannySpacing.xl,
       ),
       children: [
-        _GraphHeader(
-          vm: vm,
-          onPickSchedule: _openSchedulePicker,
-          onOpenDetails:
-              vm.selectedSchedule == null ? null : () => _openContractDetails(vm.selectedSchedule!),
-        ),
+        _GraphHeader(vm: vm),
         const SizedBox(height: AutonannySpacing.lg),
         AutonannySectionContainer(
-          title: 'Выбранный день',
+          title: 'Календарь поездок',
           subtitle:
-              'Переключайте дни недели, чтобы посмотреть расписание маршрутов.',
+              'Переключайте дни недели, чтобы посмотреть все маршруты по вашим контрактам.',
           child: _ContractWeekPicker(
             selectedWeekday:
                 vm.selectedWeekday.isEmpty ? null : vm.selectedWeekday.first,
@@ -205,82 +210,53 @@ class _GraphViewState extends State<GraphView>
           ),
         ),
         const SizedBox(height: AutonannySpacing.lg),
-        _ContractStatusSection(vm: vm),
-        if (vm.selectedSchedule?.isPaused == true) ...[
-          const SizedBox(height: AutonannySpacing.lg),
-          _PausedContractBanner(
-            schedule: vm.selectedSchedule!,
-            onResumed: vm.reloadPage,
-            onResumeContract: vm.selectedSchedule?.pauseInitiatedBy == 2 &&
-                    !_PausedContractBanner.isBalancePause(
-                      vm.selectedSchedule?.pauseReason,
-                    )
-                ? () => vm.resumeSchedulePause(
-                      vm.selectedSchedule!,
-                      requireConfirmation: false,
-                      showErrorDialogs: false,
-                    )
-                : null,
-          ),
-        ],
-        if (vm.responses
-            .where((r) => r.idSchedule == vm.selectedSchedule?.id)
-            .isNotEmpty) ...[
-          const SizedBox(height: AutonannySpacing.lg),
-          _ResponsesSection(vm: vm),
-        ],
-        if (vm.driverContact != null) ...[
-          const SizedBox(height: AutonannySpacing.lg),
-          DriverContactCard(
-            driver: vm.driverContact!,
-            onChatPressed: vm.openDriverChat,
-            onShowQR: vm.showDriverQR,
-          ),
-        ],
+        _ContractStatusSection(
+          selectedDay: vm.selectedDay,
+          tripsCount: dayTrips.length,
+          contractsCount: contractsCount,
+        ),
         const SizedBox(height: AutonannySpacing.lg),
         AutonannySectionContainer(
-          title: 'Маршруты контракта',
-          subtitle: 'Маршруты отображаются для выбранного дня недели.',
+          title: 'Маршруты дня',
+          subtitle: dayTrips.isEmpty
+              ? 'Когда на выбранный день появятся поездки, они будут показаны здесь.'
+              : 'Каждая карточка ведёт в детали контракта, где можно управлять водителем и самим контрактом.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (!vm.hasRoutesForSelectedDay) ...[
-                AutonannyInlineBanner(
-                  title: 'На выбранный день маршрутов нет',
-                  message: vm.selectedDayEmptyMessage,
+              if (dayTrips.isEmpty)
+                const AutonannyInlineBanner(
+                  title: 'На выбранный день поездок нет',
+                  message:
+                      'Переключите день или откройте вкладку контрактов, чтобы посмотреть детали нужного договора.',
                   tone: AutonannyBannerTone.info,
-                  leading: const AutonannyIcon(
-                    AutonannyIcons.calendar,
-                  ),
+                  leading: AutonannyIcon(AutonannyIcons.calendar),
+                )
+              else
+                Column(
+                  children: dayTrips
+                      .map(
+                        (trip) => Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AutonannySpacing.md,
+                          ),
+                          child: _SelectedDayTripCard(
+                            schedule: trip.schedule,
+                            road: trip.road,
+                            childLabels: _childLabelsForTrip(trip),
+                            statusLabel: _contractStatusLabelFor(trip.schedule),
+                            statusVariant: _contractStatusVariantFor(
+                              trip.schedule,
+                            ),
+                            onOpenContract: () =>
+                                _openContractDetails(trip.schedule),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
                 ),
-                const SizedBox(height: AutonannySpacing.md),
-              ],
-              ScheduleViewer(
-                schedule: vm.selectedSchedule,
-                selectedWeedkays: vm.selectedWeekday,
-              ),
             ],
           ),
-        ),
-        const SizedBox(height: AutonannySpacing.lg),
-        Row(
-          children: [
-            Expanded(
-              child: _BudgetCard(
-                title: 'Расходы в неделю',
-                amount: vm.spentsInWeek,
-                tone: _BudgetCardTone.primary,
-              ),
-            ),
-            const SizedBox(width: AutonannySpacing.md),
-            Expanded(
-              child: _BudgetCard(
-                title: 'Расходы в месяц',
-                amount: vm.spentsInMonth,
-                tone: _BudgetCardTone.neutral,
-              ),
-            ),
-          ],
         ),
       ],
     );
@@ -288,12 +264,9 @@ class _GraphViewState extends State<GraphView>
 
   Widget _buildContractsTab() {
     final previewSchedule = _previewSchedule;
-    final previewPanels = previewSchedule?.contractDayPanelsData(
-          childNamesById: vm.contractChildNamesById,
-        ) ??
-        const [];
 
     return ListView(
+      controller: _contractsScrollController,
       padding: const EdgeInsets.fromLTRB(
         AutonannySpacing.xl,
         0,
@@ -301,16 +274,13 @@ class _GraphViewState extends State<GraphView>
         AutonannySpacing.xl,
       ),
       children: [
-        const AutonannyInlineBanner(
-          title: 'Все ваши контракты в одном месте',
-          message:
-              'Открывайте нужный контракт и быстро переключайтесь в его расписание без повторного входа в редактирование.',
-          tone: AutonannyBannerTone.info,
-          leading: AutonannyIcon(AutonannyIcons.list),
+        ContractsOverviewCard(
+          data: vm.contractsOverviewCardData,
+          onAction: _handleCreateContract,
         ),
         const SizedBox(height: AutonannySpacing.lg),
-        ...vm.schedules.map(
-          (schedule) => Padding(
+        ...vm.schedules.map((schedule) {
+          return Padding(
             padding: const EdgeInsets.only(bottom: AutonannySpacing.md),
             child: ContractSummaryCard(
               data: schedule.contractSummaryCardData(
@@ -320,52 +290,65 @@ class _GraphViewState extends State<GraphView>
                 statusVariantOverride: _contractStatusVariantFor(schedule),
               ),
               onTap: () => _openContractDetails(schedule),
-              onAction: () {
-                setState(() {
-                  _selectedTabIndex = 0;
-                });
-                vm.scheduleSelected(schedule);
-              },
             ),
-          ),
-        ),
-        if (previewSchedule != null) ...[
-          const SizedBox(height: AutonannySpacing.sm),
-          AutonannyInlineBanner(
-            title: 'Маршруты по контракту «${previewSchedule.title}»',
-            message:
-                'Здесь показана сводка по дням, маршрутам и детям, привязанным к каждой поездке.',
-            tone: AutonannyBannerTone.info,
-            leading: const AutonannyIcon(AutonannyIcons.calendar),
-          ),
-          const SizedBox(height: AutonannySpacing.lg),
-          if (previewPanels.isEmpty)
-            const AutonannyInlineBanner(
-              title: 'Маршруты пока не добавлены',
-              message:
-                  'У этого контракта пока нет маршрутов для предварительного просмотра.',
-              tone: AutonannyBannerTone.warning,
-              leading: AutonannyIcon(AutonannyIcons.warning),
-            )
-          else
-            ...previewPanels.map(
-              (panel) => Padding(
-                padding: const EdgeInsets.only(bottom: AutonannySpacing.md),
-                child: ContractDayPanel(data: panel),
-              ),
-            ),
-        ],
-        const SizedBox(height: AutonannySpacing.sm),
-        AutonannyButton(
-          label: 'Создать контракт',
-          leading: const AutonannyIcon(
-            AutonannyIcons.add,
-            color: Colors.white,
-          ),
-          onPressed: vm.toGraphCreate,
-        ),
+          );
+        }),
       ],
     );
+  }
+
+  List<_ScheduledDayTrip> get _selectedDayTrips {
+    final day = vm.selectedDay;
+    if (day == null) {
+      return const <_ScheduledDayTrip>[];
+    }
+
+    final trips = <_ScheduledDayTrip>[];
+    for (final schedule in vm.schedules) {
+      for (final road in schedule.roads) {
+        if (road.weekDay != day) {
+          continue;
+        }
+        trips.add(_ScheduledDayTrip(schedule: schedule, road: road));
+      }
+    }
+
+    trips.sort((left, right) {
+      final hourCompare =
+          left.road.startTime.hour.compareTo(right.road.startTime.hour);
+      if (hourCompare != 0) {
+        return hourCompare;
+      }
+
+      final minuteCompare =
+          left.road.startTime.minute.compareTo(right.road.startTime.minute);
+      if (minuteCompare != 0) {
+        return minuteCompare;
+      }
+
+      return left.schedule.title.compareTo(right.schedule.title);
+    });
+
+    return trips;
+  }
+
+  List<String> _childLabelsForTrip(_ScheduledDayTrip trip) {
+    final childNamesById = vm.contractChildNamesById;
+    final explicitRouteChildren = (trip.road.children ?? const <int>[])
+        .map((childId) => childNamesById[childId]?.trim())
+        .whereType<String>()
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
+
+    if (explicitRouteChildren.isNotEmpty) {
+      return explicitRouteChildren;
+    }
+
+    return vm
+        .contractChildrenFor(trip.schedule)
+        .map((child) => child.fullName.trim())
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
   }
 
   Schedule? get _previewSchedule {
@@ -430,6 +413,9 @@ class _GraphViewState extends State<GraphView>
           driverContact:
               vm.selectedSchedule?.id == schedule.id ? vm.driverContact : null,
           responsesCount: responsesCount,
+          responses: vm.responses
+              .where((response) => response.idSchedule == schedule.id)
+              .toList(growable: false),
           onOpenSchedule: () {
             Navigator.of(context).maybePop();
             if (!mounted) {
@@ -463,7 +449,7 @@ class _GraphViewState extends State<GraphView>
           ),
           onCancelContract: () => vm.deleteSchedule(schedule),
           onResumeContract: schedule.pauseInitiatedBy == 2 &&
-                  !_PausedContractBanner.isBalancePause(schedule.pauseReason)
+                  !_isBalancePause(schedule.pauseReason)
               ? () => vm.resumeSchedulePause(
                     schedule,
                     requireConfirmation: false,
@@ -477,6 +463,23 @@ class _GraphViewState extends State<GraphView>
               vm.driverContact != null ? vm.openAssignedDriverProfile : null,
           onOpenChat: vm.driverContact != null ? vm.openDriverChat : null,
           onShowQr: vm.driverContact != null ? vm.showDriverQR : null,
+          onOpenResponseDriver: vm.openDriverFromResponse,
+          onAcceptResponse: (response) async {
+            final navigator = Navigator.of(context);
+            final handled = await vm.answerResponse(response, true);
+            if (!mounted || !handled) {
+              return;
+            }
+            navigator.pop(true);
+          },
+          onRejectResponse: (response) async {
+            final navigator = Navigator.of(context);
+            final handled = await vm.answerResponse(response, false);
+            if (!mounted || !handled) {
+              return;
+            }
+            navigator.pop(true);
+          },
         ),
       ),
     );
@@ -549,6 +552,73 @@ class _GraphViewState extends State<GraphView>
       }
       unawaited(_openContractDetails(targetSchedule));
     });
+  }
+
+  void _handleCreateContract() async {
+    final createdScheduleId = await vm.toGraphCreate();
+    if (!mounted || createdScheduleId == null) {
+      return;
+    }
+
+    setState(() {
+      _selectedTabIndex = 1;
+      _selectedContractPreviewId = createdScheduleId;
+    });
+
+    NannyGlobals.scaffoldMessengerKey.currentState?.showSnackBar(
+      const SnackBar(
+        content: Text('Контракт сохранён'),
+      ),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollContractsToTop();
+    });
+  }
+
+  void _scrollContractsToTop() {
+    if (!mounted || !_contractsScrollController.hasClients) {
+      return;
+    }
+
+    final position = _contractsScrollController.position;
+    if (position.pixels <= 0) {
+      return;
+    }
+
+    _contractsScrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _scheduleScrollOffsetNormalization() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _clampControllerOffset(_scheduleScrollController);
+      _clampControllerOffset(_contractsScrollController);
+    });
+  }
+
+  void _clampControllerOffset(ScrollController controller) {
+    if (!controller.hasClients) {
+      return;
+    }
+
+    final position = controller.position;
+    final clampedOffset = position.pixels.clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+
+    if ((clampedOffset - position.pixels).abs() < 0.5) {
+      return;
+    }
+
+    controller.jumpTo(clampedOffset.toDouble());
   }
 
   String? _nextTripLabelFor(Schedule schedule) {
@@ -639,120 +709,6 @@ class _GraphViewState extends State<GraphView>
     return raw == 'insufficient_balance' ||
         raw == 'low_balance' ||
         raw == 'lack_of_funds';
-  }
-
-  Future<void> _openSchedulePicker() async {
-    final pickedId = await showModalBottomSheet<int>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) => AutonannyBottomSheetShell(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 520),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Мои контракты',
-                style: AutonannyTypography.h3(
-                  color: context.autonannyColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: AutonannySpacing.xs),
-              Text(
-                'Выберите действующий контракт или создайте новый.',
-                style: AutonannyTypography.bodyS(
-                  color: context.autonannyColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: AutonannySpacing.lg),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: vm.schedules.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: AutonannySpacing.xs),
-                  itemBuilder: (_, index) {
-                    final schedule = vm.schedules[index];
-                    return AutonannyCard(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AutonannySpacing.md,
-                        vertical: AutonannySpacing.sm,
-                      ),
-                      child: AutonannyListRow(
-                        title: schedule.title,
-                        subtitle: _scheduleSubtitle(schedule),
-                        leading: const AutonannyIcon(AutonannyIcons.calendar),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (vm.selectedSchedule?.id == schedule.id)
-                              const Padding(
-                                padding: EdgeInsets.only(
-                                  right: AutonannySpacing.sm,
-                                ),
-                                child: AutonannyIcon(
-                                  AutonannyIcons.checkCircle,
-                                  color: Color(0xFF16A34A),
-                                ),
-                              ),
-                            AutonannyIconButton(
-                              icon: const AutonannyIcon(AutonannyIcons.close),
-                              onPressed: () async {
-                                Navigator.of(sheetContext).pop();
-                                await vm.deleteSchedule(schedule);
-                              },
-                              variant: AutonannyIconButtonVariant.ghost,
-                              size: 36,
-                            ),
-                          ],
-                        ),
-                        onTap: () =>
-                            Navigator.of(sheetContext).pop(schedule.id),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: AutonannySpacing.lg),
-              Row(
-                children: [
-                  Expanded(
-                    child: AutonannyButton(
-                      label: 'Новый контракт',
-                      leading: const AutonannyIcon(
-                        AutonannyIcons.add,
-                        color: Colors.white,
-                      ),
-                      onPressed: () => Navigator.of(sheetContext).pop(-1),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (!mounted || pickedId == null) {
-      return;
-    }
-
-    if (pickedId == -1) {
-      vm.toGraphCreate();
-      return;
-    }
-
-    final schedule =
-        vm.schedules.where((item) => item.id == pickedId).firstOrNull;
-    if (schedule != null) {
-      vm.scheduleSelected(schedule);
-    }
-  }
-
-  String _scheduleSubtitle(Schedule schedule) {
-    final days = schedule.weekdays.map((day) => day.shortName).join(', ');
-    return days.isEmpty ? 'Без указанных дней' : days;
   }
 
   @override
@@ -1047,23 +1003,14 @@ class _ContractWeekdayTile extends StatelessWidget {
 class _GraphHeader extends StatelessWidget {
   const _GraphHeader({
     required this.vm,
-    required this.onPickSchedule,
-    this.onOpenDetails,
   });
 
   final GraphVM vm;
-  final Future<void> Function() onPickSchedule;
-  final VoidCallback? onOpenDetails;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.autonannyColors;
-    final schedule = vm.selectedSchedule;
-    final canEditSelectedSchedule =
-        schedule != null && vm.canEditSchedule(schedule);
-    final editButtonLabel = canEditSelectedSchedule
-        ? 'Редактировать'
-        : 'Почему нельзя?';
+    final selectedDayLabel = vm.selectedDay?.fullName ?? 'Выберите день';
 
     return Container(
       padding: const EdgeInsets.all(AutonannySpacing.lg),
@@ -1082,56 +1029,31 @@ class _GraphHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Текущий контракт',
+                      'Расписание поездок',
                       style: AutonannyTypography.caption(
                         color: colors.textInverse.withValues(alpha: 0.72),
                       ),
                     ),
                     const SizedBox(height: AutonannySpacing.xs),
                     Text(
-                      schedule?.title ?? 'Контракт не выбран',
+                      'Выбранный день',
+                      style: AutonannyTypography.bodyS(
+                        color: colors.textInverse.withValues(alpha: 0.78),
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      selectedDayLabel,
                       style: AutonannyTypography.h2(
                         color: colors.textInverse,
                       ),
                     ),
                     const SizedBox(height: AutonannySpacing.xs),
                     Text(
-                      vm.contractStatusDescription,
+                      'Смотрите все маршруты по вашим контрактам на выбранный день и переходите в детали нужного договора.',
                       style: AutonannyTypography.bodyS(
                         color: colors.textInverse.withValues(alpha: 0.82),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AutonannySpacing.md),
-              SizedBox(
-                width: 148,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AutonannyButton(
-                      label: 'Мои контракты',
-                      variant: AutonannyButtonVariant.secondary,
-                      size: AutonannyButtonSize.medium,
-                      expand: true,
-                      leading: AutonannyIcon(
-                        AutonannyIcons.list,
-                        color: colors.actionPrimary,
-                      ),
-                      onPressed: onPickSchedule,
-                    ),
-                    const SizedBox(height: AutonannySpacing.sm),
-                    AutonannyButton(
-                      label: 'Новый',
-                      variant: AutonannyButtonVariant.secondary,
-                      size: AutonannyButtonSize.medium,
-                      expand: true,
-                      leading: AutonannyIcon(
-                        AutonannyIcons.add,
-                        color: colors.actionPrimary,
-                      ),
-                      onPressed: vm.toGraphCreate,
                     ),
                   ],
                 ),
@@ -1145,53 +1067,19 @@ class _GraphHeader extends StatelessWidget {
             children: [
               _InvertedChip(
                 icon: AutonannyIcons.calendar,
-                label: _contractsCountLabel(vm.schedules.length),
+                label: selectedDayLabel,
               ),
               _InvertedChip(
-                icon: AutonannyIcons.group,
-                label: vm.contractStatusLabel,
+                icon: AutonannyIcons.list,
+                label: _contractsCountLabel(vm.schedules.length),
               ),
-              if (vm.nextTripLabel != null)
+              if (vm.schedules.isNotEmpty)
                 _InvertedChip(
                   icon: AutonannyIcons.clock,
-                  label: 'Ближайшая: ${vm.nextTripLabel}',
+                  label: 'Всего: ${vm.schedules.length}',
                 ),
             ],
           ),
-          if (schedule != null) ...[
-            const SizedBox(height: AutonannySpacing.lg),
-            if (onOpenDetails != null)
-              AutonannyButton(
-                label: 'Открыть детали',
-                variant: AutonannyButtonVariant.primary,
-                expand: true,
-                leading: const AutonannyIcon(
-                  AutonannyIcons.list,
-                  color: Colors.white,
-                ),
-                onPressed: onOpenDetails,
-              ),
-            if (onOpenDetails != null)
-              const SizedBox(height: AutonannySpacing.md),
-            AutonannyButton(
-              label: editButtonLabel,
-              variant: AutonannyButtonVariant.secondary,
-              expand: true,
-              leading: AutonannyIcon(
-                canEditSelectedSchedule
-                    ? AutonannyIcons.edit
-                    : AutonannyIcons.warning,
-                color: colors.actionPrimary,
-              ),
-              onPressed: () async {
-                if (canEditSelectedSchedule) {
-                  vm.toGraphEdit(schedule: schedule);
-                  return;
-                }
-                await vm.showScheduleEditLockedInfo(schedule);
-              },
-            ),
-          ],
         ],
       ),
     );
@@ -1236,66 +1124,49 @@ class _InvertedChip extends StatelessWidget {
 }
 
 class _ContractStatusSection extends StatelessWidget {
-  const _ContractStatusSection({required this.vm});
+  const _ContractStatusSection({
+    required this.selectedDay,
+    required this.tripsCount,
+    required this.contractsCount,
+  });
 
-  final GraphVM vm;
+  final NannyWeekday? selectedDay;
+  final int tripsCount;
+  final int contractsCount;
 
   @override
   Widget build(BuildContext context) {
+    final dayLabel = selectedDay?.fullName.toLowerCase() ?? 'выбранный день';
+
     return AutonannySectionContainer(
-      title: 'Статус контракта',
-      subtitle: vm.contractStatusDescription,
-      trailing: AutonannyStatusChip(
-        label: vm.contractStatusLabel,
-        variant: vm.contractStatusVariant,
+      title: tripsCount > 0
+          ? 'Поездки на $dayLabel'
+          : 'На $dayLabel поездок пока нет',
+      subtitle: tripsCount > 0
+          ? 'На выбранный день запланированы маршруты по ${_contractsCountLabel(contractsCount).toLowerCase()}.'
+          : 'Переключите день или откройте вкладку контрактов, чтобы посмотреть нужный договор.',
+      trailing: AutonannyBadge(
+        label: _tripsCountLabel(tripsCount),
       ),
-      child: vm.nextTripLabel == null
-          ? Text(
-              vm.selectedSchedule == null
-                  ? 'Выберите контракт и дождитесь откликов, чтобы продолжить.'
-                  : vm.selectedDayEmptyMessage,
-              style: AutonannyTypography.bodyS(
-                color: context.autonannyColors.textSecondary,
-              ),
-            )
-          : Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: context.autonannyColors.surfaceSecondary,
-                    borderRadius: AutonannyRadii.brMd,
-                  ),
-                  alignment: Alignment.center,
-                  child: AutonannyIcon(
-                    AutonannyIcons.clock,
-                    color: context.autonannyColors.actionPrimary,
-                  ),
-                ),
-                const SizedBox(width: AutonannySpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Ближайшая поездка',
-                        style: AutonannyTypography.labelL(
-                          color: context.autonannyColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: AutonannySpacing.xs),
-                      Text(
-                        vm.nextTripLabel!,
-                        style: AutonannyTypography.bodyS(
-                          color: context.autonannyColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+      child: Row(
+        children: [
+          Expanded(
+            child: _BudgetCard(
+              title: 'Контрактов',
+              amount: '$contractsCount',
+              tone: _BudgetCardTone.primary,
             ),
+          ),
+          const SizedBox(width: AutonannySpacing.md),
+          Expanded(
+            child: _BudgetCard(
+              title: 'Маршрутов',
+              amount: '$tripsCount',
+              tone: _BudgetCardTone.neutral,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1313,552 +1184,147 @@ String _contractsCountLabel(int count) {
   return '$count контрактов';
 }
 
-class _PausedContractBanner extends StatelessWidget {
-  const _PausedContractBanner({
+String _tripsCountLabel(int count) {
+  final mod10 = count % 10;
+  final mod100 = count % 100;
+
+  if (mod10 == 1 && mod100 != 11) {
+    return '$count поездка';
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return '$count поездки';
+  }
+  return '$count поездок';
+}
+
+class _ScheduledDayTrip {
+  const _ScheduledDayTrip({
     required this.schedule,
-    this.onResumed,
-    this.onResumeContract,
+    required this.road,
   });
 
   final Schedule schedule;
-  final Future<void> Function()? onResumed;
-  final Future<bool> Function()? onResumeContract;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.autonannyColors;
-    final pauseFrom = _formatPauseDate(schedule.pauseFrom);
-    final pauseUntil = _formatPauseDate(schedule.pauseUntil);
-    final pauseReason = _formatPauseReason(schedule.pauseReason);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AutonannySectionContainer(
-          title: _pauseTitle(schedule),
-          subtitle: _pauseSubtitle(schedule),
-          trailing: const AutonannyBadge(label: 'На паузе'),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AutonannyInlineBanner(
-                title: 'Причина паузы',
-                message: pauseReason,
-                tone: AutonannyBannerTone.warning,
-                leading: const AutonannyIcon(AutonannyIcons.warning),
-              ),
-              const SizedBox(height: AutonannySpacing.md),
-              Row(
-                children: [
-                  Expanded(
-                    child: _PauseMetricCard(
-                      label: 'Пауза с',
-                      value: pauseFrom,
-                    ),
-                  ),
-                  const SizedBox(width: AutonannySpacing.md),
-                  Expanded(
-                    child: _PauseMetricCard(
-                      label: 'Пауза до',
-                      value: pauseUntil,
-                    ),
-                  ),
-                ],
-              ),
-              if (_isBalancePause(schedule.pauseReason)) ...[
-                const SizedBox(height: AutonannySpacing.md),
-                AutonannyInlineBanner(
-                  title: 'Баланс нужно пополнить',
-                  message:
-                      'Контракт поставлен на паузу из-за нехватки средств. Откройте кошелёк и внесите деньги, чтобы вернуться к поездкам.',
-                  tone: AutonannyBannerTone.warning,
-                  leading: const AutonannyIcon(AutonannyIcons.wallet),
-                  trailing: AutonannyButton(
-                    label: 'Пополнить',
-                    size: AutonannyButtonSize.medium,
-                    variant: AutonannyButtonVariant.secondary,
-                    expand: false,
-                    onPressed: () => _openWalletTopUp(context),
-                  ),
-                ),
-                const SizedBox(height: AutonannySpacing.md),
-                AutonannyButton(
-                  label: 'Настроить автоплатеж',
-                  variant: AutonannyButtonVariant.secondary,
-                  onPressed: () => _openAutopaySettings(context),
-                ),
-              ] else if (onResumeContract != null) ...[
-                const SizedBox(height: AutonannySpacing.md),
-                AutonannyButton(
-                  label: 'Возобновить досрочно',
-                  variant: AutonannyButtonVariant.secondary,
-                  onPressed: () => _resumeContractManually(context),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: AutonannySpacing.md),
-        AutonannyInlineBanner(
-          title: schedule.pauseUntil != null
-              ? 'Автовозобновление $pauseUntil'
-              : 'Контракт ожидает ручного возобновления',
-          message: schedule.pauseUntil != null
-              ? 'Когда пауза закончится, контракт снова станет активным автоматически.'
-              : 'Сейчас в расписании не будет новых поездок по этому контракту.',
-          tone: AutonannyBannerTone.info,
-          leading: const AutonannyIcon(AutonannyIcons.calendar),
-        ),
-        const SizedBox(height: AutonannySpacing.md),
-        Container(
-          padding: const EdgeInsets.all(AutonannySpacing.lg),
-          decoration: BoxDecoration(
-            color: colors.surfaceSecondary,
-            borderRadius: AutonannyRadii.brLg,
-          ),
-          child: Text(
-            'После снятия паузы вы снова увидите ближайшую поездку, назначенного водителя и подробную структуру контракта по дням.',
-            style: AutonannyTypography.bodyS(
-              color: colors.textSecondary,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatPauseDate(String? raw) {
-    if (raw == null || raw.isEmpty) {
-      return '—';
-    }
-    return raw.length >= 10 ? raw.substring(0, 10) : raw;
-  }
-
-  String _formatPauseReason(String? raw) {
-    switch (raw) {
-      case 'illness':
-        return 'Болезнь или временная нетрудоспособность';
-      case 'car_repair':
-        return 'Ремонт автомобиля';
-      case 'family':
-        return 'Семейные обстоятельства';
-      case 'vacation':
-        return 'Отпуск или командировка';
-      case 'insufficient_balance':
-      case 'low_balance':
-      case 'lack_of_funds':
-        return 'Недостаточно средств для продолжения контракта';
-      default:
-        return (raw == null || raw.isEmpty) ? 'Причина не указана' : raw;
-    }
-  }
-
-  static bool isBalancePause(String? raw) {
-    return raw == 'insufficient_balance' ||
-        raw == 'low_balance' ||
-        raw == 'lack_of_funds';
-  }
-
-  bool _isBalancePause(String? raw) => isBalancePause(raw);
-
-  String _pauseTitle(Schedule schedule) {
-    switch (schedule.pauseInitiatedBy) {
-      case 1:
-        return 'Контракт приостановлен водителем';
-      case 2:
-        return 'Контракт поставлен на паузу';
-      case 3:
-        return 'Контракт приостановлен';
-      default:
-        return 'Контракт на паузе';
-    }
-  }
-
-  String _pauseSubtitle(Schedule schedule) {
-    switch (schedule.pauseInitiatedBy) {
-      case 1:
-        return 'Поездки временно остановлены по решению водителя.';
-      case 2:
-        return 'Вы временно остановили поездки по этому контракту.';
-      case 3:
-        return 'Поездки временно остановлены до восстановления оплаты.';
-      default:
-        return 'Поездки временно остановлены, пока пауза не закончится.';
-    }
-  }
-
-  Future<void> _openWalletTopUp(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const WalletView(
-          title: 'Пополнение баланса',
-          subtitle: 'Выберите способ пополнения',
-        ),
-      ),
-    );
-
-    if (!context.mounted) {
-      return;
-    }
-
-    final shouldResume = await _showResumeCheckSheet(
-      context,
-      title: 'Баланс пополнен?',
-      message:
-          'Если пополнение прошло успешно, можно сразу попытаться возобновить контракт.',
-      confirmText: 'Да, проверить',
-      cancelText: 'Пока нет',
-    );
-    if (!shouldResume || !context.mounted) {
-      return;
-    }
-
-    await _attemptResumePaymentSchedule(context);
-  }
-
-  Future<void> _openAutopaySettings(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AutopaySettingsView(
-          scheduleId: schedule.id,
-          contractTitle:
-              schedule.title.trim().isEmpty ? 'Контракт' : schedule.title,
-          weeklyAmount: schedule.amountWeek,
-        ),
-      ),
-    );
-
-    if (!context.mounted) {
-      return;
-    }
-
-    final shouldResume = await _showResumeCheckSheet(
-      context,
-      title: 'Проверить контракт сейчас?',
-      message:
-          'Если карта для автосписания уже настроена и оплата прошла, можно сразу проверить возобновление контракта.',
-      confirmText: 'Да, проверить',
-      cancelText: 'Позже',
-    );
-    if (!shouldResume || !context.mounted) {
-      return;
-    }
-
-    await _attemptResumePaymentSchedule(context);
-  }
-
-  Future<void> _attemptResumePaymentSchedule(BuildContext context) async {
-    final scheduleId = schedule.id;
-    if (scheduleId == null) {
-      await _showPauseStatusSheet(
-        context,
-        title: 'Не удалось возобновить контракт',
-        message: 'Не удалось определить контракт для возобновления.',
-        isError: true,
-      );
-      return;
-    }
-
-    final resumeResult = await NannyUsersApi.resumePaymentSchedule(scheduleId);
-    if (!context.mounted) {
-      return;
-    }
-
-    if (!resumeResult.success) {
-      await _showPauseStatusSheet(
-        context,
-        title: 'Не удалось возобновить контракт',
-        message: resumeResult.errorMessage.isNotEmpty
-            ? resumeResult.errorMessage
-            : 'Не удалось возобновить контракт после пополнения.',
-        isError: true,
-      );
-      return;
-    }
-
-    await onResumed?.call();
-    if (!context.mounted) {
-      return;
-    }
-
-    await _showPauseStatusSheet(
-      context,
-      title: 'Контракт возобновлён',
-      message: resumeResult.response?.isNotEmpty == true
-          ? 'Следующее списание: ${resumeResult.response}.'
-          : 'Контракт успешно возобновлён.',
-    );
-  }
-
-  Future<void> _resumeContractManually(BuildContext context) async {
-    final shouldResume = await _showResumeCheckSheet(
-      context,
-      title: 'Возобновить контракт?',
-      message:
-          'После возобновления поездки снова появятся в расписании и станут доступны для выполнения.',
-      confirmText: 'Возобновить',
-      cancelText: 'Пока оставить на паузе',
-    );
-    if (!shouldResume || !context.mounted || onResumeContract == null) {
-      return;
-    }
-
-    final resumed = await onResumeContract!.call();
-    if (!context.mounted) {
-      return;
-    }
-
-    if (!resumed) {
-      await _showPauseStatusSheet(
-        context,
-        title: 'Не удалось возобновить контракт',
-        message: 'Попробуйте повторить действие немного позже.',
-        isError: true,
-      );
-      return;
-    }
-
-    await _showPauseStatusSheet(
-      context,
-      title: 'Контракт возобновлён',
-      message: 'Поездки по контракту снова активны.',
-    );
-  }
-
-  Future<void> _showPauseStatusSheet(
-    BuildContext context, {
-    required String title,
-    required String message,
-    bool isError = false,
-  }) async {
-    final contractTitle =
-        schedule.title.trim().isEmpty ? 'Контракт' : schedule.title;
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final colors = sheetContext.autonannyColors;
-        return SafeArea(
-          top: false,
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                AutonannySpacing.xl,
-                AutonannySpacing.lg,
-                AutonannySpacing.xl,
-                AutonannySpacing.xl +
-                    MediaQuery.of(sheetContext).padding.bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 44,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colors.surfaceSecondary,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AutonannySpacing.lg),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: isError
-                              ? const Color(0xFFFFF1EF)
-                              : const Color(0xFFEAFBF1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Center(
-                          child: AutonannyIcon(
-                            isError
-                                ? AutonannyIcons.warning
-                                : AutonannyIcons.check,
-                            color: isError
-                                ? colors.statusDanger
-                                : colors.statusSuccess,
-                            size: 28,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AutonannySpacing.lg),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: AutonannyTypography.h3(
-                                color: colors.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: AutonannySpacing.sm),
-                            Text(
-                              contractTitle,
-                              style: AutonannyTypography.labelM(
-                                color: colors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AutonannySpacing.lg),
-                  AutonannyInlineBanner(
-                    title: isError ? 'Проверьте детали' : 'Что изменилось',
-                    message: message,
-                    tone: isError
-                        ? AutonannyBannerTone.warning
-                        : AutonannyBannerTone.success,
-                    leading: AutonannyIcon(
-                      isError ? AutonannyIcons.warning : AutonannyIcons.check,
-                    ),
-                  ),
-                  const SizedBox(height: AutonannySpacing.xl),
-                  AutonannyButton(
-                    label: isError ? 'Понятно' : 'Продолжить',
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<bool> _showResumeCheckSheet(
-    BuildContext context, {
-    required String title,
-    required String message,
-    required String confirmText,
-    required String cancelText,
-  }) async {
-    final contractTitle =
-        schedule.title.trim().isEmpty ? 'Контракт' : schedule.title;
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final colors = sheetContext.autonannyColors;
-        return SafeArea(
-          top: false,
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                AutonannySpacing.xl,
-                AutonannySpacing.lg,
-                AutonannySpacing.xl,
-                AutonannySpacing.xl +
-                    MediaQuery.of(sheetContext).padding.bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 44,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colors.surfaceSecondary,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AutonannySpacing.lg),
-                  Text(
-                    title,
-                    style: AutonannyTypography.h3(
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: AutonannySpacing.sm),
-                  Text(
-                    contractTitle,
-                    style: AutonannyTypography.labelM(
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: AutonannySpacing.lg),
-                  AutonannyInlineBanner(
-                    title: 'Следующий шаг',
-                    message: message,
-                    tone: AutonannyBannerTone.info,
-                    leading: const AutonannyIcon(AutonannyIcons.info),
-                  ),
-                  const SizedBox(height: AutonannySpacing.xl),
-                  AutonannyButton(
-                    label: confirmText,
-                    onPressed: () => Navigator.of(sheetContext).pop(true),
-                  ),
-                  const SizedBox(height: AutonannySpacing.sm),
-                  AutonannyButton(
-                    label: cancelText,
-                    variant: AutonannyButtonVariant.secondary,
-                    onPressed: () => Navigator.of(sheetContext).pop(false),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-    return result ?? false;
-  }
+  final Road road;
 }
 
-class _PauseMetricCard extends StatelessWidget {
-  const _PauseMetricCard({
-    required this.label,
-    required this.value,
+class _SelectedDayTripCard extends StatelessWidget {
+  const _SelectedDayTripCard({
+    required this.schedule,
+    required this.road,
+    required this.childLabels,
+    required this.statusLabel,
+    required this.statusVariant,
+    required this.onOpenContract,
   });
 
-  final String label;
-  final String value;
+  final Schedule schedule;
+  final Road road;
+  final List<String> childLabels;
+  final String statusLabel;
+  final AutonannyStatusVariant statusVariant;
+  final VoidCallback onOpenContract;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.autonannyColors;
+    final fromAddress = road.addresses.isEmpty
+        ? 'Точка отправления не указана'
+        : road.addresses.first.fromAddress.address;
+    final toAddress = road.addresses.isEmpty
+        ? 'Точка прибытия не указана'
+        : road.addresses.last.toAddress.address;
+    final tripTypeLabel = road.typeDrive.contains(DriveType.roundTrip)
+        ? 'Туда и обратно'
+        : 'В одну сторону';
+    final timeLabel = road.startTime == road.endTime
+        ? 'Прибытие к первой точке: ${road.startTime.formatTime()}'
+        : '${road.startTime.formatTime()} - ${road.endTime.formatTime()}';
 
-    return Container(
-      padding: const EdgeInsets.all(AutonannySpacing.lg),
-      decoration: BoxDecoration(
-        color: colors.surfaceSecondary,
-        borderRadius: AutonannyRadii.brLg,
-      ),
+    return AutonannyCard(
+      onTap: onOpenContract,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      schedule.title.isEmpty ? 'Контракт' : schedule.title,
+                      style: AutonannyTypography.labelL(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      timeLabel,
+                      style: AutonannyTypography.bodyS(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              AutonannyStatusChip(
+                label: statusLabel,
+                variant: statusVariant,
+              ),
+            ],
+          ),
+          const SizedBox(height: AutonannySpacing.md),
           Text(
-            label,
-            style: AutonannyTypography.labelM(
-              color: colors.textTertiary,
+            road.title.isEmpty ? tripTypeLabel : road.title,
+            style: AutonannyTypography.bodyM(
+              color: colors.textPrimary,
             ),
           ),
           const SizedBox(height: AutonannySpacing.xs),
           Text(
-            value,
-            style: AutonannyTypography.h3(
-              color: colors.textPrimary,
+            tripTypeLabel,
+            style: AutonannyTypography.caption(
+              color: colors.textTertiary,
+            ),
+          ),
+          const SizedBox(height: AutonannySpacing.md),
+          _TripAddressLine(
+            label: 'Откуда',
+            value: fromAddress,
+            color: colors.actionPrimary,
+            showConnector: true,
+          ),
+          _TripAddressLine(
+            label: 'Куда',
+            value: toAddress,
+            color: colors.statusDanger,
+          ),
+          if (childLabels.isNotEmpty) ...[
+            const SizedBox(height: AutonannySpacing.md),
+            Text(
+              'Дети в поездке',
+              style: AutonannyTypography.caption(
+                color: colors.textTertiary,
+              ),
+            ),
+            const SizedBox(height: AutonannySpacing.xs),
+            Wrap(
+              spacing: AutonannySpacing.sm,
+              runSpacing: AutonannySpacing.sm,
+              children: childLabels
+                  .map((label) => _TripChip(label: label))
+                  .toList(growable: false),
+            ),
+          ],
+          const SizedBox(height: AutonannySpacing.md),
+          SizedBox(
+            width: double.infinity,
+            child: AutonannyButton(
+              label: 'Открыть детали контракта',
+              variant: AutonannyButtonVariant.secondary,
+              onPressed: onOpenContract,
             ),
           ),
         ],
@@ -1867,106 +1333,103 @@ class _PauseMetricCard extends StatelessWidget {
   }
 }
 
-class _ResponsesSection extends StatelessWidget {
-  const _ResponsesSection({required this.vm});
+class _TripAddressLine extends StatelessWidget {
+  const _TripAddressLine({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.showConnector = false,
+  });
 
-  final GraphVM vm;
+  final String label;
+  final String value;
+  final Color color;
+  final bool showConnector;
 
   @override
   Widget build(BuildContext context) {
-    final responses = vm.responses
-        .where((r) => r.idSchedule == vm.selectedSchedule?.id)
-        .toList(growable: false);
-
-    return AutonannySectionContainer(
-      title: 'Отклики водителей',
-      subtitle: 'Выберите подходящего водителя, чтобы подтвердить контракт.',
-      child: Column(
-        children: responses
-            .map(
-              (response) => Padding(
-                padding: const EdgeInsets.only(bottom: AutonannySpacing.sm),
-                child: _ResponseCard(
-                  response: response,
-                  onOpen: () => vm.openDriverFromResponse(response),
-                  onAccept: () => vm.answerResponse(response, true),
-                  onReject: () => vm.answerResponse(response, false),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 18,
+          child: Column(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
                 ),
               ),
-            )
-            .toList(growable: false),
-      ),
+              if (showConnector)
+                Container(
+                  width: 2,
+                  height: 22,
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(
+                    color: context.autonannyColors.borderSubtle,
+                    borderRadius: AutonannyRadii.brFull,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: AutonannySpacing.md),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AutonannySpacing.sm),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AutonannyTypography.caption(
+                    color: context.autonannyColors.textTertiary,
+                  ),
+                ),
+                const SizedBox(height: AutonannySpacing.xxs),
+                Text(
+                  value,
+                  style: AutonannyTypography.bodyM(
+                    color: context.autonannyColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _ResponseCard extends StatelessWidget {
-  const _ResponseCard({
-    required this.response,
-    required this.onOpen,
-    required this.onAccept,
-    required this.onReject,
+class _TripChip extends StatelessWidget {
+  const _TripChip({
+    required this.label,
   });
 
-  final ScheduleResponsesData response;
-  final VoidCallback onOpen;
-  final VoidCallback onAccept;
-  final VoidCallback onReject;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = NannyConsts.buildFileUrl(response.photoPath);
-
-    return AutonannyCard(
-      child: AutonannyListRow(
-        title: response.name,
-        subtitle: '${response.data.length} маршрутов',
-        leading: AutonannyAvatar(
-          imageUrl: imageUrl,
-          initials: _initials(response.name),
-          size: 48,
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AutonannySpacing.md,
+        vertical: AutonannySpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: context.autonannyColors.surfaceSecondary,
+        borderRadius: AutonannyRadii.brFull,
+      ),
+      child: Text(
+        label,
+        style: AutonannyTypography.labelM(
+          color: context.autonannyColors.textPrimary,
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AutonannyIconButton(
-              icon: const AutonannyIcon(
-                AutonannyIcons.checkCircle,
-                color: Color(0xFF16A34A),
-              ),
-              onPressed: onAccept,
-              variant: AutonannyIconButtonVariant.ghost,
-              size: 36,
-            ),
-            const SizedBox(width: AutonannySpacing.xs),
-            AutonannyIconButton(
-              icon: const AutonannyIcon(
-                AutonannyIcons.close,
-                color: Color(0xFFDC2626),
-              ),
-              onPressed: onReject,
-              variant: AutonannyIconButtonVariant.ghost,
-              size: 36,
-            ),
-          ],
-        ),
-        onTap: onOpen,
       ),
     );
-  }
-
-  String _initials(String value) {
-    final parts = value
-        .split(' ')
-        .where((element) => element.trim().isNotEmpty)
-        .toList(growable: false);
-    if (parts.isEmpty) {
-      return 'A';
-    }
-    if (parts.length == 1) {
-      return parts.first.substring(0, 1);
-    }
-    return '${parts[0][0]}${parts[1][0]}';
   }
 }
 

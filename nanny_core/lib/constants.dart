@@ -34,9 +34,14 @@ class NannyConsts {
   // Map Data
   static String get mapKey =>
       Platform.isAndroid ? androidMapApiKey : iosMapApiKey;
-  static const String iosMapApiKey = "AIzaSyC5Hq53HqTuBP9DLze6N_3iKyIEAKGb_K4";
-  static const String androidMapApiKey =
-      "AIzaSyAl5F9CDJuusuBxOvYv8YFJ1KJb-5Z8h00";
+  static const String iosMapApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: '',
+  );
+  static const String androidMapApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: '',
+  );
   static const MarkerId curPosId = MarkerId("curPos");
   static const MarkerId driverPosId = MarkerId("driverPos");
 
@@ -44,10 +49,9 @@ class NannyConsts {
   static late final BitmapDescriptor driverPosIcon;
 
   static Future<void> initMarkerIcons() async {
-    curPosIcon = await BitmapDescriptor.fromAssetImage(ImageConfiguration.empty,
+    curPosIcon = await BitmapDescriptor.asset(ImageConfiguration.empty,
         'packages/nanny_components/assets/images/map/client_location.png');
-    driverPosIcon = await BitmapDescriptor.fromAssetImage(
-        ImageConfiguration.empty,
+    driverPosIcon = await BitmapDescriptor.asset(ImageConfiguration.empty,
         'packages/nanny_components/assets/images/map/driver_location.png');
   }
 }

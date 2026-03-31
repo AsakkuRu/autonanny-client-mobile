@@ -1089,6 +1089,7 @@ class ActiveTripVM extends ViewModelBase {
         idChat: chatId!,
         name:
             driverName == null || driverName.isEmpty ? 'Водитель' : driverName,
+        photoPath: driverContact?.photo,
       ),
     );
   }

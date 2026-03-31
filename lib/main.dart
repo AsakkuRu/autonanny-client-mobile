@@ -16,6 +16,7 @@ import 'package:nanny_components/base_views/views/welcome.dart';
 import 'package:nanny_core/app_link_handler.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/nanny_local_auth.dart';
+import 'package:nanny_core/services/app_lifecycle_service.dart';
 import 'package:nanny_core/services/notification_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'firebase_options.dart';
@@ -63,7 +64,7 @@ Future<void> _bootstrapApp() async {
       }
       _lastBackPressAt = now;
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        NannyGlobals.scaffoldMessengerKey.currentState?.showSnackBar(
           const SnackBar(content: Text('Нажмите ещё раз для выхода')),
         );
       }
@@ -100,10 +101,14 @@ Future<void> _bootstrapApp() async {
 
   DioRequest.init();
   DioRequest.initDebugLogs();
-  await NotificationService().init(NannyGlobals.navKey);
+  await NotificationService().init(
+    NannyGlobals.navKey,
+    NannyGlobals.scaffoldMessengerKey,
+  );
   NotificationService().registerTapHandler(
     FirebaseMessagingHandler.handleLocalNotificationTap,
   );
+  AppLifecycleService().init();
 
   NannyConsts.setLoginPaths([
     LoginPath(
@@ -187,6 +192,7 @@ class MainApp extends StatelessWidget {
           builder: (context, locale, _) {
             return MaterialApp(
               navigatorKey: NannyGlobals.navKey,
+              scaffoldMessengerKey: NannyGlobals.scaffoldMessengerKey,
               theme: ClientUiSdkTheme.lightTheme,
               darkTheme: ClientUiSdkTheme.darkTheme,
               themeMode: themeMode,

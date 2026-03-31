@@ -38,7 +38,6 @@ class _ChildEditViewState extends State<ChildEditView> {
           onPressed: () => Navigator.of(context).maybePop(),
         ),
       ),
-      header: _ChildEditHeader(isEdit: isEdit),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
@@ -49,7 +48,8 @@ class _ChildEditViewState extends State<ChildEditView> {
             AutonannySpacing.lg,
           ),
           child: AutonannyButton(
-            onPressed: vm.emergencyContacts.isEmpty ? null : vm.save,
+            onPressed: vm.isSaving ? null : vm.save,
+            isLoading: vm.isSaving,
             label: isEdit ? 'Сохранить изменения' : 'Добавить ребёнка',
             leading: const AutonannyIcon(
               AutonannyIcons.checkCircle,
@@ -59,7 +59,14 @@ class _ChildEditViewState extends State<ChildEditView> {
         ),
       ),
       body: ListView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: const EdgeInsets.only(bottom: 120),
         children: [
+          _ChildEditHeader(isEdit: isEdit),
+          const SizedBox(height: AutonannySpacing.xl),
           _ChildPhotoSection(
             imageUrl: vm.photoPath,
             initials: _childInitials(),
@@ -205,20 +212,27 @@ class _ChildEditViewState extends State<ChildEditView> {
             title: 'Экстренные контакты',
             subtitle:
                 'Их увидит водитель во время поездки, если понадобится срочная связь.',
-            trailing: AutonannyButton(
-              label: 'Добавить',
-              variant: AutonannyButtonVariant.secondary,
-              leading: const AutonannyIcon(AutonannyIcons.add),
-              onPressed: vm.addEmergencyContact,
-            ),
-            child: vm.emergencyContacts.isEmpty
-                ? const AutonannyEmptyState(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AutonannyButton(
+                  label: 'Добавить контакт',
+                  size: AutonannyButtonSize.medium,
+                  variant: AutonannyButtonVariant.secondary,
+                  expand: false,
+                  leading: const AutonannyIcon(AutonannyIcons.add),
+                  onPressed: vm.addEmergencyContact,
+                ),
+                const SizedBox(height: AutonannySpacing.md),
+                if (vm.emergencyContacts.isEmpty)
+                  const AutonannyEmptyState(
                     title: 'Контакты пока не добавлены',
                     description:
                         'Добавьте хотя бы один контакт родственника или доверенного взрослого.',
                     icon: AutonannyIcon(AutonannyIcons.phone, size: 36),
                   )
-                : Column(
+                else
+                  Column(
                     children: vm.emergencyContacts
                         .map(
                           (contact) => Padding(
@@ -236,6 +250,8 @@ class _ChildEditViewState extends State<ChildEditView> {
                         )
                         .toList(growable: false),
                   ),
+              ],
+            ),
           ),
         ],
       ),
