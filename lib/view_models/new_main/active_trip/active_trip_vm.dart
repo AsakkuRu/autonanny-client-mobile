@@ -745,8 +745,14 @@ class ActiveTripVM extends ViewModelBase {
       return;
     }
 
-    waitingSeconds =
-        serverWaitingSeconds ?? _resolveWaitingSeconds(awaitingSince);
+    if (meetingVerified) {
+      waitingSeconds = serverWaitingSeconds ?? waitingSeconds;
+      _waitingTimer?.cancel();
+      _waitingTimer = null;
+      return;
+    }
+
+    waitingSeconds = serverWaitingSeconds ?? _resolveWaitingSeconds(awaitingSince);
     if (_waitingTimer != null) {
       return;
     }
