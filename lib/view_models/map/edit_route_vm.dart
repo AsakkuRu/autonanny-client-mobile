@@ -55,7 +55,7 @@ class EditRouteVM {
     final address = await showSearch(
       context: context,
       delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocode(address: query),
+        onSearch: (query) => GoogleMapApi.geocodeForAddressSearch(query),
         onResponse: (response) => response.response?.geocodeResults,
         tileBuilder: (data, close) => ListTile(
           title: Text(data.formattedAddress),
@@ -85,7 +85,7 @@ class EditRouteVM {
     final address = await showSearch(
       context: context,
       delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocode(address: query),
+        onSearch: (query) => GoogleMapApi.geocodeForAddressSearch(query),
         onResponse: (response) => response.response?.geocodeResults,
         tileBuilder: (data, close) => ListTile(
           title: Text(data.formattedAddress),

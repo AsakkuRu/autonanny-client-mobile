@@ -4,6 +4,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_maps_flutter_android/google_maps_flutter_android.dart';
+import 'package:google_maps_flutter_platform_interface/google_maps_flutter_platform_interface.dart';
 import 'package:nanny_client/routing/client_entity_router.dart';
 import 'package:nanny_client/theme_notifier.dart';
 import 'package:nanny_client/feature_flags.dart';
@@ -76,6 +78,14 @@ Future<void> _bootstrapApp() async {
     LocationService.initBackgroundLocation();
     // Инициализируем информацию о городе для bias в подсказках адреса
     LocationService.initLocInfo();
+  }
+
+  // Фикс blank-карты после Navigator push/pop на Android (PlatformView lifecycle).
+  if (Platform.isAndroid) {
+    final impl = GoogleMapsFlutterPlatform.instance;
+    if (impl is GoogleMapsFlutterAndroid) {
+      impl.useAndroidViewSurface = true;
+    }
   }
 
   HttpOverrides.global = MyHttpOverrides();

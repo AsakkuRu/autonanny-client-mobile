@@ -48,8 +48,14 @@ android {
         targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        // Google Maps SDK key is read by AndroidManifest meta-data placeholder.
+        // Prefer local.properties override, fallback to repo default for dev builds.
+        def googleMapsApiKey = localProperties.getProperty('GOOGLE_MAPS_API_KEY', '')
+        if (googleMapsApiKey == null || googleMapsApiKey.trim().isEmpty()) {
+            googleMapsApiKey = 'AIzaSyAl5F9CDJuusuBxOvYv8YFJ1KJb-5Z8h00'
+        }
         manifestPlaceholders += [
-            GOOGLE_MAPS_API_KEY: localProperties.getProperty('GOOGLE_MAPS_API_KEY', '')
+            GOOGLE_MAPS_API_KEY: googleMapsApiKey
         ]
     }
 

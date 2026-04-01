@@ -53,7 +53,7 @@ class _DriveOrderViewState extends State<DriveOrderView> {
     return showSearch<GeocodeResult?>(
       context: context,
       delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocode(address: query),
+        onSearch: (query) => GoogleMapApi.geocodeForAddressSearch(query),
         onResponse: (response) => response.response?.geocodeResults,
         tileBuilder: (data, close) => ListTile(
           title: Text(NannyMapUtils.buildStreetAddress(data)),

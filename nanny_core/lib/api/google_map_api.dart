@@ -16,7 +16,7 @@ class GoogleMapApi {
   }) async {
     final backendRes = await RequestBuilder<GeocodeData>().create(
       dioRequest: DioRequest.dio.get(
-        "maps/reverse_geocode",
+        "/maps/reverse_geocode",
         queryParameters: {"lat": loc.latitude, "lng": loc.longitude},
       ),
       onSuccess: (response) => _normalizeGeocodeData(response.data),
@@ -45,18 +45,62 @@ class GoogleMapApi {
     );
   }
 
+  /// Поиск адреса в UI: один запрос геокодера, без locality и без bounds вокруг GPS
+  /// (как раньше по смыслу, но без жёсткого фильтра по городу из профиля).
+  static Future<ApiResponse<GeocodeData>> geocodeForAddressSearch(
+    String address,
+  ) async {
+    // UX-ожидание: по "твер" в Москве сначала "Тверская улица", а не город Тверь.
+    // Поэтому сначала пробуем с bias (bounds) и locality из reverse-geocode текущей локации.
+    // Если результатов нет — постепенно ослабляем фильтры.
+    final strict = await geocode(
+      address: address,
+      region: "ru",
+      includeLocalityInComponents: true,
+      includeViewportBounds: true,
+    );
+    if (strict.success &&
+        strict.response != null &&
+        strict.response!.geocodeResults.isNotEmpty) {
+      return strict;
+    }
+
+    final semi = await geocode(
+      address: address,
+      region: "ru",
+      includeLocalityInComponents: false,
+      includeViewportBounds: true,
+    );
+    if (semi.success &&
+        semi.response != null &&
+        semi.response!.geocodeResults.isNotEmpty) {
+      return semi;
+    }
+
+    return geocode(
+      address: address,
+      region: "ru",
+      includeLocalityInComponents: false,
+      includeViewportBounds: false,
+    );
+  }
+
   static Future<ApiResponse<GeocodeData>> geocode({
     required String address,
     String region = "ru",
+    bool includeLocalityInComponents = false,
+    bool includeViewportBounds = true,
   }) async {
     final queryParameters = _buildGeocodeQueryParameters(
       address: address,
       region: region,
+      includeLocalityInComponents: includeLocalityInComponents,
+      includeViewportBounds: includeViewportBounds,
     );
 
     final backendRes = await RequestBuilder<GeocodeData>().create(
       dioRequest: DioRequest.dio.get(
-        "maps/geocode",
+        "/maps/geocode",
         queryParameters: queryParameters,
       ),
       onSuccess: (response) => _normalizeGeocodeData(response.data),
@@ -90,7 +134,7 @@ class GoogleMapApi {
   }) {
     return RequestBuilder<List<String>>().create(
       dioRequest: DioRequest.dio.get(
-        "maps/autocomplete",
+        "/maps/autocomplete",
         queryParameters: {
           "input": input.trim(),
           "region": region,
@@ -113,6 +157,8 @@ class GoogleMapApi {
   static Map<String, String> _buildGeocodeQueryParameters({
     required String address,
     required String region,
+    bool includeLocalityInComponents = false,
+    bool includeViewportBounds = true,
   }) {
     final queryParameters = <String, String>{
       "address": address.trim(),
@@ -141,7 +187,7 @@ class GoogleMapApi {
       }
     }
 
-    if (lastLoc != null) {
+    if (includeViewportBounds && lastLoc != null) {
       const delta = 0.3;
       northEast = LatLng(
         lastLoc.latitude + delta,
@@ -156,7 +202,7 @@ class GoogleMapApi {
     }
 
     final components = <String>["country:ru"];
-    if (locality.isNotEmpty) {
+    if (includeLocalityInComponents && locality.isNotEmpty) {
       components.add("locality:$locality");
     }
     queryParameters["components"] = components.join("|");
