@@ -4,7 +4,8 @@ class PaymentInitData {
     required this.terminalKey,
     required this.paymentId,
     required this.serverTransId,
-    required this.threeDsMethod
+    required this.threeDsMethod,
+    required this.paymentUrl,
   });
 
   final bool is3DsV2;
@@ -12,13 +13,15 @@ class PaymentInitData {
   final String paymentId;
   final String serverTransId;
   final String threeDsMethod;
+  final String paymentUrl;
 
   PaymentInitData.fromJson(Map<String, dynamic> json)
-    : is3DsV2 = json['is3DsVersion2'],
-      terminalKey = json['TerminalKey'],
-      paymentId = json['PaymentId'],
-      serverTransId = json['serverTransId'],
-      threeDsMethod = json['ThreeDSMethodURL'];
+    : is3DsV2 = json['is3DsVersion2'] == true,
+      terminalKey = (json['TerminalKey'] ?? '').toString(),
+      paymentId = (json['PaymentId'] ?? json['payment_id'] ?? '0').toString(),
+      serverTransId = (json['serverTransId'] ?? '').toString(),
+      threeDsMethod = (json['ThreeDSMethodURL'] ?? '').toString(),
+      paymentUrl = (json['payment_url'] ?? json['paymentUrl'] ?? '').toString();
 }
 
 // {

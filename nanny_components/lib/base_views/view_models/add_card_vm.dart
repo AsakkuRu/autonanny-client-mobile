@@ -108,7 +108,7 @@ class AddCardVM extends ViewModelBase {
       pan: cardNumMask.getUnmaskedText(),
       expDate: expMask.getUnmaskedText(),
       cardHolder: fullname,
-    ).encode(NannyConsts.tinkoffPublikKey);
+    ).encode(NannyConsts.paymentPublicKey);
 
     var init = NannyUsersApi.startPayment(
       StartPaymentRequest(
@@ -125,102 +125,17 @@ class AddCardVM extends ViewModelBase {
     bool success = await DioRequest.handleRequest(context, init);
     if (!success) return;
     var initRes = (await init).response!;
-    if (initRes.paymentId == 'demo') {
-      await _addMoney(0);
-      return;
-    }
-    int payId = int.parse(initRes.paymentId);
+    int payId = int.tryParse(initRes.paymentId) ?? 0;
     if (!context.mounted) return;
-
-    var acquiring = TinkoffAcquiring(TinkoffAcquiringConfig.credential(
-      terminalKey: initRes.terminalKey,
-      isDebugMode: false,
-    ));
-
-    // var submit = DioRequest.dio.postUri(Uri.parse(uri))
-
-    Completer<Map<String, String>> data = Completer();
-
-    if (initRes.is3DsV2) {
-      CollectData(
-        context: context,
-        onFinished: (Map<String, String> map) {
-          data.complete(map);
-        },
-        config: acquiring.config,
-        serverTransId: initRes.serverTransId,
-        threeDsMethodUrl: initRes.threeDsMethod,
+    if (initRes.paymentUrl.isNotEmpty) {
+      await _waitForSbpConfirm(
+        SbpInitData(
+          paymentId: initRes.paymentId,
+          paymentUrl: initRes.paymentUrl,
+          amount: int.parse(amount),
+        ),
       );
-    } else {
-      data.complete({});
     }
-
-    if ((await data.future).isEmpty) {
-      await _addMoney(payId);
-      return;
-    }
-
-    // var conf = await acquiring.finishAuthorize(
-    //   FinishAuthorizeRequest(
-    //     paymentId: int.parse(initRes.paymentId),
-    //     cardData: cardData,
-    //   )
-    // );
-
-    var confirm = NannyUsersApi.confirmPayment(ConfirmPaymentRequest(
-      paymentId: payId,
-      data: await data.future,
-      email: email,
-    ));
-
-    if (!context.mounted) return;
-
-    bool confirmSuccess = await DioRequest.handleRequest(
-      context,
-      confirm,
-    );
-
-    if (!confirmSuccess) return;
-    var confRes = await confirm;
-    if (!context.mounted) return;
-
-    Completer<Submit3DSAuthorizationResponse?> webView = Completer();
-
-    await Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (webContext) => SafeArea(
-                    child: Scaffold(
-                  body: WebView3DS(
-                    onFinished: (Submit3DSAuthorizationResponse? data3ds) {
-                      webView.complete(data3ds);
-                      Navigator.pop(webContext);
-                    },
-                    onLoad: (bool load) {},
-                    config: acquiring.config,
-                    is3DsVersion2: confRes.response!.is3DsVersion2,
-                    serverTransId: confRes.response!.serverTransId,
-                    acsUrl: confRes.response!.acsUrl,
-                    md: confRes.response!.md,
-                    paReq: confRes.response!.paReq,
-                    acsTransId: confRes.response!.acsTransId,
-                    version: "2.1.0",
-                  ),
-                ))));
-
-    var threeDs = await webView.future;
-    if (!context.mounted) return;
-
-    if (threeDs != null) {
-      if (_checkError(threeDs)) {
-        LoadScreen.showLoad(context, false);
-        return;
-      }
-    } else {
-      LoadScreen.showLoad(context, false);
-      return;
-    }
-
     await _addMoney(payId);
   }
 

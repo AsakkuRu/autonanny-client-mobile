@@ -25,7 +25,7 @@ class NannyConsts {
 
   static const String regFileToken =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjotMSwiZmJpZCI6IlJlZ2lzdHJhdGlvbiIsImV4cCI6NDg0MjY2NzY2NX0.lzICh4ya1hVSehS4tCFLBTwOTD6TDxaxoBpJgt6YRrw";
-  static const String tinkoffPublikKey =
+  static const String paymentPublicKey =
       "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv5yse9ka3ZQE0feuGtemYv3IqOlLck8zHUM7lTr0za6lXTszRSXfUO7jMb+L5C7e2QNFs+7sIX2OQJ6a+HG8kr+jwJ4tS3cVsWtd9NXpsU40PE4MeNr5RqiNXjcDxA+L4OsEm/BlyFOEOh2epGyYUd5/iO3OiQFRNicomT2saQYAeqIwuELPs1XpLk9HLx5qPbm8fRrQhjeUD5TLO8b+4yCnObe8vy/BMUwBfq+ieWADIjwWCMp2KTpMGLz48qnaD9kdrYJ0iyHqzb2mkDhdIzkim24A3lWoYitJCBrrB2xM05sm9+OdCI1f7nPNJbl5URHobSwR94IRGT7CJcUjvwIDAQAB";
 
   static late final List<LoginPath> availablePaths;

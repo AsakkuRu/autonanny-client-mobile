@@ -47,56 +47,45 @@ class NannyUsersApi {
       AddDebitCardRequest request) async {
     return RequestBuilder<int>().create(
         dioRequest: DioRequest.dio
-            .post("/users/demo/cards/add", data: request.toJson()),
-        onSuccess: (response) => response.data['card_id'],
+            .post("/users/add-my-card", data: request.toJson()),
+        onSuccess: (response) => 1,
         errorCodeMsgs: {
-          // 404 здесь означает, что ручка не найдена на выбранном backend-окружении
-          // (например, приложение смотрит на боевой бэк вместо демо).
-          404:
-              "Demo-ручка не найдена. Проверьте, что приложение смотрит на демо-бэкенд.",
+          404: "Некорректный номер карты!",
           405: "Недопустимый банк карты!",
           406: "Карта уже добавлена!",
           407: "Некорректная дата сгорания карты!",
           408: "Некорректное имя носителя карты!",
+          422: "Некорректные данные карты!",
         });
   }
 
   static Future<ApiResponse<PaymentInitData>> startPayment(
       StartPaymentRequest request) async {
-    // В demo‑режиме не инициализируем реальный платёж, а сразу имитируем успешное пополнение
     return RequestBuilder<PaymentInitData>().create(
       dioRequest: DioRequest.dio.post(
-        "/users/demo/balance/topup",
+        "/payments/create",
         data: {
-          "amount": request.amount / 100, // из копеек в рубли
-          "description": "DEMO: Пополнение карты",
+          "amount": request.amount / 100,
+          "method_type": "card",
+          "description": "Пополнение карты",
         },
       ),
-      onSuccess: (_) => PaymentInitData(
-        paymentId: "demo",
-        terminalKey: "",
-        is3DsV2: false,
-        threeDsMethod: "",
-        serverTransId: "",
-      ),
+      onSuccess: (response) => PaymentInitData.fromJson(response.data),
     );
   }
 
   static Future<ApiResponse<SbpInitData>> startSbpPayment(
       StartSbpPaymentRequest request) async {
-    // В demo‑режиме СБП также идёт через моковое пополнение
     return RequestBuilder<SbpInitData>().create(
       dioRequest: DioRequest.dio.post(
-        "/users/demo/balance/topup",
+        "/payments/create",
         data: {
           "amount": request.amount / 100,
-          "description": "DEMO: Пополнение по СБП",
+          "method_type": "sbp",
+          "description": "Пополнение по СБП",
         },
       ),
-      onSuccess: (_) => SbpInitData(
-        paymentId: "demo",
-        paymentUrl: "",
-      ),
+      onSuccess: (response) => SbpInitData.fromJson(response.data),
     );
   }
 
@@ -127,19 +116,21 @@ class NannyUsersApi {
 
   static Future<ApiResponse<void>> addMoney(AddMoneyRequest request) async {
     if (request.paymentId <= 0) {
-      // В demo-режиме баланс уже пополняется через /users/demo/balance/topup,
-      // поэтому подтверждать платеж повторным backend-запросом не нужно.
       return ApiResponse(success: true);
     }
 
     return RequestBuilder<void>().create(
-      dioRequest: DioRequest.dio.post(
-        "/users/add_money",
-        data: request.toJson(),
-      ),
+      dioRequest: DioRequest.dio.get("/payments/${request.paymentId}"),
+      onSuccess: (response) {
+        final payment = response.data['payment'] as Map<String, dynamic>? ?? {};
+        final state = (payment['state'] ?? '').toString().toLowerCase();
+        if (state != 'approved' && state != 'completed') {
+          throw Exception('Платеж ещё не подтвержден');
+        }
+        return null;
+      },
       errorCodeMsgs: {
-        402:
-            'Платёж ещё не подтверждён банком. Попробуйте повторить чуть позже.',
+        402: 'Платёж ещё не подтверждён банком. Попробуйте повторить чуть позже.',
         404: 'Платёж не найден или не принадлежит текущему пользователю.',
       },
     );
