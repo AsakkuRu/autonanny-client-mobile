@@ -52,18 +52,20 @@ class EditRouteVM {
   }
 
   Future<void> addAddress() async {
-    final address = await showSearch(
+    final suggestion = await showSearch<String?>(
       context: context,
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocodeForAddressSearch(query),
-        onResponse: (response) => response.response?.geocodeResults,
+      delegate: NannySearchDelegate<List<String>, String>(
+        onSearch: (query) => GoogleMapApi.autocomplete(input: query),
+        onResponse: (response) => response.response,
         tileBuilder: (data, close) => ListTile(
-          title: Text(data.formattedAddress),
+          title: Text(data),
           onTap: close,
         ),
       ),
     );
 
+    if (suggestion == null || suggestion.trim().isEmpty) return;
+    final address = await GoogleMapApi.geocodeSuggestion(suggestion);
     if (address == null) return;
     final location = address.geometry?.location;
     if (location == null) return;
@@ -82,18 +84,20 @@ class EditRouteVM {
   }
 
   Future<void> editAddress(int index) async {
-    final address = await showSearch(
+    final suggestion = await showSearch<String?>(
       context: context,
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocodeForAddressSearch(query),
-        onResponse: (response) => response.response?.geocodeResults,
+      delegate: NannySearchDelegate<List<String>, String>(
+        onSearch: (query) => GoogleMapApi.autocomplete(input: query),
+        onResponse: (response) => response.response,
         tileBuilder: (data, close) => ListTile(
-          title: Text(data.formattedAddress),
+          title: Text(data),
           onTap: close,
         ),
       ),
     );
 
+    if (suggestion == null || suggestion.trim().isEmpty) return;
+    final address = await GoogleMapApi.geocodeSuggestion(suggestion);
     if (address == null) return;
     final location = address.geometry?.location;
     if (location == null) return;

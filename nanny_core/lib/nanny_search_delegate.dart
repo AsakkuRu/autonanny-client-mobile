@@ -115,9 +115,14 @@ class NannySearchDelegate<T, E> extends SearchDelegate<E?> {
     }
     try {
       final response = await onSearch(normalizedQuery);
+      if (!response.success) {
+        throw Exception(response.errorMessage);
+      }
       return onResponse(response) ?? [];
     } catch (e) {
-      return [];
+      // Не прячем ошибки под "пусто", иначе дебаг невозможен и UX ломается.
+      // FutureLoader покажет ErrorView с текстом ошибки.
+      return Future<List<E>>.error(e);
     }
   }
 }

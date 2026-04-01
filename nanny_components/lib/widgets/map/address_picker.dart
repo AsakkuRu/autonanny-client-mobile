@@ -114,23 +114,22 @@ class _AddressPickerState extends State<AddressPicker> {
   }
 
   void addAddress() async {
-    var address = await showSearch(
-      context: context, 
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocodeForAddressSearch(query), 
-        onResponse: (response) => response.response?.geocodeResults,
+    final suggestion = await showSearch<String?>(
+      context: context,
+      delegate: NannySearchDelegate<List<String>, String>(
+        onSearch: (query) => GoogleMapApi.autocomplete(input: query),
+        onResponse: (response) => response.response,
         tileBuilder: (data, close) => ListTile(
-          title: Text(
-            NannyMapUtils.buildStreetAddress(data),
-          ),
+          title: Text(data),
           onTap: close,
         ),
       ),
     );
 
-    if(address == null) return;
-    final location = address.geometry?.location;
-    if(location == null) return;
+    if (suggestion == null || suggestion.trim().isEmpty) return;
+    final address = await GoogleMapApi.geocodeSuggestion(suggestion);
+    final location = address?.geometry?.location;
+    if (address == null || location == null) return;
     widget.onAdded(
       AddressData(
         address: NannyMapUtils.buildStreetAddress(address),
@@ -140,23 +139,22 @@ class _AddressPickerState extends State<AddressPicker> {
   }
 
   void changeAddress(AddressData old) async {
-    var address = await showSearch(
-      context: context, 
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocodeForAddressSearch(query), 
-        onResponse: (response) => response.response?.geocodeResults,
+    final suggestion = await showSearch<String?>(
+      context: context,
+      delegate: NannySearchDelegate<List<String>, String>(
+        onSearch: (query) => GoogleMapApi.autocomplete(input: query),
+        onResponse: (response) => response.response,
         tileBuilder: (data, close) => ListTile(
-          title: Text(
-            NannyMapUtils.buildStreetAddress(data),
-          ),
+          title: Text(data),
           onTap: close,
         ),
       ),
     );
 
-    if(address == null) return;
-    final location = address.geometry?.location;
-    if(location == null) return;
+    if (suggestion == null || suggestion.trim().isEmpty) return;
+    final address = await GoogleMapApi.geocodeSuggestion(suggestion);
+    final location = address?.geometry?.location;
+    if (address == null || location == null) return;
     widget.onAddressChange(
       old,
       AddressData(

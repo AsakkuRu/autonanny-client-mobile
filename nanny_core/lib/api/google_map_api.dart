@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/base_models/api_response.dart';
 import 'package:nanny_core/api/dio_request.dart';
@@ -85,6 +86,20 @@ class GoogleMapApi {
     );
   }
 
+  /// Превращает выбранную подсказку (Places autocomplete description)
+  /// в конкретный адрес (первый лучший результат геокодинга).
+  static Future<GeocodeResult?> geocodeSuggestion(String description) async {
+    try {
+      final res = await geocodeForAddressSearch(description);
+      if (!res.success || res.response == null) return null;
+      final results = res.response!.geocodeResults;
+      if (results.isEmpty) return null;
+      return results.first;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<ApiResponse<GeocodeData>> geocode({
     required String address,
     String region = "ru",
@@ -131,25 +146,67 @@ class GoogleMapApi {
   static Future<ApiResponse<List<String>>> autocomplete({
     required String input,
     String region = "ru",
-  }) {
-    return RequestBuilder<List<String>>().create(
+    int radiusMeters = 30000,
+  }) async {
+    List<String> _parse(Response response) {
+      final raw = response.data as Map<String, dynamic>;
+      return (raw["predictions"] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => item["description"]?.toString() ?? "")
+          .where((value) => value.trim().isNotEmpty)
+          .toList(growable: false);
+    }
+
+    final lastLocationInfo = LocationService.lastLocationInfo;
+    final lastLoc = lastLocationInfo?.address.geometry?.location ??
+        (LocationService.curLoc != null
+            ? LatLng(
+                LocationService.curLoc!.latitude,
+                LocationService.curLoc!.longitude,
+              )
+            : null);
+    final locationParam =
+        lastLoc != null ? "${lastLoc.latitude},${lastLoc.longitude}" : null;
+
+    // 1) Предпочитаем backend-proxy (полезно когда в эмуляторе проблемы с DNS).
+    final viaBackend = await RequestBuilder<List<String>>().create(
       dioRequest: DioRequest.dio.get(
         "/maps/autocomplete",
         queryParameters: {
           "input": input.trim(),
           "region": region,
           "components": "country:ru",
+          if (locationParam != null) "location": locationParam,
+          if (locationParam != null) "radius": radiusMeters,
         },
       ),
-      onSuccess: (response) {
-        final raw = response.data as Map<String, dynamic>;
-        final predictions = (raw["predictions"] as List? ?? const [])
-            .whereType<Map>()
-            .map((item) => item["description"]?.toString() ?? "")
-            .where((value) => value.trim().isNotEmpty)
-            .toList(growable: false);
-        return predictions;
-      },
+      onSuccess: _parse,
+      defaultErrorMsg: "",
+    );
+    if (viaBackend.success &&
+        viaBackend.response != null &&
+        viaBackend.response!.isNotEmpty) {
+      return viaBackend;
+    }
+
+    // 2) Fallback: прямой Google Places Autocomplete (не зависит от has_access).
+    return RequestBuilder<List<String>>().create(
+      dioRequest: DioRequest.dio.getUri(
+        Uri.https(
+          "maps.googleapis.com",
+          "/maps/api/place/autocomplete/json",
+          {
+            "input": input.trim(),
+            "language": "ru",
+            "region": region,
+            "components": "country:ru",
+            if (locationParam != null) "location": locationParam,
+            if (locationParam != null) "radius": radiusMeters.toString(),
+            "key": _googleMapsApiKey,
+          },
+        ),
+      ),
+      onSuccess: _parse,
       defaultErrorMsg: "",
     );
   }

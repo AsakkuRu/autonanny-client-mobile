@@ -31,26 +31,27 @@ Future<UiSdkAddressPickMethod?> showUiSdkAddressPickMethodSheet(
 }
 
 Future<AddressData?> showUiSdkAddressSearchPicker(BuildContext context) async {
-  final result = await showSearch<GeocodeResult?>(
+  // Suggestions: Places autocomplete (быстро и релевантно)
+  final suggestion = await showSearch<String?>(
     context: context,
-    delegate: NannySearchDelegate(
-      onSearch: (query) => GoogleMapApi.geocodeForAddressSearch(query),
-      onResponse: (response) => response.response?.geocodeResults,
+    delegate: NannySearchDelegate<List<String>, String>(
+      onSearch: (query) => GoogleMapApi.autocomplete(input: query),
+      onResponse: (response) => response.response,
       tileBuilder: (data, close) => ListTile(
-        title: Text(NannyMapUtils.buildStreetAddress(data)),
+        title: Text(data),
         onTap: close,
       ),
     ),
   );
 
-  if (result == null) {
+  if (suggestion == null || suggestion.trim().isEmpty) {
     return null;
   }
 
-  final location = result.geometry?.location;
-  if (location == null) {
-    return null;
-  }
+  // Resolve: geocode выбранной подсказки → конкретный адрес
+  final result = await GoogleMapApi.geocodeSuggestion(suggestion);
+  final location = result?.geometry?.location;
+  if (result == null || location == null) return null;
 
   return AddressData(
     address: NannyMapUtils.buildStreetAddress(result),

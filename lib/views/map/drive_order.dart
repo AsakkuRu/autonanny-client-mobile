@@ -49,18 +49,23 @@ class _DriveOrderViewState extends State<DriveOrderView> {
     await vm.reloadChildren();
   }
 
-  Future<GeocodeResult?> _pickAddress() {
-    return showSearch<GeocodeResult?>(
+  Future<GeocodeResult?> _pickAddress() async {
+    final suggestion = await showSearch<String?>(
       context: context,
-      delegate: NannySearchDelegate(
-        onSearch: (query) => GoogleMapApi.geocodeForAddressSearch(query),
-        onResponse: (response) => response.response?.geocodeResults,
+      delegate: NannySearchDelegate<List<String>, String>(
+        onSearch: (query) => GoogleMapApi.autocomplete(input: query),
+        onResponse: (response) => response.response,
         tileBuilder: (data, close) => ListTile(
-          title: Text(NannyMapUtils.buildStreetAddress(data)),
+          title: Text(data),
           onTap: close,
         ),
       ),
     );
+    if (!mounted || suggestion == null || suggestion.trim().isEmpty) {
+      return null;
+    }
+
+    return GoogleMapApi.geocodeSuggestion(suggestion);
   }
 
   Future<void> _addAddress() async {
