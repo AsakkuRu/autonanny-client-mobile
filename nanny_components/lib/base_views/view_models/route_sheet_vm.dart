@@ -13,6 +13,8 @@ class RouteSheetVM extends ViewModelBase {
   final NannyWeekday weekday;
   final Road? road;
   final int? tariffId;
+  final TimeOfDay? initialArrivalTime;
+  final bool? initialIsRoundTrip;
   final List<NannyWeekday>? allSelectedWeekdays;
 
   bool applyToAllSelectedDays;
@@ -24,12 +26,16 @@ class RouteSheetVM extends ViewModelBase {
     required this.weekday,
     this.road,
     this.tariffId,
+    this.initialArrivalTime,
+    this.initialIsRoundTrip,
     this.allSelectedWeekdays,
     bool applyToAllDaysDefault = true,
   }) : applyToAllSelectedDays = applyToAllDaysDefault {
     // Заполняем roadName, если есть в schedule
     roadName = road?.title ?? "";
+    routeAlias = road?.alias;
     nameController.text = roadName;
+    aliasController.text = routeAlias ?? '';
 
     // Для контрактных маршрутов храним единое время прибытия к первой точке.
     if (road != null) {
@@ -37,9 +43,13 @@ class RouteSheetVM extends ViewModelBase {
         hour: road!.startTime.hour,
         minute: road!.startTime.minute,
       );
+    } else if (initialArrivalTime != null) {
+      arrivalTime = initialArrivalTime;
     }
 
-    isRoundTrip = road?.typeDrive.contains(DriveType.roundTrip) ?? false;
+    isRoundTrip = road?.typeDrive.contains(DriveType.roundTrip) ??
+        initialIsRoundTrip ??
+        false;
 
     // Заполняем адреса, если они есть в schedule
     if (road?.addresses != null && road!.addresses.isNotEmpty) {
@@ -97,6 +107,7 @@ class RouteSheetVM extends ViewModelBase {
   }
 
   String roadName = "";
+  String? routeAlias;
   GeocodeResult? addressFrom;
   double? estimatedPrice;
   bool estimatedLoading = false;
@@ -110,6 +121,7 @@ class RouteSheetVM extends ViewModelBase {
   TextEditingController fromController = TextEditingController();
   TextEditingController toController = TextEditingController();
   TextEditingController nameController = TextEditingController();
+  TextEditingController aliasController = TextEditingController();
   // TextEditingController timeFromController = TextEditingController();
   // TextEditingController timeToController = TextEditingController();
 
@@ -241,7 +253,7 @@ class RouteSheetVM extends ViewModelBase {
                       value: _formatDateTime(selected),
                       child: CupertinoDatePicker(
                         mode: CupertinoDatePickerMode.time,
-                        minuteInterval: 15,
+                        minuteInterval: 1,
                         use24hFormat: true,
                         initialDateTime: selected,
                         onDateTimeChanged: (value) {
@@ -290,8 +302,7 @@ class RouteSheetVM extends ViewModelBase {
 
   void cancel() => Navigator.pop(context);
   void confirm({List<int>? selectedChildIds}) async {
-    if (roadName.isEmpty ||
-        fromController.text.isEmpty ||
+    if (fromController.text.isEmpty ||
         toController.text.isEmpty ||
         arrivalTime == null ||
         addresses.any((e) => e.address == null)) {
@@ -326,6 +337,13 @@ class RouteSheetVM extends ViewModelBase {
       return;
     }
 
+    final normalizedAlias = aliasController.text.trim().isEmpty
+        ? null
+        : aliasController.text.trim();
+    final fallbackTitle = roadName.trim().isNotEmpty
+        ? roadName.trim()
+        : '${fromController.text} -> ${toController.text}';
+
     final resultRoad = Road(
         id: road?.id,
         amount: estimatedPrice ?? road?.amount,
@@ -333,11 +351,9 @@ class RouteSheetVM extends ViewModelBase {
         startTime: arrivalTime!,
         endTime: arrivalTime!,
         addresses: driveAddresses,
-        title: roadName,
-        typeDrive: [
-          isRoundTrip ? DriveType.roundTrip : DriveType.oneWay,
-          if (addresses.isNotEmpty) DriveType.withInterPoint
-        ]);
+        title: fallbackTitle,
+        alias: normalizedAlias,
+        typeDrive: [isRoundTrip ? DriveType.roundTrip : DriveType.oneWay]);
 
     final targetDays = applyToAllSelectedDays
         ? allSelectedWeekdays
@@ -412,9 +428,11 @@ extension on RouteSheetVM {
 
     final orderedStops = <GeocodeResult>[
       addressFrom!,
-      ...addresses.map((e) => e.address!),
       addressTo!,
     ];
+    if (isRoundTrip) {
+      orderedStops.add(addressFrom!);
+    }
 
     if (orderedStops.length < 2) return null;
 
@@ -438,7 +456,8 @@ extension on RouteSheetVM {
   }
 
   TimeOfDay _defaultArrivalTime() {
-    return _roundQuarterHour(TimeOfDay.now());
+    final now = TimeOfDay.now();
+    return TimeOfDay(hour: now.hour, minute: now.minute);
   }
 
   DateTime _timeOfDayToDateTime(TimeOfDay time) {
@@ -448,16 +467,6 @@ extension on RouteSheetVM {
 
   String _formatDateTime(DateTime dateTime) {
     return TimeOfDay(hour: dateTime.hour, minute: dateTime.minute).formatTime();
-  }
-
-  TimeOfDay _roundQuarterHour(TimeOfDay time) {
-    final totalMinutes = time.hour * 60 + time.minute;
-    final rounded = ((totalMinutes + 14) ~/ 15) * 15;
-    final normalized = rounded % (24 * 60);
-    return TimeOfDay(
-      hour: normalized ~/ 60,
-      minute: normalized % 60,
-    );
   }
 
 }

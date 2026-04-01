@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
+import 'package:nanny_client/views/pages/child_edit.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
@@ -32,6 +33,9 @@ class GraphCreateVM extends ViewModelBase {
   List<Child> children = [];
   List<int> selectedChildrenIds = [];
   bool isSubmitting = false;
+  bool useSameTimeForAllDays = true;
+  TimeOfDay sharedTripTime = const TimeOfDay(hour: 8, minute: 0);
+  final Map<NannyWeekday, TimeOfDay> weekdayTripTimes = {};
 
   @override
   Future<bool> loadPage() async {
@@ -85,6 +89,7 @@ class GraphCreateVM extends ViewModelBase {
 
       // Заполнение дней недели
       selectedWeekday = schedule!.weekdays;
+      _restoreTripTimesFromExistingRoads();
 
       // Заполнение других параметров, если они есть в schedule
       for (var param in schedule!.otherParametrs) {
@@ -97,6 +102,9 @@ class GraphCreateVM extends ViewModelBase {
     } else {
       // Если schedule нет, то создаем новый редактор
       editor = ScheduleEditor(initTariff: tariffs.first);
+      for (final weekday in selectedWeekday) {
+        weekdayTripTimes[weekday] = sharedTripTime;
+      }
     }
     update(() {});
 
@@ -158,11 +166,28 @@ class GraphCreateVM extends ViewModelBase {
     update(() {
       if (!selectedWeekday.contains(weekday)) {
         selectedWeekday.add(weekday);
+        weekdayTripTimes[weekday] = useSameTimeForAllDays
+            ? sharedTripTime
+            : (weekdayTripTimes[weekday] ?? sharedTripTime);
+        if (editor.roads.isNotEmpty) {
+          final template = editor.roads.first;
+          final templateChildren = initialRouteChildrenIds(road: template);
+          editor.addRoad(
+            template.copyWith(
+              id: null,
+              weekDay: weekday,
+              startTime: weekdayTripTimes[weekday] ?? template.startTime,
+              endTime: weekdayTripTimes[weekday] ?? template.endTime,
+              children: templateChildren,
+            ),
+          );
+        }
         if (errorText != null && selectedWeekday.isNotEmpty) {
           errorText = null;
         }
       } else {
         selectedWeekday.remove(weekday);
+        weekdayTripTimes.remove(weekday);
         final routesForRemovedDay = editor.roads
             .where((road) => road.weekDay == weekday)
             .toList(growable: false);
@@ -172,6 +197,41 @@ class GraphCreateVM extends ViewModelBase {
       }
       selectedWeekday.sort((left, right) => left.index.compareTo(right.index));
     });
+  }
+
+  TimeOfDay timeForWeekday(NannyWeekday weekday) {
+    return weekdayTripTimes[weekday] ?? sharedTripTime;
+  }
+
+  void toggleSameTimeForAllDays(bool value) {
+    useSameTimeForAllDays = value;
+    if (useSameTimeForAllDays) {
+      for (final weekday in selectedWeekday) {
+        weekdayTripTimes[weekday] = sharedTripTime;
+      }
+    } else {
+      for (final weekday in selectedWeekday) {
+        weekdayTripTimes[weekday] ??= sharedTripTime;
+      }
+    }
+    update(() {});
+  }
+
+  void setSharedTripTime(TimeOfDay time) {
+    sharedTripTime = time;
+    if (useSameTimeForAllDays) {
+      for (final weekday in selectedWeekday) {
+        weekdayTripTimes[weekday] = time;
+      }
+      _updateRouteTimesForSelectedDays();
+    }
+    update(() {});
+  }
+
+  void setTripTimeForWeekday(NannyWeekday weekday, TimeOfDay time) {
+    weekdayTripTimes[weekday] = time;
+    _updateRouteTimesForSelectedDays();
+    update(() {});
   }
 
   void selectCarType(DriveTariff type) {
@@ -193,7 +253,6 @@ class GraphCreateVM extends ViewModelBase {
   void toggleChildSelection(int childId) {
     if (selectedChildrenIds.contains(childId)) {
       selectedChildrenIds.remove(childId);
-      _syncRouteChildrenWithSelectedChildren();
     } else {
       // FE-MVP-007: Ограничение максимум 4 детей
       if (selectedChildrenIds.length >= 4) {
@@ -206,9 +265,19 @@ class GraphCreateVM extends ViewModelBase {
       }
       selectedChildrenIds.add(childId);
     }
+    _syncRouteChildrenWithSelectedChildren();
     editor.childCount = selectedChildrenIds.length;
     _syncSelectedParamCounts();
     update(() {});
+  }
+
+  Future<void> addChildProfile() async {
+    await navigateToView(const ChildEditView());
+    final childrenResult = await NannyChildrenApi.getChildren();
+    if (childrenResult.success && childrenResult.response != null) {
+      children = childrenResult.response!;
+      update(() {});
+    }
   }
 
   bool isParamSelected(OtherParametr param) {
@@ -428,6 +497,7 @@ class GraphCreateVM extends ViewModelBase {
 
     if (updatingRoad == null) {
       for (final targetWeekday in normalizedTargetWeekdays) {
+        weekdayTripTimes[targetWeekday] = route.startTime;
         editor.addRoad(
           route.copyWith(
             weekDay: targetWeekday,
@@ -456,6 +526,7 @@ class GraphCreateVM extends ViewModelBase {
     }
 
     for (final targetWeekday in normalizedTargetWeekdays) {
+      weekdayTripTimes[targetWeekday] = route.startTime;
       editor.addRoad(
         route.copyWith(
           id: existingRoadsByWeekday[targetWeekday]?.id,
@@ -480,7 +551,6 @@ class GraphCreateVM extends ViewModelBase {
   }
 
   void _syncRouteChildrenWithSelectedChildren() {
-    final selectedIds = selectedChildrenIds.toSet();
     final roadsSnapshot = List<Road>.from(editor.roads);
     if (roadsSnapshot.isEmpty) {
       return;
@@ -490,13 +560,10 @@ class GraphCreateVM extends ViewModelBase {
       editor.deleteRoad(road);
     }
 
+    final normalizedChildren = List<int>.from(selectedChildrenIds);
     for (final road in roadsSnapshot) {
-      final routeChildren = road.children == null
-          ? List<int>.from(selectedChildrenIds)
-          : road.children!
-              .where((childId) => selectedIds.contains(childId))
-              .toList(growable: false);
-      editor.addRoad(road.copyWith(children: routeChildren));
+      // По текущему UX все выбранные дети едут по всем маршрутам.
+      editor.addRoad(road.copyWith(children: normalizedChildren));
     }
   }
 
@@ -782,5 +849,53 @@ class GraphCreateVM extends ViewModelBase {
     }
 
     return true;
+  }
+
+  void _restoreTripTimesFromExistingRoads() {
+    final byDay = <NannyWeekday, TimeOfDay>{};
+    for (final road in editor.roads) {
+      byDay.putIfAbsent(road.weekDay, () => road.startTime);
+    }
+    if (byDay.isEmpty) {
+      for (final weekday in selectedWeekday) {
+        weekdayTripTimes[weekday] = sharedTripTime;
+      }
+      useSameTimeForAllDays = true;
+      return;
+    }
+
+    weekdayTripTimes
+      ..clear()
+      ..addAll(byDay);
+
+    final uniqueTimes = byDay.values
+        .map((time) => '${time.hour}:${time.minute}')
+        .toSet()
+        .length;
+    useSameTimeForAllDays = uniqueTimes <= 1;
+    sharedTripTime = byDay.values.first;
+
+    for (final weekday in selectedWeekday) {
+      weekdayTripTimes[weekday] ??= sharedTripTime;
+    }
+  }
+
+  void _updateRouteTimesForSelectedDays() {
+    if (editor.roads.isEmpty) {
+      return;
+    }
+    final snapshot = List<Road>.from(editor.roads);
+    for (final road in snapshot) {
+      editor.deleteRoad(road);
+    }
+    for (final road in snapshot) {
+      final dayTime = weekdayTripTimes[road.weekDay];
+      editor.addRoad(
+        road.copyWith(
+          startTime: dayTime ?? road.startTime,
+          endTime: dayTime ?? road.endTime,
+        ),
+      );
+    }
   }
 }

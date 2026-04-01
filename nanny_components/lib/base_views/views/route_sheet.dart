@@ -23,6 +23,8 @@ class RouteSheetView extends StatefulWidget {
   final NannyWeekday weekday;
   final Road? road;
   final int? tariffId;
+  final TimeOfDay? initialArrivalTime;
+  final bool? initialIsRoundTrip;
   final List<NannyWeekday>? allSelectedWeekdays;
   final bool applyToAllDaysDefault;
   final List<Child>? availableChildren;
@@ -33,6 +35,8 @@ class RouteSheetView extends StatefulWidget {
     required this.weekday,
     this.road,
     this.tariffId,
+    this.initialArrivalTime,
+    this.initialIsRoundTrip,
     this.allSelectedWeekdays,
     this.applyToAllDaysDefault = true,
     this.availableChildren,
@@ -56,6 +60,8 @@ class _RouteSheetViewState extends State<RouteSheetView> {
         weekday: widget.weekday,
         road: widget.road,
         tariffId: widget.tariffId,
+        initialArrivalTime: widget.initialArrivalTime,
+        initialIsRoundTrip: widget.initialIsRoundTrip,
         allSelectedWeekdays: widget.allSelectedWeekdays,
         applyToAllDaysDefault: widget.applyToAllDaysDefault);
     _selectedChildIds = (widget.initialSelectedChildIds ??
@@ -175,8 +181,18 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                     NannyTextForm(
                       isExpanded: true,
                       controller: vm.nameController,
-                      labelText: "Название маршрута",
+                      labelText: "Служебное название маршрута",
+                      hintText: "Необязательно",
                       onChanged: (text) => vm.roadName = text,
+                    ),
+                    const SizedBox(height: 10),
+                    NannyTextForm(
+                      isExpanded: true,
+                      controller: vm.aliasController,
+                      labelText: "Псевдоним маршрута",
+                      hintText: "Необязательно",
+                      onChanged: (text) =>
+                          vm.routeAlias = text.trim().isEmpty ? null : text.trim(),
                     ),
                     const SizedBox(height: 30),
                     NannyTextForm(
@@ -187,39 +203,6 @@ class _RouteSheetViewState extends State<RouteSheetView> {
                       onTap: () => vm.chooseAddress(from: true),
                     ),
                     const SizedBox(height: 10),
-                    ListView(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      children: vm.addresses
-                          .map(
-                            (e) => Padding(
-                              key: ValueKey(e.controller),
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: NannyTextForm(
-                                isExpanded: true,
-                                controller: e.controller,
-                                readOnly: true,
-                                labelText: "Промежуточный адрес",
-                                suffixIcon: IconButton(
-                                  splashRadius: 20,
-                                  onPressed: () => vm.removeAddress(e),
-                                  icon: const Icon(Icons.delete,
-                                      color: Colors.black),
-                                ),
-                                onTap: () => vm.chooseAddtionAddress(e),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: vm.addAddress,
-                        icon: const Icon(Icons.add),
-                        label: const Text("Добавить промежуточный адрес"),
-                      ),
-                    ),
                     const SizedBox(height: 10),
                     NannyTextForm(
                       isExpanded: true,

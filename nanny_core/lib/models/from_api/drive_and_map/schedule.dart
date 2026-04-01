@@ -156,6 +156,7 @@ class Road {
     required this.typeDrive,
     this.id,
     this.amount,
+    this.alias,
     this.children, // FE-MVP-015: Список ID детей для маршрута
   });
 
@@ -166,6 +167,7 @@ class Road {
   final TimeOfDay endTime;
   final List<DriveAddress> addresses;
   final String title;
+  final String? alias;
   final List<DriveType> typeDrive;
   final List<int>? children; // FE-MVP-015: Список ID детей
 
@@ -181,6 +183,9 @@ class Road {
           : List<DriveAddress>.from(
               json["addresses"]!.map((x) => DriveAddress.fromJson(x))),
       title: json["title"] ?? "",
+      alias: (json["alias"] as String?)?.trim().isEmpty == true
+          ? null
+          : (json["alias"] as String?),
       typeDrive: json["type_drive"] == null
           ? []
           : List<DriveType>.from(
@@ -201,6 +206,7 @@ class Road {
         "end_time": endTime.formatTime(),
         "addresses": addresses.map((x) => x.toJson()).toList(),
         "title": title,
+        if (alias != null && alias!.isNotEmpty) "alias": alias,
         "type_drive": typeDrive.map((x) => x.id).toList(),
         if (children != null) "children": children, // FE-MVP-015
       };
@@ -213,6 +219,7 @@ class Road {
         "end_time": endTime.formatTime(),
         "addresses": addresses.map((x) => x.toJson()).toList(),
         "title": title,
+        if (alias != null && alias!.isNotEmpty) "alias": alias,
         "type_drive": typeDrive.map((x) => x.id).toList(),
         if (children != null) "children": children,
       };
@@ -226,6 +233,7 @@ class Road {
     TimeOfDay? endTime,
     List<DriveAddress>? addresses,
     String? title,
+    String? alias,
     List<DriveType>? typeDrive,
     List<int>? children, // FE-MVP-015
   }) {
@@ -236,6 +244,7 @@ class Road {
       endTime: endTime ?? this.endTime,
       addresses: addresses ?? this.addresses,
       title: title ?? this.title,
+      alias: alias ?? this.alias,
       typeDrive: typeDrive ?? this.typeDrive,
       amount: amount ?? this.amount,
       children: children ?? this.children, // FE-MVP-015

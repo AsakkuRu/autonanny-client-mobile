@@ -647,6 +647,7 @@ class _ContractResponseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
     final imageUrl = NannyConsts.buildFileUrl(response.photoPath);
     final weekdays = response.data
         .map((item) => item.weekDay)
@@ -659,19 +660,63 @@ class _ContractResponseCard extends StatelessWidget {
       if (weekdays.isNotEmpty) weekdays,
     ];
 
-    return AutonannyCard(
+    return Container(
+      padding: const EdgeInsets.all(AutonannySpacing.md),
+      decoration: BoxDecoration(
+        color: colors.surfaceElevated,
+        borderRadius: AutonannyRadii.brLg,
+        border: Border.all(color: colors.actionPrimary, width: 1.2),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AutonannyListRow(
-            title: response.name,
-            subtitle: subtitleParts.join(' · '),
-            leading: AutonannyAvatar(
-              imageUrl: imageUrl,
-              initials: _initials(response.name),
-              size: 48,
-            ),
-            onTap: onOpen,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AutonannyAvatar(
+                imageUrl: imageUrl,
+                initials: _initials(response.name),
+                size: 56,
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      response.name,
+                      style: AutonannyTypography.labelL(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      subtitleParts.join(' · '),
+                      style: AutonannyTypography.bodyS(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.sm),
+                    Wrap(
+                      spacing: AutonannySpacing.xs,
+                      runSpacing: AutonannySpacing.xs,
+                      children: [
+                        AutonannyBadge(
+                          label: response.fullTime
+                              ? 'Полный отклик'
+                              : 'Частичный отклик',
+                          variant: AutonannyBadgeVariant.info,
+                        ),
+                        AutonannyBadge(
+                          label: '${response.data.length} поездок/нед',
+                          variant: AutonannyBadgeVariant.neutral,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AutonannySpacing.md),
           Row(
@@ -688,7 +733,7 @@ class _ContractResponseCard extends StatelessWidget {
                 const SizedBox(width: AutonannySpacing.sm),
               Expanded(
                 child: AutonannyButton(
-                  label: 'Подтвердить',
+                  label: 'Выбрать водителя',
                   onPressed: onAccept,
                 ),
               ),

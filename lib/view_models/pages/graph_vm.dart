@@ -6,6 +6,7 @@ import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_loading_overlay.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_client/views/pages/contract_builder_view.dart';
+import 'package:nanny_client/views/pages/driver_selected_success_view.dart';
 import 'package:nanny_client/views/rating/driver_rating_details_view.dart';
 import 'package:nanny_components/base_views/views/direct.dart';
 import 'package:nanny_components/base_views/views/driver_info.dart';
@@ -1023,15 +1024,42 @@ class GraphVM extends ViewModelBase {
       }
     });
     if (!context.mounted) return false;
+    _selectScheduleIdOnNextLoad = response.idSchedule;
+    await reloadPage();
+    if (!context.mounted) return false;
+    if (accept) {
+      await _showDriverSelectedSuccess(response);
+      return true;
+    }
     await NannyDialogs.showMessageBox(
       context,
       'Успех',
-      accept ? 'Водитель принят' : 'Отклик отклонён',
+      'Отклик отклонён',
     );
-    if (!context.mounted) return false;
-    _selectScheduleIdOnNextLoad = response.idSchedule;
-    await reloadPage();
     return true;
+  }
+
+  Future<void> _showDriverSelectedSuccess(ScheduleResponsesData response) async {
+    final targetScheduleId = response.idSchedule;
+    final openContract = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => DriverSelectedSuccessView(
+          driverName: response.name,
+          onOpenContract: () => Navigator.of(context).pop(true),
+          onOpenChat: () => Navigator.of(context).pop(false),
+        ),
+      ),
+    );
+    if (!context.mounted) {
+      return;
+    }
+    if (openContract == true) {
+      _selectScheduleIdOnNextLoad = targetScheduleId;
+      _openSelectedScheduleDetailsOnNextLoad = true;
+      await reloadPage();
+      return;
+    }
+    await openDriverChat();
   }
 
   @override

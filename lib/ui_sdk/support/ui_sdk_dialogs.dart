@@ -157,6 +157,8 @@ class NannyDialogs {
     NannyWeekday weekday, {
     Road? road,
     int? tariffId,
+    TimeOfDay? initialArrivalTime,
+    bool? initialIsRoundTrip,
     List<NannyWeekday>? allSelectedWeekdays,
     bool applyToAllDaysDefault = true,
     List<Child>? availableChildren,
@@ -177,6 +179,8 @@ class NannyDialogs {
           weekday: weekday,
           road: road,
           tariffId: tariffId,
+          initialArrivalTime: initialArrivalTime,
+          initialIsRoundTrip: initialIsRoundTrip,
           allSelectedWeekdays: allSelectedWeekdays,
           applyToAllDaysDefault: applyToAllDaysDefault,
           availableChildren: availableChildren,

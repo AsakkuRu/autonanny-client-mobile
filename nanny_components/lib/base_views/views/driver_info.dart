@@ -62,7 +62,7 @@ class _DriverInfoViewState extends State<DriverInfoView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       appBar: AutonannyAppBar(
-        title: 'Профиль водителя',
+        title: '',
         leading: AutonannyIconButton(
           icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -126,12 +126,20 @@ class _DriverInfoViewState extends State<DriverInfoView> {
                 ),
               ],
               const SizedBox(height: AutonannySpacing.lg),
+              _buildStatsRow(experienceYears: experienceYears),
+              const SizedBox(height: AutonannySpacing.lg),
               if (questionnaireAnswers.isNotEmpty)
                 _buildQuestionnaireSection(questionnaireAnswers),
               if (questionnaireAnswers.isNotEmpty)
                 const SizedBox(height: AutonannySpacing.lg),
               _buildCarSection(data.carDataText),
               const SizedBox(height: AutonannySpacing.lg),
+              if (widget.viewingOrder)
+                _buildPriceSection(
+                  tripsCount: widget.scheduleData?.data.length ?? 0,
+                ),
+              if (widget.viewingOrder)
+                const SizedBox(height: AutonannySpacing.lg),
               _buildAvailabilitySection(
                 hasVideo: driverVideoUrl.trim().isNotEmpty,
                 hasQuestionnaire: questionnaireAnswers.isNotEmpty,
@@ -297,6 +305,31 @@ class _DriverInfoViewState extends State<DriverInfoView> {
     );
   }
 
+  Widget _buildPriceSection({required int tripsCount}) {
+    return AutonannySectionContainer(
+      title: 'Стоимость поездки',
+      subtitle: 'Итоговая цена фиксируется в контракте после выбора водителя.',
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$tripsCount ${_tripWord(tripsCount)} в отклике',
+              style: AutonannyTypography.bodyM(
+                color: const Color(0xFF4B5563),
+              ),
+            ),
+          ),
+          Text(
+            '188 ₽',
+            style: AutonannyTypography.h2(
+              color: const Color(0xFF5B4FCF),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildResponseActionsBar() {
     return SafeArea(
       top: false,
@@ -319,7 +352,7 @@ class _DriverInfoViewState extends State<DriverInfoView> {
             const SizedBox(width: AutonannySpacing.md),
             Expanded(
               child: AutonannyButton(
-                label: 'Одобрить',
+                label: 'Выбрать этого водителя',
                 onPressed: () => vm.answerSchedule(confirm: true),
               ),
             ),
@@ -360,6 +393,58 @@ class _DriverInfoViewState extends State<DriverInfoView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStatsRow({required int? experienceYears}) {
+    final cards = <MapEntry<String, String>>[
+      MapEntry(
+        '${widget.scheduleData?.data.length ?? 0}',
+        'маршрутов\nв отклике',
+      ),
+      MapEntry(
+        '${experienceYears ?? 0}',
+        'лет\nстажа',
+      ),
+      const MapEntry('Профи', 'проверенный\nводитель'),
+    ];
+
+    return Row(
+      children: cards
+          .map(
+            (item) => Expanded(
+              child: Container(
+                margin: EdgeInsets.only(
+                  right: cards.last == item ? 0 : AutonannySpacing.xs,
+                ),
+                padding: const EdgeInsets.all(AutonannySpacing.md),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: AutonannyRadii.brLg,
+                  border: Border.all(color: const Color(0xFFE4E9F5)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      item.key,
+                      style: AutonannyTypography.h3(
+                        color: const Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      item.value,
+                      textAlign: TextAlign.center,
+                      style: AutonannyTypography.caption(
+                        color: const Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
@@ -505,5 +590,15 @@ class _DriverInfoViewState extends State<DriverInfoView> {
       return 'года';
     }
     return 'лет';
+  }
+
+  String _tripWord(int count) {
+    if (count % 10 == 1 && count % 100 != 11) {
+      return 'поездка';
+    }
+    if ([2, 3, 4].contains(count % 10) && ![12, 13, 14].contains(count % 100)) {
+      return 'поездки';
+    }
+    return 'поездок';
   }
 }
