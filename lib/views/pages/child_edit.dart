@@ -3,6 +3,7 @@ import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/view_models/pages/child_edit_vm.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/emergency_contact.dart';
+import 'package:nanny_core/nanny_core.dart';
 
 class ChildEditView extends StatefulWidget {
   final Child? child;
@@ -48,7 +49,7 @@ class _ChildEditViewState extends State<ChildEditView> {
             AutonannySpacing.lg,
           ),
           child: AutonannyButton(
-            onPressed: vm.isSaving ? null : vm.save,
+            onPressed: vm.isSaving ? null : () => vm.save(context),
             isLoading: vm.isSaving,
             label: isEdit ? 'Сохранить изменения' : 'Добавить ребёнка',
             leading: const AutonannyIcon(
@@ -68,17 +69,9 @@ class _ChildEditViewState extends State<ChildEditView> {
           _ChildEditHeader(isEdit: isEdit),
           const SizedBox(height: AutonannySpacing.xl),
           _ChildPhotoSection(
-            imageUrl: vm.photoPath,
+            imageUrl: NannyConsts.buildFileUrl(vm.photoPath),
             initials: _childInitials(),
             onTap: vm.pickPhoto,
-          ),
-          const SizedBox(height: AutonannySpacing.lg),
-          const AutonannyInlineBanner(
-            title: 'Экстренный контакт обязателен',
-            message:
-                'Перед сохранением добавьте минимум один контакт близкого взрослого на случай экстренной ситуации.',
-            tone: AutonannyBannerTone.info,
-            leading: AutonannyIcon(AutonannyIcons.info),
           ),
           const SizedBox(height: AutonannySpacing.lg),
           AutonannySectionContainer(
@@ -165,27 +158,37 @@ class _ChildEditViewState extends State<ChildEditView> {
           AutonannySectionContainer(
             title: 'Медицинская информация',
             subtitle:
-                'Заполните данные, которые важны в дороге и при сопровождении.',
+                'Включайте блок только если у ребёнка есть соответствующие данные. Если нет — оставьте выключенным: в поездке не будет красных предупреждений.',
             child: Column(
               children: [
-                AutonannyTextField(
+                _MedicalToggleBlock(
+                  title: 'Аллергии',
+                  subtitle: 'Есть аллергии, важные в дороге',
+                  value: vm.hasAllergiesDetails,
+                  onChanged: vm.setAllergiesDetailsEnabled,
                   controller: vm.allergiesController,
-                  labelText: 'Аллергии',
-                  maxLines: 2,
+                  fieldLabel: 'Какие аллергии и реакции',
+                  hintText: 'Например: арахис, пыльца, лекарства…',
                 ),
-                const SizedBox(height: AutonannySpacing.md),
-                AutonannyTextField(
+                _MedicalToggleBlock(
+                  title: 'Хронические заболевания',
+                  subtitle: 'Есть диагнозы, о которых должен знать водитель',
+                  value: vm.hasChronicDiseasesDetails,
+                  onChanged: vm.setChronicDiseasesDetailsEnabled,
                   controller: vm.chronicDiseasesController,
-                  labelText: 'Хронические заболевания',
-                  maxLines: 2,
+                  fieldLabel: 'Опишите заболевания',
+                  hintText: 'Диагноз, ограничения, что важно при сопровождении',
                 ),
-                const SizedBox(height: AutonannySpacing.md),
-                AutonannyTextField(
+                _MedicalToggleBlock(
+                  title: 'Постоянные медикаменты',
+                  subtitle: 'Регулярный приём лекарств',
+                  value: vm.hasMedicationsDetails,
+                  onChanged: vm.setMedicationsDetailsEnabled,
                   controller: vm.medicationsController,
-                  labelText: 'Постоянные медикаменты',
-                  maxLines: 2,
+                  fieldLabel: 'Какие препараты и когда',
+                  hintText: 'Название, дозировка, время приёма',
                 ),
-                const SizedBox(height: AutonannySpacing.md),
+                const SizedBox(height: AutonannySpacing.sm),
                 Row(
                   children: [
                     Expanded(
@@ -274,6 +277,76 @@ class _ChildEditViewState extends State<ChildEditView> {
         : firstChar(widget.child?.surname);
     final initials = '$first$second'.trim().toUpperCase();
     return initials.isEmpty ? 'A' : initials;
+  }
+}
+
+class _MedicalToggleBlock extends StatelessWidget {
+  const _MedicalToggleBlock({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    required this.controller,
+    required this.fieldLabel,
+    required this.hintText,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final TextEditingController controller;
+  final String fieldLabel;
+  final String hintText;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.autonannyColors;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AutonannySpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AutonannyTypography.labelM(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.xs),
+                    Text(
+                      subtitle,
+                      style: AutonannyTypography.bodyS(
+                        color: colors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AutonannySpacing.md),
+              AutonannySwitch(value: value, onChanged: onChanged),
+            ],
+          ),
+          if (value) ...[
+            const SizedBox(height: AutonannySpacing.md),
+            AutonannyTextField(
+              controller: controller,
+              labelText: fieldLabel,
+              hintText: hintText,
+              maxLines: 4,
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 

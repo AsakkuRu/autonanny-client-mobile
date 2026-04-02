@@ -91,13 +91,7 @@ class TransactionsHistoryVM extends ViewModelBase {
   void applyFilters() {
     filteredTransactions =
         allTransactions.where((t) => filter.matches(t)).toList();
-    filteredTransactions.sort((a, b) {
-      final createdAtCompare = b.createdAt.compareTo(a.createdAt);
-      if (createdAtCompare != 0) {
-        return createdAtCompare;
-      }
-      return b.id.compareTo(a.id);
-    });
+    // Порядок «новее сверху» задаёт API /users/transactions (см. order_by на бэкенде).
     update(() {});
   }
 

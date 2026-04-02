@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/views/pages/autopay_settings.dart';
@@ -63,7 +65,7 @@ class ContractDetailsView extends StatelessWidget {
   final VoidCallback? onOpenDriverProfile;
   final VoidCallback? onOpenChat;
   final VoidCallback? onShowQr;
-  final ValueChanged<ScheduleResponsesData>? onOpenResponseDriver;
+  final Future<void> Function(ScheduleResponsesData)? onOpenResponseDriver;
   final Future<void> Function(ScheduleResponsesData response)? onAcceptResponse;
   final Future<void> Function(ScheduleResponsesData response)? onRejectResponse;
 
@@ -597,7 +599,7 @@ class _ContractResponsesSection extends StatelessWidget {
   });
 
   final List<ScheduleResponsesData> responses;
-  final ValueChanged<ScheduleResponsesData>? onOpenResponseDriver;
+  final Future<void> Function(ScheduleResponsesData)? onOpenResponseDriver;
   final Future<void> Function(ScheduleResponsesData response)? onAcceptResponse;
   final Future<void> Function(ScheduleResponsesData response)? onRejectResponse;
 
@@ -616,7 +618,9 @@ class _ContractResponsesSection extends StatelessWidget {
                   response: response,
                   onOpen: onOpenResponseDriver == null
                       ? null
-                      : () => onOpenResponseDriver!(response),
+                      : () async {
+                          await onOpenResponseDriver!(response);
+                        },
                   onAccept: onAcceptResponse == null
                       ? null
                       : () => onAcceptResponse!(response),
@@ -641,7 +645,7 @@ class _ContractResponseCard extends StatelessWidget {
   });
 
   final ScheduleResponsesData response;
-  final VoidCallback? onOpen;
+  final Future<void> Function()? onOpen;
   final Future<void> Function()? onAccept;
   final Future<void> Function()? onReject;
 
@@ -726,7 +730,9 @@ class _ContractResponseCard extends StatelessWidget {
                   child: AutonannyButton(
                     label: 'Профиль',
                     variant: AutonannyButtonVariant.secondary,
-                    onPressed: onOpen,
+                    onPressed: () {
+                      unawaited(onOpen!());
+                    },
                   ),
                 ),
               if (onOpen != null)
@@ -734,7 +740,11 @@ class _ContractResponseCard extends StatelessWidget {
               Expanded(
                 child: AutonannyButton(
                   label: 'Выбрать водителя',
-                  onPressed: onAccept,
+                  onPressed: onAccept == null
+                      ? null
+                      : () {
+                          unawaited(onAccept!());
+                        },
                 ),
               ),
             ],
@@ -746,7 +756,11 @@ class _ContractResponseCard extends StatelessWidget {
               child: AutonannyButton(
                 label: 'Отклонить',
                 variant: AutonannyButtonVariant.ghost,
-                onPressed: onReject,
+                onPressed: onReject == null
+                    ? null
+                    : () {
+                        unawaited(onReject!());
+                      },
               ),
             ),
           ],

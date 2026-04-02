@@ -62,7 +62,7 @@ class _DriverInfoViewState extends State<DriverInfoView> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       appBar: AutonannyAppBar(
-        title: '',
+        title: 'Профиль водителя',
         leading: AutonannyIconButton(
           icon: const AutonannyIcon(AutonannyIcons.arrowLeft),
           onPressed: () => Navigator.of(context).maybePop(),
@@ -106,6 +106,7 @@ class _DriverInfoViewState extends State<DriverInfoView> {
                 photoUrl: driverPhotoUrl,
                 experienceYears: experienceYears,
                 hasVideo: driverVideoUrl.trim().isNotEmpty,
+                videoUrl: driverVideoUrl,
                 onOpenVideo: driverVideoUrl.trim().isEmpty
                     ? null
                     : () => Navigator.of(context).push(
@@ -160,6 +161,7 @@ class _DriverInfoViewState extends State<DriverInfoView> {
     required String? photoUrl,
     required int? experienceYears,
     required bool hasVideo,
+    required String videoUrl,
     required VoidCallback? onOpenVideo,
     required VoidCallback? onOpenRating,
   }) {
@@ -211,16 +213,60 @@ class _DriverInfoViewState extends State<DriverInfoView> {
             ],
           ),
           const SizedBox(height: AutonannySpacing.lg),
+          if (hasVideo)
+            GestureDetector(
+              onTap: onOpenVideo,
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: AutonannySpacing.md),
+                  DriverVideoPreview(
+                    videoUrl: videoUrl,
+                    height: 180,
+                  ),
+                  const SizedBox(height: AutonannySpacing.sm),
+                ],
+              ),
+            )
+          else
+            Container(
+              height: 180,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.14),
+                borderRadius: AutonannyRadii.brLg,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+              ),
+              alignment: Alignment.center,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const AutonannyIcon(
+                      AutonannyIcons.video,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    const SizedBox(width: AutonannySpacing.sm),
+                    Flexible(
+                      child: Text(
+                        'Водитель пока не загрузил видео о себе',
+                        textAlign: TextAlign.center,
+                        style: AutonannyTypography.bodyS(
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Wrap(
             spacing: AutonannySpacing.sm,
             runSpacing: AutonannySpacing.sm,
             children: [
-              if (hasVideo)
-                _buildActionChip(
-                  icon: AutonannyIcons.video,
-                  label: 'Видео-визитка',
-                  onTap: onOpenVideo,
-                ),
               if (onOpenRating != null)
                 _buildActionChip(
                   icon: AutonannyIcons.star,

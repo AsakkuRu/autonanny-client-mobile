@@ -193,44 +193,6 @@ class _LoginViewState extends State<LoginView> {
                             ],
                           ),
                         ),
-                        if (vm.canOauth) ...[
-                          const SizedBox(height: 16),
-                          _AuthCard(
-                            title: "Быстрый вход",
-                            subtitle:
-                                "Если аккаунт уже привязан, используйте привычный сервис.",
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _AuthSocialButton(
-                                    assetPath:
-                                        'packages/nanny_components/assets/images/yandex_auth.png',
-                                    label: 'Yandex',
-                                    onTap: vm.yandexAuth,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _AuthSocialButton(
-                                    assetPath:
-                                        'packages/nanny_components/assets/images/vk_auth.png',
-                                    label: 'VK',
-                                    onTap: vm.vkAuth,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _AuthSocialButton(
-                                    assetPath:
-                                        'packages/nanny_components/assets/images/telegram_auth.png',
-                                    label: 'Telegram',
-                                    onTap: vm.telegramAuth,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
                         const SizedBox(height: 16),
                         Container(
                           width: double.infinity,
@@ -322,47 +284,6 @@ class _AuthCard extends StatelessWidget {
           const SizedBox(height: 20),
           child,
         ],
-      ),
-    );
-  }
-}
-
-class _AuthSocialButton extends StatelessWidget {
-  const _AuthSocialButton({
-    required this.assetPath,
-    required this.label,
-    required this.onTap,
-  });
-
-  final String assetPath;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: NewDesignAuthTokens.radiusMd,
-      child: Ink(
-        height: 72,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: NewDesignAuthTokens.radiusMd,
-          border: Border.all(color: NewDesignAuthTokens.neutral200),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(assetPath, width: 28, fit: BoxFit.contain),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: NewDesignAuthTokens.captionS.copyWith(
-                color: NewDesignAuthTokens.neutral500,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

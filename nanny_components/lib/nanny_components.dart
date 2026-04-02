@@ -58,7 +58,7 @@ export 'base_views/admin_part/views/home.dart';
 
 export 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 export 'package:flutter_slidable/flutter_slidable.dart';
-// export 'package:better_player/better_player.dart';  // Временно отключен
+export 'package:better_player_enhanced/better_player.dart';
 export 'package:google_maps_flutter/google_maps_flutter.dart';
 export 'package:d_chart/d_chart.dart';
 export 'package:sliding_up_panel/sliding_up_panel.dart';

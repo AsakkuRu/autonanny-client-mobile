@@ -6,22 +6,56 @@ import 'package:nanny_core/nanny_core.dart';
 
 class NannyConsts {
   // Локальный бэкенд для разработки (10.0.2.2 - это localhost хост-машины для Android эмулятора)
-  static const String domen = "http://10.0.2.2:8000";
-  static const String baseUrl = "http://10.0.2.2:8000/api/v1.0";
-  static const String baseUrlOld = "http://10.0.2.2:8000/api/v1.0";
-  static const String socketUrl = "ws://10.0.2.2:8000/api/v1.0";
+  // static const String domen = "http://10.0.2.2:8000";
+  // static const String baseUrl = "http://10.0.2.2:8000/api/v1.0";
+  // static const String baseUrlOld = "http://10.0.2.2:8000/api/v1.0";
+  // static const String socketUrl = "ws://10.0.2.2:8000/api/v1.0";
 
+  static const String _filesApiPathPrefix = '/api/v1.0/files/';
+
+  /// После upload бэкенд часто сохраняет полный URL с `localhost` / IP docker —
+  /// с эмулятора/телефона такой хост недоступен. Пересобираем на текущий [domen].
+  static String? _rewriteAbsoluteFilesUrlToCurrentHost(String absoluteUrl) {
+    final uri = Uri.tryParse(absoluteUrl);
+    if (uri == null) return null;
+    final path = uri.path;
+    final exactIndex = path.indexOf(_filesApiPathPrefix);
+    if (exactIndex >= 0) {
+      final rest =
+          path.substring(exactIndex + _filesApiPathPrefix.length);
+      if (rest.isNotEmpty) {
+        return '$domen$_filesApiPathPrefix$rest';
+      }
+    }
+
+    // fallback для "битых" префиксов вроде `/api/v1/v1.0/files/...`
+    // (их легко чинить, вытащив только имя файла после последнего `/files/`).
+    const filesToken = '/files/';
+    final lastFilesIndex = path.lastIndexOf(filesToken);
+    if (lastFilesIndex < 0) return null;
+    final rest = path.substring(lastFilesIndex + filesToken.length);
+    if (rest.isEmpty) return null;
+    return '$domen$_filesApiPathPrefix$rest';
+  }
+
+  /// Собирает URL для [GET /api/v1.0/files/{name}].
   static String? buildFileUrl(String? path) {
     if (path == null || path.isEmpty) return null;
-    if (path.startsWith('http')) return path;
-    return '$domen/files/$path';
+    final p = path.trim();
+    if (p.startsWith('http://') || p.startsWith('https://')) {
+      return _rewriteAbsoluteFilesUrlToCurrentHost(p) ?? p;
+    }
+    if (p.startsWith('/api/v1.0/files/')) return '$domen$p';
+    final name = p.replaceFirst(RegExp(r'^/+'), '');
+    if (name.isEmpty) return null;
+    return '$domen/api/v1.0/files/$name';
   }
 
   // Продакшн сервер Timeweb
-  // static const String domen = "http://188.225.76.45:8000";
-  // static const String baseUrl = "http://188.225.76.45:8000/api/v1.0";
-  // static const String baseUrlOld = "http://188.225.76.45:8000/api/v1.0";
-  // static const String socketUrl = "ws://188.225.76.45:8000/api/v1.0";
+  static const String domen = "http://188.225.76.45:8000";
+  static const String baseUrl = "http://188.225.76.45:8000/api/v1.0";
+  static const String baseUrlOld = "http://188.225.76.45:8000/api/v1.0";
+  static const String socketUrl = "ws://188.225.76.45:8000/api/v1.0";
 
   static const String regFileToken =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjotMSwiZmJpZCI6IlJlZ2lzdHJhdGlvbiIsImV4cCI6NDg0MjY2NzY2NX0.lzICh4ya1hVSehS4tCFLBTwOTD6TDxaxoBpJgt6YRrw";

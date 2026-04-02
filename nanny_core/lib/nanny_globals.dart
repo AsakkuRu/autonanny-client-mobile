@@ -19,4 +19,9 @@ class NannyGlobals {
   /// Локальный сигнал для refresh unread-бейджей после read-sync в чате.
   static final StreamController<void> chatUnreadRefreshController =
       StreamController<void>.broadcast();
+
+  /// Обновить краткий список детей на главном экране («Кто едет») после возврата
+  /// с другой вкладки — данные могли измениться в профиле.
+  static final StreamController<void> mainScreenChildrenRefreshController =
+      StreamController<void>.broadcast();
 }

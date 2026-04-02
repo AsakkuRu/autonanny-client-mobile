@@ -983,16 +983,22 @@ class GraphVM extends ViewModelBase {
     );
   }
 
-  // Открытие профиля водителя по отклику
-  void openDriverFromResponse(ScheduleResponsesData response) async {
-    await navigateToView(DriverInfoView(
-      id: response.idDriver,
-      viewingOrder: true,
-      scheduleData: response,
-      onOpenRating: () => navigateToView(
-        DriverRatingDetailsView(driverId: response.idDriver),
+  /// Профиль кандидата из отклика. После одобрения/отклонения в [DriverInfoView]
+  /// возвращается `true` — вызывающий должен закрыть детали контракта и перезагрузить граф.
+  Future<bool> openDriverFromResponse(ScheduleResponsesData response) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => DriverInfoView(
+          id: response.idDriver,
+          viewingOrder: true,
+          scheduleData: response,
+          onOpenRating: () => navigateToView(
+            DriverRatingDetailsView(driverId: response.idDriver),
+          ),
+        ),
       ),
-    ));
+    );
+    return result == true;
   }
 
   Future<bool> answerResponse(

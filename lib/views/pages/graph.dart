@@ -463,7 +463,14 @@ class _GraphViewState extends State<GraphView>
               vm.driverContact != null ? vm.openAssignedDriverProfile : null,
           onOpenChat: vm.driverContact != null ? vm.openDriverChat : null,
           onShowQr: vm.driverContact != null ? vm.showDriverQR : null,
-          onOpenResponseDriver: vm.openDriverFromResponse,
+          onOpenResponseDriver: (response) async {
+            final navigator = Navigator.of(context);
+            final changed = await vm.openDriverFromResponse(response);
+            if (!mounted || !changed) {
+              return;
+            }
+            navigator.pop(true);
+          },
           onAcceptResponse: (response) async {
             final navigator = Navigator.of(context);
             final handled = await vm.answerResponse(response, true);

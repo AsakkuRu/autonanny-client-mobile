@@ -269,13 +269,14 @@ class _GraphCreateState extends State<GraphCreate> {
     });
   }
 
-  void _goBack() {
-    if (_currentStepIndex == 0) {
-      return;
+  void _headerBack() {
+    if (_currentStepIndex > 0) {
+      setState(() {
+        _currentStepIndex -= 1;
+      });
+    } else {
+      Navigator.of(context).maybePop();
     }
-    setState(() {
-      _currentStepIndex -= 1;
-    });
   }
 
   List<Widget> _buildCurrentStepSections(BuildContext context) {
@@ -501,42 +502,25 @@ class _GraphCreateState extends State<GraphCreate> {
             AutonannySpacing.xl,
             AutonannySpacing.lg,
           ),
-          child: Row(
-            children: [
-              if (_currentStepIndex > 0)
-                Expanded(
-                  child: AutonannyButton(
-                    label: 'Назад',
-                    variant: AutonannyButtonVariant.secondary,
-                    leading: AutonannyIcon(
-                      AutonannyIcons.arrowLeft,
-                      color: context.autonannyColors.actionPrimary,
-                    ),
-                    onPressed: _goBack,
-                  ),
-                ),
-              if (_currentStepIndex > 0)
-                const SizedBox(width: AutonannySpacing.md),
-              Expanded(
-                  child: AutonannyButton(
-                    label: _isLastStep
-                      ? (_isEditMode ? 'Обновить контракт' : 'Создать контракт')
-                      : 'Далее',
-                  onPressed: _isLastStep
-                      ? (vm.canSubmit && !vm.isSubmitting
-                          ? () async => vm.confirm()
-                          : null)
-                      : _continueFlow,
-                  isLoading: _isLastStep && vm.isSubmitting,
-                  leading: AutonannyIcon(
-                    _isLastStep
-                        ? AutonannyIcons.checkCircle
-                        : AutonannyIcons.arrowRight,
-                    color: Colors.white,
-                  ),
-                ),
+          child: SizedBox(
+            width: double.infinity,
+            child: AutonannyButton(
+              label: _isLastStep
+                  ? (_isEditMode ? 'Обновить контракт' : 'Создать контракт')
+                  : 'Далее',
+              onPressed: _isLastStep
+                  ? (vm.canSubmit && !vm.isSubmitting
+                      ? () async => vm.confirm()
+                      : null)
+                  : _continueFlow,
+              isLoading: _isLastStep && vm.isSubmitting,
+              leading: AutonannyIcon(
+                _isLastStep
+                    ? AutonannyIcons.checkCircle
+                    : AutonannyIcons.arrowRight,
+                color: Colors.white,
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -581,7 +565,7 @@ class _GraphCreateState extends State<GraphCreate> {
                   titles: _stepTitles,
                   descriptions: _stepDescriptions,
                   isEditMode: _isEditMode,
-                  onBackPressed: () => Navigator.of(context).maybePop(),
+                  onBackPressed: _headerBack,
                 ),
                 if (stepIssues.isNotEmpty &&
                     !_isLastStep &&

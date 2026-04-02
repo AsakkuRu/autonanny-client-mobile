@@ -31,14 +31,31 @@ class Transaction {
     final createdAt =
         rawDate != null ? DateTime.tryParse(rawDate) ?? DateTime.now() : DateTime.now();
 
+    final rawId = json['id'];
+    final id = switch (rawId) {
+      int v => v,
+      num v => v.toInt(),
+      String v => int.tryParse(v) ?? 0,
+      _ => 0,
+    };
+
+    final rawRel = json['related_id'];
+    final relatedId = switch (rawRel) {
+      int v => v,
+      num v => v.toInt(),
+      String v => int.tryParse(v),
+      null => null,
+      _ => null,
+    };
+
     return Transaction(
-      id: json['id'] as int? ?? 0,
+      id: id,
       amount: amount,
       type: type,
       description: json['description'] as String? ?? '',
       createdAt: createdAt,
       status: json['status'] as String?,
-      relatedId: json['related_id'] as int?,
+      relatedId: relatedId,
     );
   }
 

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:nanny_components/dialogs/loading.dart';
 import 'package:nanny_components/dialogs/nanny_dialogs.dart';
 import 'package:nanny_components/view_model_base.dart';
@@ -50,7 +51,9 @@ class DriverInfoVM extends ViewModelBase {
     LoadScreen.showLoad(context, false);
     await NannyDialogs.showMessageBox(
         context, "Успех", "Заявка ${confirm ? "одобрена" : "отклонена"}");
-    popView();
+    if (!context.mounted) return;
+    // true — родитель обновит контракт (список откликов / назначенный водитель).
+    Navigator.of(context).pop(true);
   }
 
   void addBonus() async {

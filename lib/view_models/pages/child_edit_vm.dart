@@ -40,6 +40,12 @@ class ChildEditVM extends ViewModelBase {
   String? bloodType;
   final TextEditingController policyNumberController = TextEditingController();
 
+  /// Тогглы «есть данные»; при выкл + сохранение на сервер уходит пустая строка.
+  bool hasAllergiesDetails = false;
+  bool hasChronicDiseasesDetails = false;
+  bool hasMedicationsDetails = false;
+  bool _hadMedicalRecord = false;
+
   String? gender;
   DateTime? birthday;
   String? photoPath;
@@ -47,6 +53,20 @@ class ChildEditVM extends ViewModelBase {
   // FE-MVP-014: Список экстренных контактов
   List<EmergencyContact> emergencyContacts = [];
   bool isSaving = false;
+
+  /// Upload возвращает полный URL с хостом запроса; в API сохраняем имя файла — картинка
+  /// открывается через [NannyConsts.buildFileUrl] под текущий домен (эмулятор / устройство / prod).
+  static String? normalizeChildPhotoPathForStorage(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final v = value.trim();
+    if (!v.startsWith('http://') && !v.startsWith('https://')) {
+      return v.replaceFirst(RegExp(r'^/+'), '');
+    }
+    final idx = v.indexOf('/files/');
+    if (idx < 0) return v;
+    final rest = v.substring(idx + '/files/'.length);
+    return rest.isEmpty ? v : rest;
+  }
 
   void _initializeFromChild() {
     surnameController.text = child!.surname;
@@ -56,7 +76,8 @@ class ChildEditVM extends ViewModelBase {
     characterNotesController.text = child!.characterNotes ?? '';
     gender = child!.gender;
     birthday = child!.birthday;
-    photoPath = child!.photoPath;
+    photoPath = normalizeChildPhotoPathForStorage(child!.photoPath) ??
+        child!.photoPath;
 
     if (birthday != null) {
       birthdayController.text = _formatDate(birthday!);
@@ -70,6 +91,27 @@ class ChildEditVM extends ViewModelBase {
   void setGender(String? value) {
     update(() {
       gender = value;
+    });
+  }
+
+  void setAllergiesDetailsEnabled(bool value) {
+    update(() {
+      hasAllergiesDetails = value;
+      if (!value) allergiesController.clear();
+    });
+  }
+
+  void setChronicDiseasesDetailsEnabled(bool value) {
+    update(() {
+      hasChronicDiseasesDetails = value;
+      if (!value) chronicDiseasesController.clear();
+    });
+  }
+
+  void setMedicationsDetailsEnabled(bool value) {
+    update(() {
+      hasMedicationsDetails = value;
+      if (!value) medicationsController.clear();
     });
   }
 
@@ -127,10 +169,11 @@ class ChildEditVM extends ViewModelBase {
         if (uploadResult.success &&
             uploadResult.response != null &&
             uploadResult.response!.paths.isNotEmpty) {
-          Logger()
-              .i('Photo uploaded, path: ${uploadResult.response!.paths.first}');
+          final stored = normalizeChildPhotoPathForStorage(
+              uploadResult.response!.paths.first);
+          Logger().i('Photo uploaded, stored path: $stored');
           update(() {
-            photoPath = uploadResult.response!.paths.first;
+            photoPath = stored;
           });
         } else {
           await NannyDialogs.showMessageBox(
@@ -146,42 +189,44 @@ class ChildEditVM extends ViewModelBase {
     }
   }
 
-  Future<void> save() async {
+  /// [pageContext] — контекст экрана из `build` (не из initState), чтобы после async корректно закрыть маршрут.
+  Future<void> save(BuildContext pageContext) async {
     if (isSaving) {
       return;
     }
 
     // Валидация
     if (surnameController.text.trim().isEmpty) {
-      NannyDialogs.showMessageBox(context, "Ошибка", "Введите фамилию");
+      NannyDialogs.showMessageBox(pageContext, "Ошибка", "Введите фамилию");
       return;
     }
 
     if (nameController.text.trim().isEmpty) {
-      NannyDialogs.showMessageBox(context, "Ошибка", "Введите имя");
+      NannyDialogs.showMessageBox(pageContext, "Ошибка", "Введите имя");
       return;
     }
 
     if (birthday == null) {
-      NannyDialogs.showMessageBox(context, "Ошибка", "Выберите дату рождения");
+      NannyDialogs.showMessageBox(
+          pageContext, "Ошибка", "Выберите дату рождения");
       return;
     }
 
     // NEW-008 / ТЗ: у ребёнка должен быть хотя бы один экстренный контакт (при создании и при редактировании)
     if (emergencyContacts.isEmpty) {
       NannyDialogs.showMessageBox(
-        context,
+        pageContext,
         "Ошибка",
         "Добавьте хотя бы один экстренный контакт перед сохранением ребёнка",
       );
       return;
     }
 
-    if (!context.mounted) return;
+    if (!pageContext.mounted) return;
     update(() {
       isSaving = true;
     });
-    LoadScreen.showLoad(context, true);
+    LoadScreen.showLoad(pageContext, true);
 
     // Вычисляем возраст
     final now = DateTime.now();
@@ -204,7 +249,7 @@ class ChildEditVM extends ViewModelBase {
       characterNotes: characterNotesController.text.trim().isEmpty
           ? null
           : characterNotesController.text.trim(),
-      photoPath: photoPath,
+      photoPath: normalizeChildPhotoPathForStorage(photoPath) ?? photoPath,
       idUser: NannyUser.userInfo?.id ?? 0,
     );
 
@@ -212,28 +257,28 @@ class ChildEditVM extends ViewModelBase {
     int? savedChildId;
     if (child == null) {
       final createResult = await NannyChildrenApi.createChild(childData);
-      if (!context.mounted) return;
+      if (!pageContext.mounted) return;
       if (!createResult.success) {
-        LoadScreen.showLoad(context, false);
+        LoadScreen.showLoad(pageContext, false);
         update(() {
           isSaving = false;
         });
         NannyDialogs.showMessageBox(
-            context, "Ошибка", createResult.errorMessage);
+            pageContext, "Ошибка", createResult.errorMessage);
         return;
       }
       savedChildId = createResult.response;
     } else {
       final updateResult =
           await NannyChildrenApi.updateChild(child!.id!, childData);
-      if (!context.mounted) return;
+      if (!pageContext.mounted) return;
       if (!updateResult.success) {
-        LoadScreen.showLoad(context, false);
+        LoadScreen.showLoad(pageContext, false);
         update(() {
           isSaving = false;
         });
         NannyDialogs.showMessageBox(
-            context, "Ошибка", updateResult.errorMessage);
+            pageContext, "Ошибка", updateResult.errorMessage);
         return;
       }
       savedChildId = child!.id;
@@ -257,15 +302,20 @@ class ChildEditVM extends ViewModelBase {
       }
     }
 
-    if (!context.mounted) return;
-    await LoadScreen.showLoad(context, false);
-    if (!context.mounted) return;
+    if (!pageContext.mounted) return;
+    await LoadScreen.showLoad(pageContext, false);
+    if (!pageContext.mounted) return;
     update(() {
       isSaving = false;
     });
 
-    if (!context.mounted) return;
-    Navigator.of(context).pop(true);
+    if (!pageContext.mounted) return;
+    // После закрытия диалога загрузки — на следующем кадре, чтобы стек навигатора был стабилен.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (pageContext.mounted) {
+        Navigator.of(pageContext).maybePop(true);
+      }
+    });
   }
 
   // FE-MVP-013: Загрузка медицинской информации
@@ -275,62 +325,97 @@ class ChildEditVM extends ViewModelBase {
     final result = await NannyChildrenApi.getMedicalInfo(child!.id!);
     if (result.success && result.response != null) {
       final info = result.response!;
-      allergiesController.text = info.allergies ?? '';
-      chronicDiseasesController.text = info.chronicDiseases ?? '';
-      medicationsController.text = info.medications ?? '';
+      _hadMedicalRecord = true;
+      hasAllergiesDetails = isSubstantiveMedicalDetail(info.allergies);
+      allergiesController.text =
+          hasAllergiesDetails ? (info.allergies ?? '').trim() : '';
+      hasChronicDiseasesDetails =
+          isSubstantiveMedicalDetail(info.chronicDiseases);
+      chronicDiseasesController.text = hasChronicDiseasesDetails
+          ? (info.chronicDiseases ?? '').trim()
+          : '';
+      hasMedicationsDetails = isSubstantiveMedicalDetail(info.medications);
+      medicationsController.text =
+          hasMedicationsDetails ? (info.medications ?? '').trim() : '';
       bloodType = info.bloodType;
       policyNumberController.text = info.medicalPolicyNumber ?? '';
+      update(() {});
     }
   }
 
   // FE-MVP-013: Сохранение медицинской информации
   Future<void> _saveMedicalInfo(int childId) async {
-    // Проверяем, есть ли хоть одно заполненное поле
-    if (allergiesController.text.trim().isEmpty &&
-        chronicDiseasesController.text.trim().isEmpty &&
-        medicationsController.text.trim().isEmpty &&
-        bloodType == null &&
-        policyNumberController.text.trim().isEmpty) {
-      return; // Нет данных для сохранения
+    final policyTrim = policyNumberController.text.trim();
+
+    final aUpdate = hasAllergiesDetails ? allergiesController.text.trim() : '';
+    final chUpdate =
+        hasChronicDiseasesDetails ? chronicDiseasesController.text.trim() : '';
+    final mUpdate =
+        hasMedicationsDetails ? medicationsController.text.trim() : '';
+
+    final aCreate =
+        hasAllergiesDetails && aUpdate.isNotEmpty ? aUpdate : null;
+    final chCreate =
+        hasChronicDiseasesDetails && chUpdate.isNotEmpty ? chUpdate : null;
+    final mCreate =
+        hasMedicationsDetails && mUpdate.isNotEmpty ? mUpdate : null;
+
+    final createPayloadNeeded = aCreate != null ||
+        chCreate != null ||
+        mCreate != null ||
+        bloodType != null ||
+        policyTrim.isNotEmpty;
+
+    if (!_hadMedicalRecord && !createPayloadNeeded) {
+      return;
     }
 
-    final medicalInfo = ChildMedicalInfo(
+    final medicalForUpdate = ChildMedicalInfo(
       idChild: childId,
-      allergies: allergiesController.text.trim().isEmpty
-          ? null
-          : allergiesController.text.trim(),
-      chronicDiseases: chronicDiseasesController.text.trim().isEmpty
-          ? null
-          : chronicDiseasesController.text.trim(),
-      medications: medicationsController.text.trim().isEmpty
-          ? null
-          : medicationsController.text.trim(),
+      allergies: hasAllergiesDetails ? aUpdate : '',
+      chronicDiseases: hasChronicDiseasesDetails ? chUpdate : '',
+      medications: hasMedicationsDetails ? mUpdate : '',
       bloodType: bloodType,
-      medicalPolicyNumber: policyNumberController.text.trim().isEmpty
-          ? null
-          : policyNumberController.text.trim(),
+      medicalPolicyNumber: policyTrim.isEmpty ? '' : policyTrim,
     );
 
-    // Пытаемся обновить или создать
+    final medicalForCreate = ChildMedicalInfo(
+      idChild: childId,
+      allergies: aCreate,
+      chronicDiseases: chCreate,
+      medications: mCreate,
+      bloodType: bloodType,
+      medicalPolicyNumber: policyTrim.isEmpty ? null : policyTrim,
+    );
+
     if (child?.id != null) {
-      // Сначала пробуем обновить
-      var updateResult =
-          await NannyChildrenApi.updateMedicalInfo(childId, medicalInfo);
-      if (!updateResult.success) {
-        // Если не получилось обновить, создаём
+      if (_hadMedicalRecord) {
+        var updateResult = await NannyChildrenApi.updateMedicalInfo(
+            childId, medicalForUpdate);
+        if (!updateResult.success) {
+          var createResult =
+              await NannyChildrenApi.createMedicalInfo(medicalForCreate);
+          if (!createResult.success) {
+            Logger()
+                .e('Failed to save medical info: ${createResult.errorMessage}');
+          }
+        }
+      } else if (createPayloadNeeded) {
         var createResult =
-            await NannyChildrenApi.createMedicalInfo(medicalInfo);
+            await NannyChildrenApi.createMedicalInfo(medicalForCreate);
         if (!createResult.success) {
           Logger()
-              .e('Failed to save medical info: ${createResult.errorMessage}');
+              .e('Failed to create medical info: ${createResult.errorMessage}');
         }
       }
     } else {
-      // Новый ребёнок - создаём медицинскую информацию
-      var createResult = await NannyChildrenApi.createMedicalInfo(medicalInfo);
-      if (!createResult.success) {
-        Logger()
-            .e('Failed to create medical info: ${createResult.errorMessage}');
+      if (createPayloadNeeded) {
+        var createResult =
+            await NannyChildrenApi.createMedicalInfo(medicalForCreate);
+        if (!createResult.success) {
+          Logger()
+              .e('Failed to create medical info: ${createResult.errorMessage}');
+        }
       }
     }
   }

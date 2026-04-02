@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
@@ -92,6 +94,7 @@ class _MapBodyState extends State<_MapBody> {
   bool _active = true;
   bool _restoreChecked = false;
   ActiveTripSessionData? _activeTripSession;
+  StreamSubscription<void>? _mainChildrenRefreshSub;
   // Сохраняем Future чтобы FutureBuilder не пересоздавал его при каждом rebuild
   late final Future<GeocodeResult?> _geocodeFuture;
 
@@ -103,6 +106,13 @@ class _MapBodyState extends State<_MapBody> {
   void initState() {
     super.initState();
     _geocodeFuture = _resolveCurrentGeocode();
+    _mainChildrenRefreshSub =
+        NannyGlobals.mainScreenChildrenRefreshController.stream.listen((_) {
+      final vm = _mainVm;
+      if (vm != null && _active && mounted) {
+        vm.reloadChildren();
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _tryRestoreActiveTrip();
     });
@@ -111,6 +121,7 @@ class _MapBodyState extends State<_MapBody> {
   @override
   void dispose() {
     _active = false;
+    _mainChildrenRefreshSub?.cancel();
     _mainVm?.dispose();
     super.dispose();
   }

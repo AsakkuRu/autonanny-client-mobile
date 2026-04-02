@@ -2232,7 +2232,7 @@ class _TripSheetState extends State<_TripSheet> {
   List<(String, Color)> _childContextNotes(_TripChildSummary child) {
     final colors = context.autonannyColors;
     return [
-      if (child.allergiesWarning != null && child.allergiesWarning!.isNotEmpty)
+      if (isSubstantiveMedicalDetail(child.allergiesWarning))
         ('Аллергии: ${child.allergiesWarning}', colors.statusDanger),
       if (child.characterNotes != null && child.characterNotes!.isNotEmpty)
         (child.characterNotes!, colors.textSecondary),

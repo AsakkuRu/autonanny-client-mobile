@@ -23,8 +23,6 @@ class LoginVM extends ViewModelBase {
   final GlobalKey<FormState> passwordState = GlobalKey();
 
   String get phone => "7${phoneMask.getUnmaskedText()}";
-  bool get canOauth =>
-      availableRoleLogin.any((e) => e.userType == UserType.client);
 
   void toPasswordReset() => Navigator.push(
         context,
@@ -101,24 +99,5 @@ class LoginVM extends ViewModelBase {
     }
 
     update(() => isLoading = false);
-  }
-
-  void yandexAuth() {
-    launchUrl(
-        Uri.parse(
-            "https://oauth.yandex.ru/authorize?response_type=code&client_id=05f788e3a4ff44b08e387ab58b083442&redirect_url=https://nyanyago.ru/api/v1.0/auth/oauth_yandex"),
-        mode: LaunchMode.externalApplication);
-  }
-
-  void vkAuth() {
-    launchUrl(
-        Uri.parse(
-            "https://oauth.vk.com/authorize?client_id=51865735&display=page&redirect_uri=https://nyanyago.ru/api/v1.0/auth/oauth_vk"),
-        mode: LaunchMode.externalApplication);
-  }
-
-  void telegramAuth() {
-    launchUrl(Uri.parse("https://t.me/NyanyaGo_bot?start=nyanyago_register"),
-        mode: LaunchMode.externalApplication);
   }
 }

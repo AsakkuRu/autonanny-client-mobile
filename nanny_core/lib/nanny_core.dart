@@ -29,6 +29,8 @@ export 'constants.dart';
 export 'md5_converter.dart';
 export 'search_delayer.dart';
 export 'utils/profanity_filter.dart'; // FE-MVP-024
+export 'utils/medical_display_utils.dart';
+export 'utils/media_path_utils.dart';
 
 export 'map_services/location_service.dart';
 export 'map_services/nanny_map_utils.dart';

@@ -352,7 +352,11 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
   }
 
   void _onTabTap(BuildContext context, int index) {
+    final prevIndex = vm.currentIndex;
     vm.indexChanged(index);
+    if (index == 0 && prevIndex != 0) {
+      NannyGlobals.mainScreenChildrenRefreshController.add(null);
+    }
     if (index == 1) {
       NannyGlobals.scheduleTabSelectedController.add(null);
     }
