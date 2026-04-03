@@ -384,6 +384,7 @@ extension ScheduleUiSdkMapper on Schedule {
     String? statusLabelOverride,
     AutonannyStatusVariant? statusVariantOverride,
     bool isHighlighted = false,
+    int pendingDriverResponsesCount = 0,
   }) {
     return ContractSummaryCardData(
       title: title.isEmpty ? _fallbackTitle : title,
@@ -399,6 +400,7 @@ extension ScheduleUiSdkMapper on Schedule {
       weeklyAmountLabel: _formatAmount(amountWeek),
       monthlyAmountLabel: _formatAmount(amountMonth),
       actionLabel: 'Открыть расписание',
+      pendingResponsesCount: pendingDriverResponsesCount,
     );
   }
 

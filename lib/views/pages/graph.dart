@@ -280,6 +280,9 @@ class _GraphViewState extends State<GraphView>
         ),
         const SizedBox(height: AutonannySpacing.lg),
         ...vm.schedules.map((schedule) {
+          final responsesForSchedule = vm.responses
+              .where((r) => r.idSchedule == schedule.id)
+              .length;
           return Padding(
             padding: const EdgeInsets.only(bottom: AutonannySpacing.md),
             child: ContractSummaryCard(
@@ -288,6 +291,7 @@ class _GraphViewState extends State<GraphView>
                 nextTripLabel: _nextTripLabelFor(schedule),
                 statusLabelOverride: _contractStatusLabelFor(schedule),
                 statusVariantOverride: _contractStatusVariantFor(schedule),
+                pendingDriverResponsesCount: responsesForSchedule,
               ),
               onTap: () => _openContractDetails(schedule),
             ),
@@ -405,6 +409,7 @@ class _GraphViewState extends State<GraphView>
             nextTripLabel: _nextTripLabelFor(schedule),
             statusLabelOverride: _contractStatusLabelFor(schedule),
             statusVariantOverride: _contractStatusVariantFor(schedule),
+            pendingDriverResponsesCount: responsesCount,
           ),
           dayPanels: schedule.contractDayPanelsData(
             childNamesById: vm.contractChildNamesById,
@@ -462,7 +467,8 @@ class _GraphViewState extends State<GraphView>
           onOpenDriverProfile:
               vm.driverContact != null ? vm.openAssignedDriverProfile : null,
           onOpenChat: vm.driverContact != null ? vm.openDriverChat : null,
-          onShowQr: vm.driverContact != null ? vm.showDriverQR : null,
+          // PIN/QR только на экране старта поездки, не в карточке контракта (QA 03.04.26).
+          onShowQr: null,
           onOpenResponseDriver: (response) async {
             final navigator = Navigator.of(context);
             final changed = await vm.openDriverFromResponse(response);

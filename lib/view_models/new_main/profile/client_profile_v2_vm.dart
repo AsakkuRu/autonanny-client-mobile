@@ -65,12 +65,6 @@ class ClientProfileV2Vm extends ViewModelBase {
     return userEmail;
   }
 
-  String get address {
-    final userAddress = NannyUser.userInfo?.jsonData['address']?.toString();
-    if (userAddress == null || userAddress.isEmpty) return 'Не указан';
-    return userAddress;
-  }
-
   String get tripsCount {
     return _tripHistoryCount.toString();
   }
@@ -263,23 +257,6 @@ class ClientProfileV2Vm extends ViewModelBase {
     }
 
     await _updateProfile(UpdateMeRequest(email: normalized));
-  }
-
-  Future<void> editAddress() async {
-    final currentAddress =
-        NannyUser.userInfo?.jsonData['address']?.toString() ?? '';
-    final address = await _promptProfileTextField(
-      title: 'Изменить адрес',
-      labelText: 'Адрес',
-      initialValue: currentAddress,
-    );
-    if (address == null) {
-      return;
-    }
-
-    await _updateProfile(
-      UpdateMeRequest(address: address.trim()),
-    );
   }
 
   Future<void> changePassword() async {

@@ -74,37 +74,8 @@ class _DirectViewState extends State<DirectView> {
             _DirectChatHeader(
               title: headerTitle,
               photoPath: headerPhoto,
-              isEditingMode: vm.isEditingMode,
               onBack: () => Navigator.of(context).maybePop(),
-              onToggleEdit: () {
-                setState(vm.toggleEditingMode);
-                if (!vm.isEditingMode) {
-                  _resetEditing();
-                }
-              },
             ),
-            if (vm.isEditingMode)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AutonannySpacing.lg,
-                  0,
-                  AutonannySpacing.lg,
-                  AutonannySpacing.sm,
-                ),
-                child: AutonannyInlineBanner(
-                  title: 'Режим редактирования',
-                  message:
-                      'Нажмите на ваше сообщение, чтобы изменить текст, или завершите редактирование.',
-                  leading: const AutonannyIcon(AutonannyIcons.edit),
-                  trailing: AutonannyIconButton(
-                    size: 36,
-                    variant: AutonannyIconButtonVariant.ghost,
-                    icon: const AutonannyIcon(AutonannyIcons.close),
-                    onPressed: _resetEditing,
-                    tooltip: 'Закрыть',
-                  ),
-                ),
-              ),
             Expanded(
               child: RequestLoader(
                 request: vm.messagesRequest,
@@ -154,25 +125,16 @@ class _DirectViewState extends State<DirectView> {
                                 _ChatDateDivider(
                                   timestamp: message.timestampSend,
                                 ),
-                              GestureDetector(
-                                onTap: () {
-                                  if (vm.isEditingMode && message.isMe) {
-                                    setState(() {
-                                      vm.startEditingMessage(message);
-                                    });
-                                  }
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.only(
-                                    bottom: AutonannySpacing.sm,
-                                  ),
-                                  child: _MessageBubble(
-                                    message: message,
-                                    onOpenImage: _openImageView,
-                                    onOpenPdf: _openPdfFile,
-                                    onOpenVideo: (url) => vm.navigateToView(
-                                      VideoView(url: url),
-                                    ),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AutonannySpacing.sm,
+                                ),
+                                child: _MessageBubble(
+                                  message: message,
+                                  onOpenImage: _openImageView,
+                                  onOpenPdf: _openPdfFile,
+                                  onOpenVideo: (url) => vm.navigateToView(
+                                    VideoView(url: url),
                                   ),
                                 ),
                               ),
@@ -219,15 +181,6 @@ class _DirectViewState extends State<DirectView> {
     );
   }
 
-  void _resetEditing() {
-    if (vm.isEditingMode) {
-      vm.toggleEditingMode();
-    }
-    vm.editingMessageId = null;
-    vm.textController.clear();
-    setState(() {});
-  }
-
   void _openImageView(String url) {
     showDialog(
       context: context,
@@ -268,16 +221,12 @@ class _DirectChatHeader extends StatelessWidget {
   const _DirectChatHeader({
     required this.title,
     required this.photoPath,
-    required this.isEditingMode,
     required this.onBack,
-    required this.onToggleEdit,
   });
 
   final String title;
   final String? photoPath;
-  final bool isEditingMode;
   final VoidCallback onBack;
-  final VoidCallback onToggleEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -336,15 +285,6 @@ class _DirectChatHeader extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-            const SizedBox(width: AutonannySpacing.sm),
-            AutonannyIconButton(
-              icon: const AutonannyIcon(AutonannyIcons.edit),
-              variant: isEditingMode
-                  ? AutonannyIconButtonVariant.primary
-                  : AutonannyIconButtonVariant.surface,
-              onPressed: onToggleEdit,
-              tooltip: 'Редактировать сообщения',
             ),
           ],
         ),
@@ -668,9 +608,7 @@ class _Composer extends StatelessWidget {
           Expanded(
             child: AutonannyTextField(
               controller: vm.textController,
-              hintText: vm.editingMessageId != null
-                  ? 'Измените сообщение'
-                  : 'Сообщение...',
+              hintText: 'Сообщение...',
               maxLines: 4,
               onChanged: (_) => onChanged(),
             ),

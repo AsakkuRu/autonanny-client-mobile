@@ -76,6 +76,8 @@ class _ChatsViewState extends State<ChatsView>
           const SizedBox(height: AutonannySpacing.md),
           _ChatsTabBar(
             value: selectedTab,
+            chatsBadge: vm.chatsTabUnreadBadge,
+            requestsBadge: vm.requestsTabBadge,
             onChanged: (value) =>
                 vm.chatsSwitch(switchToChats: value == _ChatsTab.chats),
           ),
@@ -236,10 +238,14 @@ class _ChatsViewState extends State<ChatsView>
 class _ChatsTabBar extends StatelessWidget {
   const _ChatsTabBar({
     required this.value,
+    required this.chatsBadge,
+    required this.requestsBadge,
     required this.onChanged,
   });
 
   final _ChatsTab value;
+  final int chatsBadge;
+  final int requestsBadge;
   final ValueChanged<_ChatsTab> onChanged;
 
   @override
@@ -249,6 +255,7 @@ class _ChatsTabBar extends StatelessWidget {
         Expanded(
           child: _ChatsTabButton(
             label: 'Чаты',
+            badgeCount: chatsBadge,
             isSelected: value == _ChatsTab.chats,
             onTap: () => onChanged(_ChatsTab.chats),
           ),
@@ -256,6 +263,7 @@ class _ChatsTabBar extends StatelessWidget {
         Expanded(
           child: _ChatsTabButton(
             label: 'Заявки',
+            badgeCount: requestsBadge,
             isSelected: value == _ChatsTab.requests,
             onTap: () => onChanged(_ChatsTab.requests),
           ),
@@ -268,11 +276,13 @@ class _ChatsTabBar extends StatelessWidget {
 class _ChatsTabButton extends StatelessWidget {
   const _ChatsTabButton({
     required this.label,
+    required this.badgeCount,
     required this.isSelected,
     required this.onTap,
   });
 
   final String label;
+  final int badgeCount;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -295,11 +305,36 @@ class _ChatsTabButton extends StatelessWidget {
               ),
             ),
           ),
-          child: Text(
-            label,
-            style: AutonannyTypography.labelL(
-              color: isSelected ? colors.actionPrimary : colors.textSecondary,
-            ).copyWith(fontWeight: FontWeight.w700),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: AutonannyTypography.labelL(
+                  color: isSelected ? colors.actionPrimary : colors.textSecondary,
+                ).copyWith(fontWeight: FontWeight.w700),
+              ),
+              if (badgeCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE53935),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    badgeCount > 99 ? '99+' : '$badgeCount',
+                    style: AutonannyTypography.labelM(
+                      color: Colors.white,
+                    ).copyWith(fontSize: 10, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),

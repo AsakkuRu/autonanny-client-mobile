@@ -39,6 +39,7 @@ class Schedule {
     this.pauseUntil,
     this.pauseReason,
     this.pauseInitiatedBy,
+    this.timezone,
   });
 
   final int? id;
@@ -62,6 +63,9 @@ class Schedule {
   final String? pauseUntil;
   final String? pauseReason;
   final int? pauseInitiatedBy;
+
+  /// IANA (например Europe/Moscow); с бэка может не приходить.
+  final String? timezone;
 
   factory Schedule.fromJson(Map<String, dynamic> json) {
     final rawRoads = json["roads"];
@@ -105,6 +109,7 @@ class Schedule {
       pauseUntil: json["pause_until"] as String?,
       pauseReason: json["pause_reason"] as String?,
       pauseInitiatedBy: json["pause_initiated_by"] as int?,
+      timezone: json["timezone"] as String?,
     );
   }
 
@@ -121,6 +126,7 @@ class Schedule {
         "other_parametrs":
             otherParametrs.map((x) => x.toGraphJson(childrenCount)).toList(),
         "roads": roads.map((x) => x.toJson()).toList(),
+        if (timezone != null && timezone!.isNotEmpty) "timezone": timezone,
       };
 
   Map<String, dynamic> toCacheJson() => {

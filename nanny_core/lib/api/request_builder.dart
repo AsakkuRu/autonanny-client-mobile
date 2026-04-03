@@ -48,24 +48,27 @@ class RequestBuilder<T> {
       return ApiResponse(errorMessage: "Отсутствует подключение к интернету");
     }
 
-    String errorMessage = "Запрос успешен";
+    final ok = result.statusCode == 200 || result.statusCode == 201;
+    String errorMessage = ok ? "Запрос успешен" : defaultErrorMsg;
 
     errorCodeMsgs?.forEach((key, value) {
       if (result.statusCode == key) errorMessage = value;
     });
 
-    // bool success = false;
-    // if(result.data['status'].runtimeType == String) {
-    //   success = result.data['status'] == "OK";
-    // }
-    // else {
-    //   success = result.data['status'];
-    // }
+    if (!ok) {
+      final data = result.data;
+      if (data is Map && data['message'] is String) {
+        final m = (data['message'] as String).trim();
+        if (m.isNotEmpty) {
+          errorMessage = m;
+        }
+      }
+    }
 
     return ApiResponse<T>(
         statusCode: result.statusCode!,
         errorMessage: errorMessage,
-        success: result.statusCode == 200 || result.statusCode == 201,
+        success: ok,
         response: onSuccess?.call(result));
   }
 }

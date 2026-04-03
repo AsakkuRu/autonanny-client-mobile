@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:nanny_components/base_views/views/driver_info.dart';
 import 'package:nanny_components/nanny_components.dart';
 import 'package:nanny_core/api/api_models/search_query_request.dart';
+import 'package:nanny_core/api/nanny_chats_api.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule_responses_data.dart';
@@ -17,8 +18,31 @@ class ChatsVM extends ViewModelBase {
     this.updateList,
     this.onReturnFromChat,
     this.buildDriverRatingView,
-  }) {
+  }    ) {
     unawaited(_bindRealtimeUpdates());
+    unawaited(refreshTabBadges());
+  }
+
+  Future<void> refreshTabBadges() async {
+    int unread = 0;
+    final chatsRes = await NannyChatsApi.getChats(
+      SearchQueryRequest(offset: 0, limit: 100, search: query),
+    );
+    if (chatsRes.success && chatsRes.response != null) {
+      for (final c in chatsRes.response!.chats) {
+        unread += c.message?.newMessages ?? 0;
+      }
+    }
+    int requests = 0;
+    final reqRes = await NannyOrdersApi.getScheduleResponses();
+    if (reqRes.success && reqRes.response != null) {
+      requests = reqRes.response!.length;
+    }
+    if (!context.mounted) return;
+    update(() {
+      chatsTabUnreadBadge = unread;
+      requestsTabBadge = requests;
+    });
   }
 
   FocusNode node = FocusNode();
@@ -29,6 +53,10 @@ class ChatsVM extends ViewModelBase {
   Widget Function(int driverId)? buildDriverRatingView;
   bool chatsSelected = true;
   String query = "";
+
+  /// Счётчики для вкладок «Чаты» / «Заявки».
+  int chatsTabUnreadBadge = 0;
+  int requestsTabBadge = 0;
 
   StreamSubscription<Map<String, dynamic>>? sub;
   StreamSubscription<void>? _localRefreshSub;
@@ -42,6 +70,7 @@ class ChatsVM extends ViewModelBase {
       final event = msg['event']?.toString();
       if (event == 'connected') {
         unawaited(_refreshFromRealtime());
+        unawaited(refreshTabBadges());
         return;
       }
       if (event == 'chat.message_created' ||
@@ -49,6 +78,7 @@ class ChatsVM extends ViewModelBase {
           event == 'chat.unread_changed' ||
           event == 'contract.responses.updated') {
         updateList?.call();
+        unawaited(refreshTabBadges());
       }
     });
     _localRefreshSub =
@@ -93,6 +123,7 @@ class ChatsVM extends ViewModelBase {
   void chatSearch(String text) {
     query = text;
     updateList?.call();
+    unawaited(refreshTabBadges());
   }
 
   void navigateToDirect(ChatElement chat) async {
@@ -105,6 +136,7 @@ class ChatsVM extends ViewModelBase {
     );
     onReturnFromChat?.call();
     updateList?.call();
+    unawaited(refreshTabBadges());
   }
 
   void dispose() {

@@ -31,7 +31,8 @@ class ScheduleEditor {
       weekdays: _roads.map((e) => e.weekDay).toSet().toList(),
       tariff: tariff,
       otherParametrs: _otherParams,
-      roads: _roads);
+      roads: _roads,
+      timezone: 'Europe/Moscow');
 
   int get childCount => _childCount;
 

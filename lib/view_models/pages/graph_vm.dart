@@ -88,12 +88,10 @@ class GraphVM extends ViewModelBase {
   Future<void> _bindScheduleUpdatesListener() async {
     try {
       final socket = UnifiedSocket.instance ?? await UnifiedSocket.connect();
-      _setContractResponsesSubscription(socket, true);
       _scheduleUpdatesSub = socket.on('contract.responses.updated').listen((_) {
         reloadPage(); // FIX-005: перезагрузить полностью, чтобы подтянуть is_paused
       });
       _connectedSub = socket.on('connected').listen((_) {
-        _setContractResponsesSubscription(socket, true);
         unawaited(reloadPage());
       });
     } catch (e, st) {
@@ -101,22 +99,9 @@ class GraphVM extends ViewModelBase {
     }
   }
 
-  void _setContractResponsesSubscription(
-    UnifiedSocket socket,
-    bool enabled,
-  ) {
-    socket.send('subscriptions.update', {
-      'subscriptions': {'contract.responses': enabled}
-    });
-  }
-
   void stopScheduleUpdatesListener() {
     _scheduleUpdatesSub?.cancel();
     _connectedSub?.cancel();
-    final socket = UnifiedSocket.instance;
-    if (socket != null && socket.connected) {
-      _setContractResponsesSubscription(socket, false);
-    }
     _scheduleUpdatesSub = null;
     _connectedSub = null;
   }
@@ -1087,6 +1072,9 @@ class GraphVM extends ViewModelBase {
       }
 
       schedules = _hydrateSchedulesWithOtherParams(scheduleResult.response!);
+      schedules.sort(
+        (a, b) => (b.id ?? 0).compareTo(a.id ?? 0),
+      );
 
       final childrenResult = await NannyChildrenApi.getChildren();
       if (childrenResult.success && childrenResult.response != null) {
@@ -1151,6 +1139,9 @@ class GraphVM extends ViewModelBase {
         schedules = cachedSchedules
             .map((x) => Schedule.fromJson(Map<String, dynamic>.from(x)))
             .toList();
+        schedules.sort(
+          (a, b) => (b.id ?? 0).compareTo(a.id ?? 0),
+        );
 
         if (previouslySelectedId != null) {
           selectedSchedule = schedules.firstWhere(

@@ -436,7 +436,9 @@ class _TariffBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (vm.tariffs.isEmpty) return const SizedBox.shrink();
+    if (vm.tariffs.isEmpty || vm.tariffs.length == 1) {
+      return const SizedBox.shrink();
+    }
     final colors = context.autonannyColors;
 
     return Column(

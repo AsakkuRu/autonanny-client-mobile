@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_dialogs.dart';
@@ -7,7 +6,6 @@ import 'package:nanny_components/widgets/map/address_pick_choice.dart';
 import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/models/from_api/child.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/address_data.dart';
-import 'package:nanny_core/models/from_api/drive_and_map/drive_tariff.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/geocoding_data.dart';
 import 'package:nanny_core/models/from_api/drive_and_map/schedule.dart';
 import 'package:nanny_core/nanny_core.dart';
@@ -43,6 +41,8 @@ class _GraphCreateState extends State<GraphCreate> {
   late final GraphCreateVM vm;
   int _currentStepIndex = 0;
   bool _draftRoundTrip = false;
+  bool _draftWithIntermediate = false;
+  final List<GeocodeResult> _viaPoints = [];
   final TextEditingController _routeTitleController = TextEditingController();
   final TextEditingController _fromAddressController = TextEditingController();
   final TextEditingController _toAddressController = TextEditingController();
@@ -60,6 +60,9 @@ class _GraphCreateState extends State<GraphCreate> {
     final firstRoad = widget.schedule?.roads.firstOrNull;
     if (firstRoad != null) {
       _draftRoundTrip = firstRoad.typeDrive.contains(DriveType.roundTrip);
+      _draftWithIntermediate =
+          firstRoad.typeDrive.contains(DriveType.withInterPoint);
+      _viaPoints.clear();
       _routeTitleController.text = firstRoad.title.trim();
       if (firstRoad.addresses.isNotEmpty) {
         final fromAddress = firstRoad.addresses.first.fromAddress;
@@ -113,39 +116,89 @@ class _GraphCreateState extends State<GraphCreate> {
     });
   }
 
-  Future<double?> _estimateDraftRouteAmount({
-    required dynamic fromLocation,
-    required dynamic toLocation,
-    required String fromAddress,
-    required String toAddress,
-  }) async {
-    final tariffId = vm.editor.tariff.id;
-    if (tariffId == null) {
-      return null;
-    }
-    final addresses = <Map<String, dynamic>>[
-      DriveAddress(
-        fromAddress: AddressData(address: fromAddress, location: fromLocation),
-        toAddress: AddressData(address: toAddress, location: toLocation),
-      ).toJson(),
-      if (_draftRoundTrip)
-        DriveAddress(
-          fromAddress: AddressData(address: toAddress, location: toLocation),
-          toAddress: AddressData(address: fromAddress, location: fromLocation),
-        ).toJson(),
-    ];
+  Future<void> _pickViaPoint() async {
+    final selected = await showAddressPickChoice(context);
+    if (selected == null) return;
+    setState(() => _viaPoints.add(selected));
+  }
+
+  Future<double?> _estimateAddressChain(List<Map<String, dynamic>> maps) async {
+    if (maps.isEmpty) return null;
     final estimate = await NannyOrdersApi.estimateScheduleRoadPrice(
-      idTariff: tariffId,
-      addresses: addresses,
+      idTariff: vm.editor.tariff.id,
+      addresses: maps,
     );
-    if (!estimate.success) {
-      return null;
-    }
+    if (!estimate.success) return null;
     return estimate.response;
+  }
+
+  List<Map<String, dynamic>> _driveJsonChainFromPoints(List<GeocodeResult> pts) {
+    if (pts.length < 2) return [];
+    final out = <Map<String, dynamic>>[];
+    for (var i = 0; i < pts.length - 1; i++) {
+      final a = pts[i];
+      final b = pts[i + 1];
+      final locA = a.geometry!.location!;
+      final locB = b.geometry!.location!;
+      out.add(
+        DriveAddress(
+          fromAddress: AddressData(
+            address: NannyMapUtils.simplifyAddress(a.formattedAddress),
+            location: locA,
+          ),
+          toAddress: AddressData(
+            address: NannyMapUtils.simplifyAddress(b.formattedAddress),
+            location: locB,
+          ),
+        ).toJson(),
+      );
+    }
+    return out;
+  }
+
+  List<DriveAddress> _driveModelChainFromPoints(List<GeocodeResult> pts) {
+    if (pts.length < 2) return [];
+    final out = <DriveAddress>[];
+    for (var i = 0; i < pts.length - 1; i++) {
+      final a = pts[i];
+      final b = pts[i + 1];
+      final locA = a.geometry!.location!;
+      final locB = b.geometry!.location!;
+      out.add(
+        DriveAddress(
+          fromAddress: AddressData(
+            address: NannyMapUtils.simplifyAddress(a.formattedAddress),
+            location: locA,
+          ),
+          toAddress: AddressData(
+            address: NannyMapUtils.simplifyAddress(b.formattedAddress),
+            location: locB,
+          ),
+        ),
+      );
+    }
+    return out;
   }
 
   Future<void> _saveDraftRoute() async {
     if (vm.selectedWeekday.isEmpty) return;
+    if (_draftRoundTrip && _draftWithIntermediate) {
+      await NannyDialogs.showMessageBox(
+        context,
+        'Маршрут',
+        'Сочетание «туда-обратно» и промежуточных точек в одном шаге не поддерживается. '
+            'Уберите точки или выберите один тип.',
+      );
+      return;
+    }
+    if (_draftWithIntermediate && _viaPoints.isEmpty) {
+      await NannyDialogs.showMessageBox(
+        context,
+        'Маршрут',
+        'Добавьте хотя бы одну промежуточную точку или выберите другой тип маршрута.',
+      );
+      return;
+    }
     final fromLocation = _routeFrom?.geometry?.location;
     final toLocation = _routeTo?.geometry?.location;
     if (fromLocation == null || toLocation == null) return;
@@ -156,13 +209,88 @@ class _GraphCreateState extends State<GraphCreate> {
         ? '$fromAddress -> $toAddress'
         : _routeTitleController.text.trim();
     final firstDay = vm.sortedSelectedWeekdays.first;
-    final estimatedAmount = await _estimateDraftRouteAmount(
-      fromLocation: fromLocation,
-      toLocation: toLocation,
-      fromAddress: fromAddress,
-      toAddress: toAddress,
-    );
+    final updating = vm.editor.roads.firstOrNull;
 
+    if (_draftWithIntermediate && _viaPoints.isNotEmpty) {
+      final pts = <GeocodeResult>[
+        _routeFrom!,
+        ..._viaPoints.where((e) => e.geometry?.location != null),
+        _routeTo!,
+      ];
+      final maps = _driveJsonChainFromPoints(pts);
+      final estimatedAmount = await _estimateAddressChain(maps);
+      final route = Road(
+        weekDay: firstDay,
+        startTime: vm.timeForWeekday(firstDay),
+        endTime: vm.timeForWeekday(firstDay),
+        addresses: _driveModelChainFromPoints(pts),
+        title: title,
+        alias: null,
+        typeDrive: const [DriveType.withInterPoint],
+        amount: estimatedAmount,
+        children: vm.selectedChildrenIds,
+      );
+      vm.saveRoute(
+        route: route,
+        weekday: firstDay,
+        targetWeekdays: vm.sortedSelectedWeekdays,
+        childIds: vm.selectedChildrenIds,
+        updatingRoad: updating,
+      );
+      return;
+    }
+
+    if (_draftRoundTrip) {
+      final outMaps = _driveJsonChainFromPoints([_routeFrom!, _routeTo!]);
+      final backMaps = _driveJsonChainFromPoints([_routeTo!, _routeFrom!]);
+      final eOut =
+          outMaps.isEmpty ? null : await _estimateAddressChain(outMaps);
+      final eBack =
+          backMaps.isEmpty ? null : await _estimateAddressChain(backMaps);
+      final roadOut = Road(
+        weekDay: firstDay,
+        startTime: vm.timeForWeekday(firstDay),
+        endTime: vm.timeForWeekday(firstDay),
+        addresses: [
+          DriveAddress(
+            fromAddress: AddressData(address: fromAddress, location: fromLocation),
+            toAddress: AddressData(address: toAddress, location: toLocation),
+          ),
+        ],
+        title: '$title (туда)',
+        alias: null,
+        typeDrive: const [DriveType.oneWay],
+        amount: eOut,
+        children: vm.selectedChildrenIds,
+      );
+      final roadBack = Road(
+        weekDay: firstDay,
+        startTime: vm.timeForWeekday(firstDay),
+        endTime: vm.timeForWeekday(firstDay),
+        addresses: [
+          DriveAddress(
+            fromAddress: AddressData(address: toAddress, location: toLocation),
+            toAddress: AddressData(address: fromAddress, location: fromLocation),
+          ),
+        ],
+        title: '$title (обратно)',
+        alias: null,
+        typeDrive: const [DriveType.oneWay],
+        amount: eBack,
+        children: vm.selectedChildrenIds,
+      );
+      vm.saveRoundTripAsTwoRoads(
+        outbound: roadOut,
+        returnLeg: roadBack,
+        targetWeekdays: vm.sortedSelectedWeekdays,
+        childIds: vm.selectedChildrenIds,
+        updatingRoad: updating,
+      );
+      return;
+    }
+
+    final maps = _driveJsonChainFromPoints([_routeFrom!, _routeTo!]);
+    final estimatedAmount = await _estimateAddressChain(maps);
     final route = Road(
       weekDay: firstDay,
       startTime: vm.timeForWeekday(firstDay),
@@ -172,15 +300,10 @@ class _GraphCreateState extends State<GraphCreate> {
           fromAddress: AddressData(address: fromAddress, location: fromLocation),
           toAddress: AddressData(address: toAddress, location: toLocation),
         ),
-        if (_draftRoundTrip)
-          DriveAddress(
-            fromAddress: AddressData(address: toAddress, location: toLocation),
-            toAddress: AddressData(address: fromAddress, location: fromLocation),
-          ),
       ],
       title: title,
       alias: null,
-      typeDrive: [_draftRoundTrip ? DriveType.roundTrip : DriveType.oneWay],
+      typeDrive: const [DriveType.oneWay],
       amount: estimatedAmount,
       children: vm.selectedChildrenIds,
     );
@@ -190,7 +313,7 @@ class _GraphCreateState extends State<GraphCreate> {
       weekday: firstDay,
       targetWeekdays: vm.sortedSelectedWeekdays,
       childIds: vm.selectedChildrenIds,
-      updatingRoad: vm.editor.roads.firstOrNull,
+      updatingRoad: updating,
     );
   }
 
@@ -213,6 +336,11 @@ class _GraphCreateState extends State<GraphCreate> {
         final issues = <String>[];
         if (vm.editor.roads.isEmpty) {
           issues.add('Добавьте хотя бы один маршрут.');
+        }
+        if (_draftWithIntermediate && _viaPoints.isEmpty) {
+          issues.add(
+            'Для маршрута с промежуточными точками добавьте хотя бы одну остановку.',
+          );
         }
         if (vm.tripsPerMonth > 0 && vm.tripsPerMonth < 4) {
           issues.add('Для контракта нужно минимум 4 поездки в месяц.');
@@ -255,6 +383,7 @@ class _GraphCreateState extends State<GraphCreate> {
     if (_currentStepIndex == 2) {
       await _saveDraftRoute();
     }
+    if (!mounted) return;
     final issues = _stepIssuesFor(_currentStepIndex);
     if (issues.isNotEmpty) {
       await NannyDialogs.showMessageBox(
@@ -448,9 +577,25 @@ class _GraphCreateState extends State<GraphCreate> {
             AutonannySectionContainer(
               child: _RouteTypeSelector(
                 isRoundTrip: _draftRoundTrip,
-                onChanged: (value) {
+                withIntermediate: _draftWithIntermediate,
+                onOneWay: () {
                   setState(() {
-                    _draftRoundTrip = value;
+                    _draftRoundTrip = false;
+                    _draftWithIntermediate = false;
+                    _viaPoints.clear();
+                  });
+                },
+                onRoundTrip: () {
+                  setState(() {
+                    _draftRoundTrip = true;
+                    _draftWithIntermediate = false;
+                    _viaPoints.clear();
+                  });
+                },
+                onIntermediate: () {
+                  setState(() {
+                    _draftRoundTrip = false;
+                    _draftWithIntermediate = true;
                   });
                 },
               ),
@@ -463,6 +608,51 @@ class _GraphCreateState extends State<GraphCreate> {
                 onPickTo: () => _pickRouteAddress(isFrom: false),
               ),
             ),
+            if (_draftWithIntermediate) ...[
+              AutonannySectionContainer(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Промежуточные точки',
+                      style: AutonannyTypography.labelL(
+                        color: context.autonannyColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: AutonannySpacing.sm),
+                    ...List.generate(_viaPoints.length, (i) {
+                      final p = _viaPoints[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AutonannySpacing.sm),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                NannyMapUtils.simplifyAddress(p.formattedAddress),
+                                style: AutonannyTypography.bodyS(
+                                  color: context.autonannyColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                setState(() => _viaPoints.removeAt(i));
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    AutonannyButton(
+                      label: 'Добавить точку',
+                      variant: AutonannyButtonVariant.secondary,
+                      onPressed: _pickViaPoint,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ];
       case 3:
@@ -941,14 +1131,21 @@ class _RouteNameBlock extends StatelessWidget {
 class _RouteTypeSelector extends StatelessWidget {
   const _RouteTypeSelector({
     required this.isRoundTrip,
-    required this.onChanged,
+    required this.withIntermediate,
+    required this.onOneWay,
+    required this.onRoundTrip,
+    required this.onIntermediate,
   });
 
   final bool isRoundTrip;
-  final ValueChanged<bool> onChanged;
+  final bool withIntermediate;
+  final VoidCallback onOneWay;
+  final VoidCallback onRoundTrip;
+  final VoidCallback onIntermediate;
 
   @override
   Widget build(BuildContext context) {
+    final oneWaySel = !isRoundTrip && !withIntermediate;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -962,15 +1159,22 @@ class _RouteTypeSelector extends StatelessWidget {
         _RouteTypeCard(
           title: 'В один конец',
           subtitle: 'Только туда',
-          selected: !isRoundTrip,
-          onTap: () => onChanged(false),
+          selected: oneWaySel,
+          onTap: onOneWay,
         ),
         const SizedBox(height: AutonannySpacing.sm),
         _RouteTypeCard(
           title: 'Туда-обратно',
-          subtitle: 'Забрать и привезти домой',
+          subtitle: 'Два маршрута: туда и обратно (отдельная цена каждого плеча)',
           selected: isRoundTrip,
-          onTap: () => onChanged(true),
+          onTap: onRoundTrip,
+        ),
+        const SizedBox(height: AutonannySpacing.sm),
+        _RouteTypeCard(
+          title: 'С промежуточными точками',
+          subtitle: 'Несколько остановок по пути',
+          selected: withIntermediate,
+          onTap: onIntermediate,
         ),
       ],
     );
@@ -2113,6 +2317,9 @@ class _TariffSection extends StatelessWidget {
         tone: AutonannyBannerTone.warning,
         leading: AutonannyIcon(AutonannyIcons.warning),
       );
+    }
+    if (vm.tariffs.length == 1) {
+      return const SizedBox.shrink();
     }
 
     return Column(

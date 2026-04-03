@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nanny_client/ui_sdk/client_ui_sdk.dart';
+import 'package:nanny_client/utils/active_trip_order_filter.dart';
 import 'package:nanny_client/view_models/home_vm.dart';
 import 'package:nanny_client/view_models/new_main/active_trip/active_trip_session_store.dart';
 import 'package:nanny_client/views/new_main/active_trip/active_trip_screen.dart';
@@ -104,6 +105,12 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
   void _handleActiveTripInvalidation(Map<String, dynamic> msg) {
     if (!mounted) return;
 
+    final event = msg['event']?.toString();
+    if (isTerminalTripInvalidationEvent(event)) {
+      _checkActiveTrip();
+      return;
+    }
+
     final data = msg['data'];
     final token = data is Map ? data['token'] : null;
     if (token is String && token.isNotEmpty) {
@@ -142,7 +149,7 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
       final res = await NannyOrdersApi.getCurrentOrder();
       if (res.success && res.response != null) {
         final body = res.response!.data;
-        final activeOrder = _selectActiveOrder(
+        final activeOrder = selectActiveOrderFromList(
           body is Map ? body['orders'] : null,
           preferredToken: cached?.token,
           preferredOrderId: cached?.orderId,
@@ -184,19 +191,7 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
         return;
       }
 
-      if (cached != null && cached.token.isNotEmpty) {
-        if (!mounted) return;
-        setState(() {
-          _hasActiveTrip = true;
-          _activeToken = cached.token;
-          _activeTripBannerData ??= const ActiveTripBannerData(
-            title: 'Активная поездка',
-            subtitle: 'Открыть экран активной поездки',
-          );
-        });
-        return;
-      }
-
+      // Ошибка сети / API: не показываем баннер из кэша — избегаем «активной поездки» после отмены на сервере.
       if (mounted) {
         setState(() {
           _hasActiveTrip = false;
@@ -285,45 +280,6 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
     final second = name.isNotEmpty ? name.substring(0, 1) : '';
     final initials = '$first$second'.toUpperCase();
     return initials.isEmpty ? 'A' : initials;
-  }
-
-  Map<String, dynamic>? _selectActiveOrder(
-    dynamic rawOrders, {
-    String? preferredToken,
-    int? preferredOrderId,
-  }) {
-    if (rawOrders is! List) return null;
-
-    final activeOrders = rawOrders.whereType<Map>().map((raw) {
-      return Map<String, dynamic>.from(raw);
-    }).where((order) {
-      final statusId = _toInt(order['id_status']);
-      return statusId != null &&
-          statusId != 2 &&
-          statusId != 3 &&
-          statusId != 11;
-    }).toList(growable: false);
-
-    if (activeOrders.isEmpty) return null;
-
-    if (preferredOrderId != null) {
-      for (final order in activeOrders) {
-        if (_toInt(order['id_order']) == preferredOrderId) return order;
-      }
-    }
-
-    if (preferredToken != null && preferredToken.isNotEmpty) {
-      for (final order in activeOrders) {
-        final orderToken = order['token']?.toString();
-        if (orderToken != null &&
-            orderToken.isNotEmpty &&
-            orderToken == preferredToken) {
-          return order;
-        }
-      }
-    }
-
-    return activeOrders.first;
   }
 
   int? _toInt(dynamic value) {
@@ -421,7 +377,7 @@ class _NewHomeViewState extends State<NewHomeView> with WidgetsBindingObserver {
         ),
         bottomNavigationBar: _NewBottomNavBar(
           currentIndex: vm.currentIndex,
-          unreadChatsCount: vm.unreadChatsCount,
+          unreadChatsCount: vm.chatsBottomNavBadgeCount,
           onTap: (index) => _onTabTap(context, index),
         ),
       ),

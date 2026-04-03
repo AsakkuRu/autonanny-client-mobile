@@ -209,6 +209,7 @@ class GraphCreateVM extends ViewModelBase {
       for (final weekday in selectedWeekday) {
         weekdayTripTimes[weekday] = sharedTripTime;
       }
+      _updateRouteTimesForSelectedDays();
     } else {
       for (final weekday in selectedWeekday) {
         weekdayTripTimes[weekday] ??= sharedTripTime;
@@ -539,6 +540,60 @@ class GraphCreateVM extends ViewModelBase {
     update(() {});
   }
 
+  /// Удаляет пару маршрутов «туда / обратно» (два one-way на один день) или один legacy-road.
+  void removeRoundTripCompanionPair(Road? anchor) {
+    if (anchor == null) return;
+    final wd = anchor.weekDay;
+    if (anchor.addresses.length != 1) {
+      editor.deleteRoad(anchor);
+      return;
+    }
+    final first = anchor.addresses.first;
+    final snapshots = List<Road>.from(editor.roads);
+    for (final r in snapshots) {
+      if (r.weekDay != wd || r.addresses.length != 1) continue;
+      final seg = r.addresses.first;
+      final reversePair = seg.fromAddress.address == first.toAddress.address &&
+          seg.toAddress.address == first.fromAddress.address;
+      if (identical(r, anchor) || reversePair) {
+        editor.deleteRoad(r);
+      }
+    }
+  }
+
+  /// Два отдельных road на каждый день: туда и обратно (цены и плечи согласованы с бэкендом без ×2).
+  void saveRoundTripAsTwoRoads({
+    required Road outbound,
+    required Road returnLeg,
+    required List<NannyWeekday> targetWeekdays,
+    required List<int> childIds,
+    Road? updatingRoad,
+  }) {
+    final normalizedTargetWeekdays = targetWeekdays.toSet().toList(growable: false)
+      ..sort((left, right) => left.index.compareTo(right.index));
+
+    if (updatingRoad != null) {
+      removeRoundTripCompanionPair(updatingRoad);
+    }
+
+    for (final targetWeekday in normalizedTargetWeekdays) {
+      weekdayTripTimes[targetWeekday] = outbound.startTime;
+      editor.addRoad(
+        outbound.copyWith(
+          weekDay: targetWeekday,
+          children: childIds,
+        ),
+      );
+      editor.addRoad(
+        returnLeg.copyWith(
+          weekDay: targetWeekday,
+          children: childIds,
+        ),
+      );
+    }
+    update(() {});
+  }
+
   bool isRouteAppliedToAllSelectedDays(Road road) {
     final selectedDays = sortedSelectedWeekdays;
     if (selectedDays.length < 2) {
@@ -686,6 +741,9 @@ class GraphCreateVM extends ViewModelBase {
     update(() {
       isSubmitting = true;
     });
+
+    // Синхронизация start/end из weekdayTripTimes → roads перед JSON (QA: разное время по дням).
+    _updateRouteTimesForSelectedDays();
 
     // Нормализуем children у маршрутов перед отправкой,
     // не перетирая route-specific привязки.

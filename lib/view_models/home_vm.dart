@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nanny_components/base_views/views/direct.dart';
 import 'package:nanny_client/ui_sdk/support/ui_sdk_view_model_base.dart';
 import 'package:nanny_core/api/api_models/search_query_request.dart';
+import 'package:nanny_core/api/nanny_orders_api.dart';
 import 'package:nanny_core/api/web_sockets/unified_socket.dart';
 import 'package:nanny_core/nanny_core.dart';
 import 'package:nanny_core/services/notification_service.dart';
@@ -19,8 +20,15 @@ class HomeVM extends ViewModelBase {
 
   int currentIndex = 0;
 
-  /// Количество непрочитанных сообщений в чатах (для бейджа на иконке «Чаты»).
-  int unreadChatsCount = 0;
+  /// Непрочитанные сообщения в диалогах (вкладка «Чаты»).
+  int unreadChatMessagesCount = 0;
+
+  /// Отклики водителей по контрактам (вкладка «Заявки»).
+  int pendingScheduleResponsesCount = 0;
+
+  /// Суммарный бейдж на «Чаты» в нижней навигации: сообщения + новые заявки.
+  int get chatsBottomNavBadgeCount =>
+      (unreadChatMessagesCount + pendingScheduleResponsesCount).clamp(0, 99);
 
   /// Вызывается после инициализации UnifiedSocket.
   /// Используется в NewHomeView для root-level realtime подписок.
@@ -34,18 +42,27 @@ class HomeVM extends ViewModelBase {
     if (index == 3) refreshUnreadChatsCount();
   }
 
-  /// Обновляет счётчик непрочитанных из get_chats (сумма new_message по всем чатам).
+  /// Непрочитанные сообщения + число откликов по контрактам (для бейджей).
   Future<void> refreshUnreadChatsCount() async {
     final r = await NannyChatsApi.getChats(
       SearchQueryRequest(offset: 0, limit: 100, search: ''),
     );
-    if (!r.success || r.response == null) return;
     int sum = 0;
-    for (final c in r.response!.chats) {
-      sum += c.message?.newMessages ?? 0;
+    if (r.success && r.response != null) {
+      for (final c in r.response!.chats) {
+        sum += c.message?.newMessages ?? 0;
+      }
+    }
+    int pending = 0;
+    final sr = await NannyOrdersApi.getScheduleResponses();
+    if (sr.success && sr.response != null) {
+      pending = sr.response!.length;
     }
     if (!context.mounted) return;
-    update(() => unreadChatsCount = sum);
+    update(() {
+      unreadChatMessagesCount = sum;
+      pendingScheduleResponsesCount = pending;
+    });
   }
 
   void initialSetup() async {
@@ -78,13 +95,29 @@ class HomeVM extends ViewModelBase {
     final socket = _socket;
     if (socket == null) return;
 
+    socket.send('subscriptions.update', {
+      'subscriptions': {
+        'contract.responses': true,
+      },
+    });
+
     void refreshOnEvent(Map<String, dynamic> _) {
       refreshUnreadChatsCount();
     }
 
-    _rootRealtimeSubs.add(socket.on('connected').listen(refreshOnEvent));
+    _rootRealtimeSubs.add(socket.on('connected').listen((_) {
+      socket.send('subscriptions.update', {
+        'subscriptions': {
+          'contract.responses': true,
+        },
+      });
+      refreshUnreadChatsCount();
+    }));
     _rootRealtimeSubs.add(socket.on('chat.unread_changed').listen(refreshOnEvent));
     _rootRealtimeSubs.add(socket.on('chat.message_edited').listen(refreshOnEvent));
+    _rootRealtimeSubs.add(
+      socket.on('contract.responses.updated').listen(refreshOnEvent),
+    );
     _rootRealtimeSubs.add(
       socket.on('chat.message_created').listen(_handleChatMessageCreated),
     );

@@ -243,12 +243,16 @@ class _MapBodyState extends State<_MapBody> {
     final session = _activeTripSession;
     if (session == null || session.token.isEmpty || !mounted) return;
 
-    await Navigator.of(context).push(
+    final finished = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => ActiveTripScreen(token: session.token),
       ),
     );
     await _tryRestoreActiveTrip();
+    if (finished == true && mounted) {
+      _mainVm?.resetOrderFormAfterTripComplete();
+      setState(() {});
+    }
   }
 }
 

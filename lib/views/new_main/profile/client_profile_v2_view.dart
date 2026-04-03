@@ -137,12 +137,6 @@ class _ClientProfileV2ViewState extends State<ClientProfileV2View>
           badgeVariant: AutonannyBadgeVariant.success,
           onTap: vm.editEmail,
         ),
-        AutonannyProfileRow(
-          icon: AutonannyIcons.location,
-          label: 'Домашний адрес',
-          value: vm.address,
-          onTap: vm.editAddress,
-        ),
       ],
     );
   }

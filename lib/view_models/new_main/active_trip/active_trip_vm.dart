@@ -86,6 +86,7 @@ class ActiveTripVM extends ViewModelBase {
 
   bool get isFinished => statusId == 11;
   bool get isSearching => statusId == 4 || statusId == null;
+  bool get hasAssignedDriver => driverId != null && driverId! > 0;
   bool get isArrived => statusId == 7 || statusId == 6;
   bool get isInProgress => statusId == 14 || statusId == 15;
   bool get isEnRoute => statusId == 13 || statusId == 5;
@@ -885,12 +886,30 @@ class ActiveTripVM extends ViewModelBase {
 
       final result = await NannyOrdersApi.cancelOrder(orderId: orderId!);
       if (!result.success) {
+        await _reconcileTerminalStateFromServer(fallbackStatus: 3);
+        if (isTerminalCancelled || isFinished) {
+          _publishInfoNotice(
+            const ActiveTripInfoNotice(
+              title: 'Статус обновлён',
+              message:
+                  'Поездка на сервере уже закрыта. Главный экран обновится после возврата.',
+              isError: false,
+            ),
+          );
+          return null;
+        }
+        var msg = result.errorMessage.isNotEmpty
+            ? result.errorMessage
+            : 'Попробуйте ещё раз.';
+        if (RegExp(r'Order\s+\d+\s+cancel', caseSensitive: false)
+            .hasMatch(msg)) {
+          msg =
+              'Эта поездка уже отменена. Если экран не обновился — вернитесь назад и откройте поездку снова.';
+        }
         _publishInfoNotice(
           ActiveTripInfoNotice(
             title: 'Не удалось отменить поездку',
-            message: result.errorMessage.isNotEmpty
-                ? result.errorMessage
-                : 'Попробуйте ещё раз.',
+            message: msg,
             isError: true,
           ),
         );

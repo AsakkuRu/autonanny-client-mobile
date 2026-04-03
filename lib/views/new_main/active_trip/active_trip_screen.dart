@@ -100,7 +100,8 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                 vm: vm,
                 onCancelPressed: _showCancelDialog,
                 onChangeRoutePressed: _showChangeRouteSheet,
-                onDonePressed: () => Navigator.of(context).pop(),
+                onDonePressed: () =>
+                    Navigator.of(context).pop(vm.isFinished),
                 onOpenDriverRating: _openDriverRating,
                 onShowQRPressed: _showMeetingCodeQR,
               ),
@@ -247,7 +248,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                       Navigator.of(ctx).pop();
                       await _openDriverRating();
                       if (!mounted) return;
-                      Navigator.of(context).pop();
+                      Navigator.of(context).pop(true);
                     },
                     child: const Text('Оценить водителя'),
                   ),
@@ -259,7 +260,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                 child: OutlinedButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
-                    Navigator.of(context).pop();
+                    Navigator.of(context).pop(result.statusId == 11);
                   },
                   child: Text(
                     result.supportsDriverRating ? 'Позже' : 'Закрыть',
@@ -476,9 +477,11 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
               title: vm.isArrived
                   ? 'Поздняя отмена со штрафом'
                   : 'Подтвердите отмену поездки',
-              message: vm.isArrived
-                  ? 'Водитель уже прибыл и ожидает. При отмене удерживается 50% стоимости поездки в пользу водителя.'
-                  : 'Поездка будет остановлена, а водитель получит уведомление об отмене.',
+              message: !vm.hasAssignedDriver
+                  ? 'Поиск будет остановлен. Водитель ещё не назначен — никто не уедет к вам.'
+                  : vm.isArrived
+                      ? 'Водитель уже прибыл и ожидает. При отмене удерживается 50% стоимости поездки в пользу водителя.'
+                      : 'Поездка будет остановлена, а водитель получит уведомление об отмене.',
               tone: vm.isArrived
                   ? AutonannyBannerTone.danger
                   : AutonannyBannerTone.info,
@@ -584,7 +587,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     if (cancelled != null && mounted) {
       await _showCancellationResultSheet(cancelled);
       if (!mounted) return;
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(false);
     }
   }
 
@@ -626,10 +629,14 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
             AutonannyInlineBanner(
               title: hasPenalty
                   ? 'Списан штраф за позднюю отмену'
-                  : 'Водитель уже уведомлен',
+                  : (vm.hasAssignedDriver
+                      ? 'Водитель уже уведомлён'
+                      : 'Поиск остановлен'),
               message: hasPenalty
                   ? 'Поездка была отменена после прибытия водителя. С баланса будет удержано $penaltyLabel.'
-                  : 'Активная поездка закрыта, водитель получил уведомление об отмене.',
+                  : (vm.hasAssignedDriver
+                      ? 'Активная поездка закрыта, водитель получил уведомление об отмене.'
+                      : 'Заказ отменён, подбор водителя прекращён.'),
               tone: hasPenalty
                   ? AutonannyBannerTone.danger
                   : AutonannyBannerTone.success,
@@ -1530,7 +1537,7 @@ class _TripSheetState extends State<_TripSheet> {
 
   ({String label, String value, String? caption})? _heroMetric(
       ActiveTripVM vm) {
-    if (vm.isArrived && vm.hasWaitingTimer) {
+    if (vm.isArrived && vm.hasWaitingTimer && !vm.meetingVerified) {
       return (
         label: vm.isWithinFreeWaitingWindow
             ? 'Бесплатное ожидание'

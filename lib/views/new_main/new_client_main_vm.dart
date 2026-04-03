@@ -355,12 +355,15 @@ class NewClientMainVM extends ViewModelBase {
         ),
       );
 
-      Navigator.push(
+      final finished = await Navigator.push<bool>(
         context,
         MaterialPageRoute(
           builder: (_) => ActiveTripScreen(token: res.data!),
         ),
       );
+      if (finished == true && context.mounted) {
+        resetOrderFormAfterTripComplete();
+      }
     } catch (e) {
       Logger().e('NewClientMainVM.searchForDrivers: $e');
       NewMainScreenAnalytics.orderFailed(e.toString());
@@ -410,6 +413,37 @@ class NewClientMainVM extends ViewModelBase {
     if (context.mounted) {
       NannyDialogs.showMessageBox(context, 'Ошибка', msg);
     }
+  }
+
+  /// Сброс формы разовой поездки после успешного завершения (QA 03.04.26).
+  void resetOrderFormAfterTripComplete() {
+    final curLoc = LocationService.curLoc;
+    if (curLoc != null) {
+      addresses = [
+        AddressData(
+          address: NannyMapUtils.simplifyAddress(
+            initAddress.formattedAddress,
+          ),
+          location: initAddress.geometry?.location ??
+              NannyMapUtils.position2LatLng(curLoc),
+        ),
+      ];
+    } else {
+      addresses = [];
+    }
+    selectedAddressIndex = -1;
+    _selectedChildIds.clear();
+    _selectedAdditionalParamKeys.clear();
+    distance = 0;
+    duration = 0;
+    NannyMapGlobals.routes.value.clear();
+    NannyMapGlobals.routes.notifyListeners();
+    _syncMarkersWithAddresses();
+    if (tariffs.isNotEmpty) {
+      selectedTariff = tariffs.first;
+    }
+    _schedulePriceCalc();
+    update(() {});
   }
 
   // ─── loadPage (вызывается FutureLoader / ViewModelBase) ───────────────────

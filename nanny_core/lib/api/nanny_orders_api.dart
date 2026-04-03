@@ -307,14 +307,23 @@ class NannyOrdersApi {
   static Future<ApiResponse<double>> estimateScheduleRoadPrice({
     required int idTariff,
     required List<Map<String, dynamic>> addresses,
+    List<int>? typeDrive,
   }) {
+    final body = <String, dynamic>{
+      "id_tariff": idTariff,
+      "addresses": addresses,
+    };
+    if (typeDrive != null && typeDrive.isNotEmpty) {
+      body["type_drive"] = typeDrive;
+    }
     return RequestBuilder<double>().create(
       dioRequest: DioRequest.dio.post(
         "/orders/schedule_road/estimate",
-        data: {"id_tariff": idTariff, "addresses": addresses},
+        data: body,
       ),
       onSuccess: (response) {
-        final v = response.data["total_price"];
+        final d = response.data;
+        final v = d["client_price_rub"] ?? d["total_price"];
         return (v is num) ? v.toDouble() : 0.0;
       },
       errorCodeMsgs: {405: "Тариф не найден!"},
